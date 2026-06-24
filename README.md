@@ -56,6 +56,7 @@ Idle Timer -> Event Bus -> Subsystem Signals -> Initiative Window
 `0.70`、用户在场、非高专注且隐私风险可接受，同时还要有 WorldOps 内容源
 并通过 15 分钟最小间隔。未达到任一条件时，Runtime 会静默且不调用 LLM。
 同一个 WorldOps 事件不会被重复用于主动开场，但用户主动询问时仍可召回并继续展开。
+主动回合最多注入最近 10 轮对话，用于保持近期关系和话题连续性。
 
 默认 Mock Behavior 是 `casual_idle`，方便直接测试；`project_design` 和
 `focus_work` 都会阻止主动搭话。

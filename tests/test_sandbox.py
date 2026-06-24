@@ -534,9 +534,9 @@ class SandboxTests(unittest.TestCase):
             "proactive_silent",
         )
 
-    def test_proactive_context_only_injects_recent_three_rounds(self) -> None:
+    def test_proactive_context_only_injects_recent_ten_rounds(self) -> None:
         state = seed_state()
-        for idx in range(10):
+        for idx in range(15):
             append_recent_turn(state, "user", f"u{idx}")
             append_recent_turn(state, "sora", f"s{idx}")
         result = AgentRunner(FakeLLMClient()).run_proactive(state, {
@@ -547,8 +547,9 @@ class SandboxTests(unittest.TestCase):
         })
         session = result["context_pack"]["session_context"]
         self.assertEqual(session["recent_turns_mode"], "proactive_tail")
-        self.assertEqual(session["history_items"], 6)
-        self.assertEqual(session["recent_turns"][0]["content"], "u7")
+        self.assertEqual(session["history_items"], 20)
+        self.assertEqual(session["history_rounds"], 10)
+        self.assertEqual(session["recent_turns"][0]["content"], "u5")
 
     def test_idle_duration_parser(self) -> None:
         self.assertEqual(parse_duration_seconds("3m"), 180)

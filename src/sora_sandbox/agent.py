@@ -299,7 +299,7 @@ def build_session_context(state: JsonDict, behavior_frame: JsonDict, context_use
     if mode == "full":
         recent_turns = all_recent_turns
     elif mode == "proactive_tail":
-        recent_turns = all_recent_turns[-6:]
+        recent_turns = all_recent_turns[-20:]
     else:
         recent_turns = []
     return {
@@ -428,7 +428,7 @@ def build_context_use_policy(turn_frame: JsonDict) -> JsonDict:
 
     if turn_frame["speech_act"] == "proactive_opening":
         recent_turns_mode = "proactive_tail"
-        omitted_reason = "主动搭话只注入最近 3 轮，避免携带完整对话历史。"
+        omitted_reason = "主动搭话只注入最近 10 轮，兼顾关系连续性与上下文成本。"
         allowed.extend(["recent_turns_tail", "worldops_event"])
         blocked.extend(["full_recent_turns", "memory_recollection"])
     elif turn_frame["context_relevance"] == "low":
