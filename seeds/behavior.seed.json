@@ -1,0 +1,50 @@
+{
+  "current": {
+    "preset": "project_design",
+    "app": "Feishu + Editor",
+    "window": "Project Sora Agent State Sandbox",
+    "duration_sec": 1800,
+    "afk": false,
+    "scene_type": "project_design",
+    "scene_summary": "用户正在设计 Project Sora 的 Agent 工程验证原型。",
+    "privacy_level": "normal"
+  },
+  "presets": {
+    "project_design": {
+      "app": "Feishu + Editor",
+      "window": "Project Sora Agent State Sandbox",
+      "duration_sec": 1800,
+      "afk": false,
+      "scene_type": "project_design",
+      "scene_summary": "用户正在设计 Project Sora 的 Agent 工程验证原型。",
+      "privacy_level": "normal"
+    },
+    "focus_work": {
+      "app": "VS Code",
+      "window": "Deep Work Session",
+      "duration_sec": 2400,
+      "afk": false,
+      "scene_type": "focus_work",
+      "scene_summary": "用户处于专注工作或学习状态，表达应更克制。",
+      "privacy_level": "normal"
+    },
+    "game_companion": {
+      "app": "Game",
+      "window": "Game Session",
+      "duration_sec": 2600,
+      "afk": false,
+      "scene_type": "game_companion",
+      "scene_summary": "用户处在游戏陪伴场景，适合低打扰旁观和短反馈。",
+      "privacy_level": "normal"
+    },
+    "watch_companion": {
+      "app": "Browser",
+      "window": "Video Playback",
+      "duration_sec": 1700,
+      "afk": false,
+      "scene_type": "watch_companion",
+      "scene_summary": "用户处在观看陪伴场景，表达应尽量安静。",
+      "privacy_level": "normal"
+    }
+  }
+}

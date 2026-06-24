@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and builds
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# Local runtime state and credentials
+.sandbox/
+.env
+.env.*
+!.env.example
+credentials.json
+state.json
+
+# Local exports and packages
+outputs/
+*.zip
+sora-sandbox-state-export.json
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

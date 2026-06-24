@@ -1,0 +1,644 @@
+from __future__ import annotations
+
+import json
+import shlex
+from pathlib import Path
+from typing import Any
+
+from .prompt_loader import load_prompt_registry
+from .render import render_trace_panel
+from .state import (
+    add_memory_item,
+    apply_growth_event,
+    commit_memory_hook,
+    find_world_event,
+    load_origin_templates,
+    list_memory_hooks,
+    now_ms,
+    reject_growth_event,
+    reject_memory_hook,
+    select_origin_template,
+    summarize_state,
+)
+
+
+JsonDict = dict[str, Any]
+
+
+class CommandError(RuntimeError):
+    pass
+
+
+def handle_command(line: str, state: JsonDict) -> tuple[str, bool]:
+    parts = shlex.split(line, posix=False)
+    if not parts:
+        return "", False
+    command = parts[0].lower()
+    args = parts[1:]
+
+    if command in {"/exit", "/quit", "/q"}:
+        return "再见。状态已经保存在本地。", True
+    if command in {"/help", "/?"}:
+        return help_text(), False
+    if command == "/state":
+        return dump(summarize_state(state)), False
+    if command == "/trace":
+        result = state["observability"].get("last_run_result", {})
+        if not result:
+            return "暂无 Agent 轨迹。先输入一句话跑一轮。", False
+        return render_trace_panel(result), False
+    if command == "/trace-json":
+        return dump(state["observability"].get("last_trace", [])), False
+    if command == "/state-diff":
+        return dump(state["observability"].get("last_state_diff", {})), False
+    if command == "/response-plan":
+        return dump(state["observability"].get("last_response_plan", {})), False
+    if command == "/signals":
+        return dump(state["observability"].get("last_context_pack", {}).get("signals", [])), False
+    if command == "/subsystems":
+        return dump(state["observability"].get("last_context_pack", {}).get("subsystem_health", [])), False
+    if command == "/arbitration":
+        return dump(state["observability"].get("last_context_pack", {}).get("arbitration_result", {})), False
+    if command == "/initiative":
+        return dump({
+            "state": state.get("initiative", {}),
+            "last_window": state["observability"].get("last_context_pack", {}).get("initiative_window", {}),
+        }), False
+    if command == "/proactive":
+        return dump(state.get("initiative", {})), False
+    if command == "/set-idle-threshold":
+        return set_idle_threshold(args, state), False
+    if command == "/origin":
+        return dump(state.get("origin", {})), False
+    if command == "/origins":
+        return dump(load_origin_templates()), False
+    if command == "/set-origin":
+        return set_origin_command(args, state), False
+    if command == "/reroll-origin":
+        return reroll_origin_command(state), False
+    if command == "/prompts":
+        return list_prompts(), False
+    if command == "/prompt":
+        return show_prompt(args), False
+    if command in {"/show-history", "/history"}:
+        return show_history(state), False
+    if command == "/clear-history":
+        state["session"]["recent_turns"] = []
+        state["session"]["rolling_summary"] = ""
+        return "短期对话历史已清空。", False
+
+    if command == "/memories":
+        return dump(state["memory"]["items"]), False
+    if command == "/add-memory":
+        return add_memory(args, state), False
+    if command == "/search-memory":
+        return search_memory(args, state), False
+    if command == "/disable-memory":
+        return set_memory_status(args, state, "disabled"), False
+    if command == "/delete-memory":
+        return set_memory_status(args, state, "deleted"), False
+    if command == "/memory-hooks":
+        return dump(list_memory_hooks(state)), False
+    if command == "/commit-memory-hook":
+        return commit_memory_hook_command(args, state), False
+    if command == "/reject-memory-hook":
+        return reject_memory_hook_command(args, state), False
+
+    if command == "/persona":
+        return dump(state["persona"]), False
+    if command == "/persona-core":
+        return dump(state["persona"]["persona_core"]), False
+    if command == "/traits":
+        return dump(state["persona"]["persona_traits"]), False
+    if command == "/set-trait":
+        return set_trait(args, state), False
+    if command == "/short-state":
+        return dump(state["persona"]["short_term_state"]), False
+    if command == "/set-mood":
+        return set_short_state(args, state, "mood"), False
+    if command == "/set-energy":
+        return set_short_state(args, state, "energy"), False
+    if command == "/interests":
+        return dump(state["persona"]["interest_graph"]), False
+    if command == "/set-interest":
+        return set_interest(args, state), False
+    if command == "/judgment":
+        return dump(state["persona"]["judgment_policy"]), False
+    if command == "/set-judgment":
+        return set_judgment(args, state), False
+    if command == "/growth-events":
+        return dump(state["persona"].get("growth_events", [])), False
+    if command == "/apply-growth-event":
+        return apply_growth_event_command(args, state), False
+    if command == "/reject-growth-event":
+        return reject_growth_event_command(args, state), False
+
+    if command == "/worldops":
+        return dump({k: v for k, v in state["worldops"].items() if k != "content_pack"} | {"content_pack_summary": {"world_name": state["worldops"]["content_pack"]["world_name"], "events": len(state["worldops"]["content_pack"].get("events", []))}}), False
+    if command == "/worldops-events":
+        return dump(state["worldops"]["content_pack"].get("events", [])), False
+    if command == "/activate-world-event":
+        return activate_world_event(args, state), False
+    if command == "/set-world-expression":
+        return set_world_expression(args, state), False
+    if command == "/start-micro-quest":
+        return start_micro_quest(args, state), False
+    if command == "/complete-micro-quest":
+        return complete_micro_quest(args, state), False
+    if command == "/ignore-world-event":
+        return ignore_world_event(args, state), False
+    if command == "/worldops-memory-hooks":
+        return dump(state["worldops"].get("memory_hooks", [])), False
+
+    if command == "/behavior":
+        return dump(state["behavior"]), False
+    if command == "/set-behavior":
+        return set_behavior(args, state), False
+
+    if command == "/export-state":
+        return export_state(args, state), False
+
+    raise CommandError(f"未知命令：{command}。输入 /help 查看命令。")
+
+
+def dump(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+def arg_value(value: str) -> str:
+    value = value.strip().strip('"')
+    if len(value) >= 2 and value[0] == "<" and value[-1] == ">":
+        return value[1:-1].strip()
+    return value
+
+
+def help_text() -> str:
+    return """Sora Agent State Sandbox 命令
+
+说明：尖括号表示占位符，实际输入时不用带尖括号。
+例：/delete-memory mem_seed_workflow_001
+
+对话：
+  <任意文字>
+      走完整 Agent 链路：Event Bus -> 多子系统 Signal -> Initiative Window -> Arbiter -> Express。
+
+观察与调试：
+  /state
+      查看当前状态摘要：memory 数量、persona 摘要、active WorldOps、behavior、session。
+  /trace
+      查看上一轮可读轨迹面板，适合确认 Runtime phases、Signal timings 和 Arbiter 裁决。
+  /trace-json
+      查看上一轮原始 trace 事件流，适合调试节点事件。
+  /state-diff
+      查看上一轮产生了哪些状态影响候选，比如记忆使用、WorldOps 使用、表达路由。
+  /response-plan
+      查看上一轮 Agent Runtime 的回应计划，不包含真实自动写入长期状态。
+  /signals
+      查看上一轮各子系统产出的标准 Signal，适合判断哪些系统想发声。
+  /subsystems
+      查看上一轮子系统 Adapter 的状态、延迟、Signal 数量和降级原因。
+  /arbitration
+      查看上一轮 Arbiter 结果：selected/background/suppressed signals 与回复指令。
+  /initiative
+      查看主动性状态和上一轮 initiative_window，适合调试 Sora 是否该主动开口。
+  /proactive
+      查看后台主动搭话配置、最近尝试、上次发言时间和冷却参数。
+  /simulate-idle [3m]
+      立即模拟一次无用户输入的空闲唤醒；支持 30s、3m、1h 等时长。
+  /set-idle-threshold <分钟>
+      修改后台空闲触发阈值。默认 3 分钟；例：/set-idle-threshold 3
+  /origin
+      查看当前 Origin Template，也就是 Sora 的初始生活底色。
+  /origins
+      列出所有可用 Origin Template。
+  /set-origin <id>
+      手动切换 Origin Template，并重新应用初始 trait 偏移、WorldOps 入口和主动性 bias。
+  /reroll-origin
+      随机重选一个 Origin Template，适合测试冷启动差异。
+  /prompts
+      查看当前 prompt 版本和各 prompt 文件路径。
+  /prompt system|user_context|dialogue_control
+      打印指定 prompt 文件内容，方便直接查看正在生效的规则。
+  /show-history 或 /history
+      查看短期对话窗口，当前保留最近 20 轮 user/Sora 消息。
+  /clear-history
+      清空短期对话窗口，用于验证无上下文时的回复稳定性。
+
+Memory：
+  /memories
+      列出所有 mock/seed/manual memory。
+  /add-memory <内容> --type <类型> --tags <tag1,tag2>
+      手动添加一条记忆。例：/add-memory 用户喜欢先聊方案 --type preference --tags workflow,agent
+  /search-memory <关键词>
+      按关键词搜索 active memory。
+  /disable-memory <id>
+      禁用一条 memory，让召回不再使用它。
+  /delete-memory <id>
+      标记删除一条 memory；当前是软删除，不直接物理移除。
+  /memory-hooks
+      查看待提交或已处理的记忆写入候选。
+  /commit-memory-hook <id>
+      手动确认一个记忆候选，写入长期 Memory。
+  /reject-memory-hook <id>
+      拒绝一个记忆候选，不写入长期 Memory。
+
+Persona：
+  /persona
+      查看完整 persona 状态。
+  /persona-core
+      查看 Sora 的核心身份、世界观链接和安全边界。
+  /traits
+      查看长期特质参数。
+  /set-trait <name> <value> --debug
+      手动调整长期特质，并记录 debug override。例：/set-trait playfulness 0.55 --debug
+  /short-state
+      查看短期 mood/energy/current_focus。
+  /set-mood <mood>
+      设置短期心情。例：/set-mood 好奇
+  /set-energy <energy>
+      设置短期精力。例：/set-energy 低
+  /interests
+      查看兴趣图谱。
+  /set-interest <topic> sora_interest=0.7 shared_density=0.8
+      手动调整兴趣图谱。shared_density 会写入 shared_experience_density。
+  /judgment
+      查看判断倾向参数。
+  /set-judgment <dimension> <value> --debug
+      手动调整判断倾向，并记录 debug override。例：/set-judgment risk_tolerance 0.35 --debug
+  /growth-events
+      查看 Persona 成长候选事件；当前只观察，不自动应用。
+  /apply-growth-event <id>
+      手动应用一个成长候选，小幅调整对应 Persona trait。
+  /reject-growth-event <id>
+      拒绝一个成长候选，不改变 Persona。
+
+WorldOps：
+  /worldops
+      查看 WorldOps runtime 摘要和 active event。
+  /worldops-events
+      列出世界观事件池。
+  /activate-world-event <id>
+      激活一个世界事件，让下一轮回复可受其影响。
+  /set-world-expression <id> L0|L1|L2|L3
+      手动设置事件默认表达等级：L0 静默，L1 轻提，L2 气泡/短句，L3 邀请互动。
+  /start-micro-quest <id>
+      启动某个事件的微任务，适合验证 WorldOps 进入互动支线。
+  /complete-micro-quest <id> --choice <内容>
+      完成微任务并生成 memory hook 候选，不会直接写长期记忆。
+  /ignore-world-event <id>
+      标记用户忽略/拒绝该事件，并从 active event 中移除。
+  /worldops-memory-hooks
+      查看 WorldOps 产生的共同经历写入候选。
+
+Behavior：
+  /behavior
+      查看当前 mock 行为感知状态和可用 preset。
+  /set-behavior project_design|focus_work|game_companion|watch_companion
+      切换 mock 行为场景；切换后一轮 changed=true，随后变为沿用。
+
+状态管理：
+  /export-state [path]
+      导出完整 sandbox state，默认写到 sora-sandbox-state-export.json。
+  /help 或 /?
+      显示本帮助。
+  /exit /quit /q
+      保存状态并退出。"""
+
+
+def list_prompts() -> str:
+    registry = load_prompt_registry()
+    return dump({
+        "version": registry.version,
+        "system": str(registry.system),
+        "user_context": str(registry.user_context),
+        "dialogue_control": str(registry.dialogue_control),
+    })
+
+
+def show_prompt(args: list[str]) -> str:
+    if not args:
+        raise CommandError("用法：/prompt system|user_context|dialogue_control")
+    name = arg_value(args[0])
+    registry = load_prompt_registry()
+    prompts = {
+        "system": registry.system,
+        "user_context": registry.user_context,
+        "dialogue_control": registry.dialogue_control,
+    }
+    if name not in prompts:
+        raise CommandError("未知 prompt 名称。可用：system, user_context, dialogue_control")
+    return prompts[name].read_text(encoding="utf-8")
+
+
+def show_history(state: JsonDict) -> str:
+    turns = state["session"].get("recent_turns", [])
+    if not turns:
+        return "暂无短期对话历史。"
+    lines = [f"短期对话历史：{len(turns)} 条（约 {len(turns) // 2} 轮，窗口上限 20 轮）"]
+    for turn in turns[-10:]:
+        role = "用户" if turn.get("role") == "user" else "Sora"
+        content = str(turn.get("content", ""))
+        if len(content) > 100:
+            content = content[:97] + "..."
+        lines.append(f"- {role}: {content}")
+    return "\n".join(lines)
+
+
+def set_origin_command(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/set-origin <id>")
+    try:
+        template = select_origin_template(state, arg_value(args[0]), mode="manual_set")
+    except ValueError as exc:
+        raise CommandError(str(exc)) from exc
+    return dump({"selected": template, "origin": state.get("origin", {})})
+
+
+def reroll_origin_command(state: JsonDict) -> str:
+    try:
+        template = select_origin_template(state, mode="manual_reroll")
+    except ValueError as exc:
+        raise CommandError(str(exc)) from exc
+    return dump({"selected": template, "origin": state.get("origin", {})})
+
+
+def add_memory(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/add-memory <内容> --type preference --tags a,b")
+    memory_type = "episode"
+    tags: list[str] = []
+    content_parts: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--type" and i + 1 < len(args):
+            memory_type = args[i + 1]
+            i += 2
+        elif args[i] == "--tags" and i + 1 < len(args):
+            tags = [tag.strip() for tag in args[i + 1].split(",") if tag.strip()]
+            i += 2
+        else:
+            content_parts.append(args[i])
+            i += 1
+    content = " ".join(content_parts).strip('"')
+    item = add_memory_item(state, content, memory_type, tags)
+    return f"已添加 memory: {item['id']}"
+
+
+def search_memory(args: list[str], state: JsonDict) -> str:
+    query = " ".join(args).strip('"')
+    rows = []
+    for item in state["memory"]["items"]:
+        haystack = " ".join([item.get("content", ""), " ".join(item.get("tags", []))])
+        if query in haystack and item.get("status") == "active":
+            rows.append(item)
+    return dump(rows)
+
+
+def set_memory_status(args: list[str], state: JsonDict, status: str) -> str:
+    if not args:
+        raise CommandError("需要 memory id。")
+    memory_id = arg_value(args[0])
+    for item in state["memory"]["items"]:
+        if item["id"] == memory_id:
+            item["status"] = status
+            return f"{memory_id} -> {status}"
+    raise CommandError(f"找不到 memory: {memory_id}")
+
+
+def commit_memory_hook_command(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/commit-memory-hook <id>")
+    try:
+        return dump(commit_memory_hook(state, arg_value(args[0])))
+    except ValueError as exc:
+        raise CommandError(str(exc)) from exc
+
+
+def reject_memory_hook_command(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/reject-memory-hook <id>")
+    try:
+        return dump(reject_memory_hook(state, arg_value(args[0])))
+    except ValueError as exc:
+        raise CommandError(str(exc)) from exc
+
+
+def set_trait(args: list[str], state: JsonDict) -> str:
+    if len(args) < 2:
+        raise CommandError("用法：/set-trait <name> <value> --debug")
+    name = arg_value(args[0])
+    value = float(arg_value(args[1]))
+    traits = state["persona"]["persona_traits"]
+    if name not in traits:
+        raise CommandError(f"未知 trait: {name}")
+    old = traits[name]["value"]
+    value = max(traits[name]["min_bound"], min(traits[name]["max_bound"], value))
+    traits[name]["value"] = value
+    state["persona"].setdefault("debug_overrides", []).append({
+        "target": f"persona_traits.{name}",
+        "old": old,
+        "new": value,
+        "reason": "manual_repl_debug",
+        "at": now_ms(),
+    })
+    return f"{name}: {old} -> {value} (debug override)"
+
+
+def set_short_state(args: list[str], state: JsonDict, key: str) -> str:
+    if not args:
+        raise CommandError(f"用法：/set-{key} <value>")
+    old = state["persona"]["short_term_state"].get(key)
+    new = " ".join(args).strip('"')
+    state["persona"]["short_term_state"][key] = new
+    return f"{key}: {old} -> {new}"
+
+
+def set_interest(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/set-interest <topic> sora_interest=0.7 shared_density=0.8")
+    topic = arg_value(args[0])
+    item = state["persona"]["interest_graph"].setdefault(topic, {
+        "user_interest": 0.0,
+        "shared_experience_density": 0.0,
+        "sora_interest": 0.0,
+        "emotional_valence": 0.0,
+        "curiosity_reason": "manual_debug",
+        "current_attitude": "观察中",
+    })
+    for pair in args[1:]:
+        if "=" in pair:
+            key, raw = pair.split("=", 1)
+            normalized = "shared_experience_density" if key == "shared_density" else key
+            item[normalized] = float(raw)
+    return dump({topic: item})
+
+
+def set_judgment(args: list[str], state: JsonDict) -> str:
+    if len(args) < 2:
+        raise CommandError("用法：/set-judgment <dimension> <value> --debug")
+    name = arg_value(args[0])
+    value = float(arg_value(args[1]))
+    policy = state["persona"]["judgment_policy"]
+    if name not in policy:
+        raise CommandError(f"未知 judgment dimension: {name}")
+    old = policy[name]["value"]
+    policy[name]["value"] = max(0.0, min(1.0, value))
+    state["persona"].setdefault("debug_overrides", []).append({
+        "target": f"judgment_policy.{name}",
+        "old": old,
+        "new": policy[name]["value"],
+        "reason": "manual_repl_debug",
+        "at": now_ms(),
+    })
+    return f"{name}: {old} -> {policy[name]['value']} (debug override)"
+
+
+def apply_growth_event_command(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/apply-growth-event <id>")
+    try:
+        return dump(apply_growth_event(state, arg_value(args[0])))
+    except ValueError as exc:
+        raise CommandError(str(exc)) from exc
+
+
+def reject_growth_event_command(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/reject-growth-event <id>")
+    try:
+        return dump(reject_growth_event(state, arg_value(args[0])))
+    except ValueError as exc:
+        raise CommandError(str(exc)) from exc
+
+
+def activate_world_event(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("需要 event id。")
+    event_id = arg_value(args[0])
+    event = find_world_event(state["worldops"], event_id)
+    if not event:
+        raise CommandError(f"找不到 WorldOps event: {event_id}")
+    state["worldops"]["active_event_id"] = event_id
+    return f"已激活 WorldOps event: {event_id}"
+
+
+def set_world_expression(args: list[str], state: JsonDict) -> str:
+    if len(args) < 2:
+        raise CommandError("用法：/set-world-expression <id> L0|L1|L2|L3")
+    event_id = arg_value(args[0])
+    event = find_world_event(state["worldops"], event_id)
+    if not event:
+        raise CommandError(f"找不到 WorldOps event: {event_id}")
+    level = arg_value(args[1]).upper()
+    if level not in {"L0", "L1", "L2", "L3", "L4"}:
+        raise CommandError("表达等级必须是 L0-L4。")
+    event["expression_default"] = level
+    return f"{event['event_id']} expression_default -> {level}"
+
+
+def start_micro_quest(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("需要 event id。")
+    event_id = arg_value(args[0])
+    event = find_world_event(state["worldops"], event_id)
+    if not event:
+        raise CommandError(f"找不到 WorldOps event: {event_id}")
+    if not event.get("micro_quest", {}).get("enabled"):
+        raise CommandError("该事件没有启用 micro_quest。")
+    session = {
+        "quest_id": f"quest_{now_ms()}",
+        "event_id": event["event_id"],
+        "stage": "invite",
+        "goal": event["micro_quest"]["goal"],
+        "status": "active",
+        "can_exit_anytime": True,
+        "no_penalty": True,
+        "started_at": now_ms(),
+    }
+    state["worldops"].setdefault("micro_quest_sessions", []).append(session)
+    state["worldops"]["active_event_id"] = event["event_id"]
+    return dump(session)
+
+
+def complete_micro_quest(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/complete-micro-quest <id> --choice <内容>")
+    event_id = arg_value(args[0])
+    choice = ""
+    if "--choice" in args:
+        idx = args.index("--choice")
+        choice = " ".join(args[idx + 1:]).strip('"')
+    for session in state["worldops"].get("micro_quest_sessions", []):
+        if session["event_id"] == event_id and session["status"] == "active":
+            session["status"] = "completed"
+            session["stage"] = "memory"
+            session["choice"] = choice
+            hook = {
+                "hook_id": f"worldops_hook_{now_ms()}",
+                "event_id": event_id,
+                "quest_id": session["quest_id"],
+                "episode_summary": f"用户和 Sora 完成了微任务：{choice}",
+                "write_policy": "manual_commit_required",
+                "created_at": now_ms(),
+            }
+            state["worldops"].setdefault("memory_hooks", []).append(hook)
+            return dump({"session": session, "memory_hook": hook})
+    raise CommandError(f"找不到 active micro quest: {event_id}")
+
+
+def ignore_world_event(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("需要 event id。")
+    event_id = arg_value(args[0])
+    state["worldops"].setdefault("runtime_decisions", []).append({
+        "event_id": event_id,
+        "decision": "ignored_by_user",
+        "effect": "decrease_similar_event_frequency",
+        "at": now_ms(),
+    })
+    if state["worldops"].get("active_event_id") == event_id:
+        state["worldops"]["active_event_id"] = None
+    return f"{event_id} 已标记为 ignored，不写共同经历。"
+
+
+def set_behavior(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/set-behavior <preset>")
+    preset = arg_value(args[0])
+    presets = state["behavior"]["presets"]
+    if preset not in presets:
+        raise CommandError(f"未知 behavior preset: {preset}")
+    previous = state["behavior"].get("current", {})
+    changed = previous.get("preset") != preset
+    last_changed_at = now_ms() if changed else previous.get("last_changed_at", now_ms())
+    state["behavior"]["current"] = {
+        "preset": preset,
+        **presets[preset],
+        "changed": changed,
+        "updated_at": now_ms(),
+        "last_changed_at": last_changed_at,
+    }
+    marker = "切换" if changed else "沿用"
+    return f"behavior -> {preset} ({marker})"
+
+
+def set_idle_threshold(args: list[str], state: JsonDict) -> str:
+    if not args:
+        raise CommandError("用法：/set-idle-threshold <分钟>")
+    try:
+        minutes = float(arg_value(args[0]))
+    except ValueError:
+        raise CommandError("空闲阈值必须是分钟数，例如 3。") from None
+    if minutes <= 0:
+        raise CommandError("空闲阈值必须大于 0。")
+    seconds = max(1, int(minutes * 60))
+    initiative = state.setdefault("initiative", {})
+    initiative["idle_threshold_sec"] = seconds
+    initiative["scheduler_enabled"] = True
+    return f"主动搭话空闲阈值已设置为 {seconds} 秒（{minutes:g} 分钟）。"
+
+
+def export_state(args: list[str], state: JsonDict) -> str:
+    target = Path(args[0]) if args else Path("sora-sandbox-state-export.json")
+    target.write_text(dump(state), encoding="utf-8")
+    return f"已导出：{target.resolve()}"

@@ -1,0 +1,6 @@
+{
+  "version": "sora_companion_v0.6",
+  "system": "prompts/system.md",
+  "user_context": "prompts/user_context.md",
+  "dialogue_control": "prompts/dialogue_control.md"
+}

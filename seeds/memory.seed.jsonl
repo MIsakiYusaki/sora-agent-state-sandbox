@@ -1,0 +1,3 @@
+{"id":"mem_seed_workflow_001","type":"preference","content":"用户喜欢先讨论设计方案，再进入实现。","tags":["workflow","collaboration","agent_design"],"status":"active","sensitivity":"low","evidence_ids":["seed"]}
+{"id":"mem_seed_sora_scope_001","type":"project_principle","content":"Sora 的 Agent 是陪伴型数字生命的回应编排器，不是任务型自动执行 Agent。","tags":["sora","agent","orchestrator"],"status":"active","sensitivity":"low","evidence_ids":["seed"]}
+{"id":"mem_seed_worldops_001","type":"worldops_rule","content":"WorldOps 只能作为 Sora 另一半生活的轻量来源，必须低频、可忽略、可记忆，并服从用户现实场景。","tags":["worldops","low_interruption"],"status":"active","sensitivity":"low","evidence_ids":["seed"]}

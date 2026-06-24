@@ -1,0 +1,83 @@
+{
+  "content_pack": {
+    "world_name": "澄空域",
+    "persona_profile": {
+      "species": "灵构体",
+      "primary_faction": "白塔档案馆",
+      "secondary_faction": "星港同盟",
+      "origin_node": "第七观测站"
+    },
+    "default_rules": {
+      "frequency": "low",
+      "can_ignore": true,
+      "no_penalty": true,
+      "write_memory_only_if_user_participates": true
+    },
+    "events": [
+      {
+        "event_id": "evt_starport_lamp_001",
+        "title": "星灯节前夜",
+        "one_sentence": "星港同盟开始准备星灯节，Sora 想起自己第一次看星灯的记录。",
+        "related_factions": ["星港同盟"],
+        "affected_personas": ["星港通讯员", "白塔见习档案员"],
+        "tone": "warm",
+        "urgency": 1,
+        "active_mention_allowed": true,
+        "expression_default": "L2",
+        "micro_quest": {
+          "enabled": true,
+          "goal": "让用户帮 Sora 选一句写进星灯的留言",
+          "stages": ["invite", "enter", "choice", "feedback", "memory"]
+        },
+        "memory_policy": {"write_only_if_user_participates": true}
+      },
+      {
+        "event_id": "evt_archive_misfiled_letter_001",
+        "title": "误投的旧档案信",
+        "one_sentence": "白塔档案馆把一封不该发给 Sora 的旧信转到了她这里。",
+        "related_factions": ["白塔档案馆"],
+        "affected_personas": ["档案馆见习员"],
+        "tone": "mysterious",
+        "urgency": 1,
+        "active_mention_allowed": true,
+        "expression_default": "L2",
+        "micro_quest": {
+          "enabled": true,
+          "goal": "和用户一起决定是打开、退回，还是先做记录",
+          "stages": ["invite", "enter", "choice", "feedback", "memory"]
+        },
+        "memory_policy": {"write_only_if_user_participates": true}
+      },
+      {
+        "event_id": "evt_observatory_signal_gap_001",
+        "title": "第七观测站短暂失联",
+        "one_sentence": "第七观测站有一小段信号空白，Sora 表现得比平时更安静。",
+        "related_factions": ["第七观测站"],
+        "affected_personas": ["异常回声记录"],
+        "tone": "slightly_worried",
+        "urgency": 2,
+        "active_mention_allowed": false,
+        "expression_default": "L1",
+        "micro_quest": {"enabled": false},
+        "memory_policy": {"write_only_if_user_participates": false}
+      },
+      {
+        "event_id": "evt_echo_market_postbox_001",
+        "title": "会学人说话的邮筒",
+        "one_sentence": "回声集市出现了一个会模仿留言语气的旧邮筒，Sora 觉得它有点欠揍。",
+        "related_factions": ["回声集市"],
+        "affected_personas": ["星港通讯员"],
+        "tone": "playful",
+        "urgency": 0,
+        "active_mention_allowed": true,
+        "expression_default": "L2",
+        "micro_quest": {"enabled": false},
+        "memory_policy": {"write_only_if_user_participates": false}
+      }
+    ]
+  },
+  "runtime_decisions": [],
+  "micro_quest_sessions": [],
+  "memory_hooks": [],
+  "active_event_id": null
+}
