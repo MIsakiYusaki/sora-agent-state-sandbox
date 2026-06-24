@@ -161,6 +161,7 @@ def summarize_state(state: JsonDict) -> JsonDict:
             "minimum_interval_sec": state.get("initiative", {}).get("minimum_interval_sec", 900),
             "last_initiated_at": state.get("initiative", {}).get("last_initiated_at"),
             "recent_attempts": len(state.get("initiative", {}).get("recent_attempts", [])),
+            "proactive_topics_used": len(state.get("initiative", {}).get("proactive_topic_history", [])),
             "cooldowns": list(state.get("initiative", {}).get("cooldowns", {}).keys()),
             "worldops_share_when_free": state.get("initiative", {}).get("user_preference", {}).get("worldops_share_when_free", True),
         },
@@ -178,10 +179,52 @@ def ensure_state_migrations(state: JsonDict) -> bool:
         changed = True
     initiative = state.setdefault("initiative", default_initiative_state())
     defaults = default_initiative_state()
-    for key in ("idle_threshold_sec", "minimum_interval_sec", "scheduler_enabled"):
+    for key in (
+        "idle_threshold_sec",
+        "minimum_interval_sec",
+        "scheduler_enabled",
+        "proactive_topic_history",
+    ):
         if key not in initiative:
             initiative[key] = defaults[key]
             changed = True
+    behavior_seed = read_json(SEEDS_DIR / "behavior.seed.json")
+    behavior = state.setdefault("behavior", {})
+    presets = behavior.setdefault("presets", {})
+    for preset_name, preset in behavior_seed.get("presets", {}).items():
+        if preset_name not in presets:
+            presets[preset_name] = preset
+            changed = True
+        else:
+            for key in (
+                "interruptibility",
+                "interruptibility_confidence",
+                "user_present",
+                "focus_level",
+            ):
+                if key not in presets[preset_name] and key in preset:
+                    presets[preset_name][key] = preset[key]
+                    changed = True
+    current = behavior.setdefault("current", {})
+    if "interruptibility" not in current:
+        if current.get("preset") == "project_design":
+            behavior["current"] = {
+                "preset": "casual_idle",
+                **presets["casual_idle"],
+                "changed": True,
+                "updated_at": now_ms(),
+                "last_changed_at": now_ms(),
+            }
+        else:
+            preset = presets.get(current.get("preset"), {})
+            for key in (
+                "interruptibility",
+                "interruptibility_confidence",
+                "user_present",
+                "focus_level",
+            ):
+                current[key] = preset.get(key)
+        changed = True
     return changed
 
 
@@ -194,6 +237,7 @@ def default_initiative_state() -> JsonDict:
         "last_initiated_at": None,
         "cooldowns": {},
         "recent_attempts": [],
+        "proactive_topic_history": [],
         "user_preference": {
             "initiative_level": "moderate",
             "worldops_share_when_free": True,

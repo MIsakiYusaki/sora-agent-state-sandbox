@@ -96,7 +96,13 @@ class AgentRunner:
         update_session(state, user_input or "[proactive idle turn]", reply)
         persist_response_candidates(state, response_plan)
         if proactive_trigger:
-            record_proactive_attempt(state, proactive_trigger, emitted=True, reply=reply)
+            record_proactive_attempt(
+                state,
+                proactive_trigger,
+                emitted=True,
+                reply=reply,
+                topic_id=selected_proactive_topic_id(context_pack),
+            )
         timing["state_commit"] = _elapsed_since(t0)
 
         state_diff = build_state_diff(context_pack, response_plan, expression_event)
@@ -289,7 +295,13 @@ def build_context_pack(
 def build_session_context(state: JsonDict, behavior_frame: JsonDict, context_use_policy: JsonDict) -> JsonDict:
     session = state["session"]
     all_recent_turns = session.get("recent_turns", [])[-40:]
-    recent_turns = all_recent_turns if context_use_policy["recent_turns_mode"] == "full" else []
+    mode = context_use_policy["recent_turns_mode"]
+    if mode == "full":
+        recent_turns = all_recent_turns
+    elif mode == "proactive_tail":
+        recent_turns = all_recent_turns[-6:]
+    else:
+        recent_turns = []
     return {
         "session_id": session["session_id"],
         "turn_id": session["turn_id"],
@@ -414,7 +426,12 @@ def build_context_use_policy(turn_frame: JsonDict) -> JsonDict:
     recent_turns_mode = "full"
     omitted_reason = None
 
-    if turn_frame["context_relevance"] == "low":
+    if turn_frame["speech_act"] == "proactive_opening":
+        recent_turns_mode = "proactive_tail"
+        omitted_reason = "主动搭话只注入最近 3 轮，避免携带完整对话历史。"
+        allowed.extend(["recent_turns_tail", "worldops_event"])
+        blocked.extend(["full_recent_turns", "memory_recollection"])
+    elif turn_frame["context_relevance"] == "low":
         recent_turns_mode = "metadata_only"
         omitted_reason = "当前输入为轻量寒暄，recent_turns 只用于统计，不进入生成上下文。"
         blocked.extend(["recent_turns_content", "memory_recollection", "worldops_event"])
@@ -594,6 +611,10 @@ def build_event_bus(
                 "scene_type": behavior_frame.get("scene_type"),
                 "changed": behavior_frame.get("changed", False),
                 "afk": behavior_frame.get("afk", False),
+                "interruptibility": behavior_frame.get("interruptibility", "unknown"),
+                "interruptibility_confidence": behavior_frame.get("interruptibility_confidence", 0.0),
+                "user_present": behavior_frame.get("user_present", False),
+                "focus_level": behavior_frame.get("focus_level", "unknown"),
             },
         }
     )
@@ -758,6 +779,10 @@ def behavior_signal(event_bus: JsonDict, behavior_frame: JsonDict) -> JsonDict:
             "scene_type": scene_type,
             "is_work_like": work_like,
             "changed": behavior_frame.get("changed", False),
+            "interruptibility": behavior_frame.get("interruptibility", "unknown"),
+            "interruptibility_confidence": behavior_frame.get("interruptibility_confidence", 0.0),
+            "user_present": behavior_frame.get("user_present", False),
+            "focus_level": behavior_frame.get("focus_level", "unknown"),
         },
     )
 
@@ -910,13 +935,33 @@ def build_initiative_window(state: JsonDict, event_bus: JsonDict, behavior_frame
                 f"空闲 {idle_seconds} 秒，尚未达到 {threshold} 秒阈值。",
                 behavior_frame,
             )
-        if behavior_frame.get("scene_type") == "focus_work":
-            return initiative_window(False, "用户处于专注工作场景。", behavior_frame)
+        interruptibility = behavior_frame.get("interruptibility", "unknown")
+        confidence = float(behavior_frame.get("interruptibility_confidence", 0.0) or 0.0)
+        if not behavior_frame.get("user_present", False):
+            return initiative_window(False, "感知系统判断用户当前不在设备前。", behavior_frame)
+        if behavior_frame.get("afk", False):
+            return initiative_window(False, "感知系统判断用户当前处于离开状态。", behavior_frame)
+        if behavior_frame.get("privacy_level") not in {"low", "normal"}:
+            return initiative_window(False, "当前场景隐私风险较高，不主动搭话。", behavior_frame)
+        if interruptibility != "available":
+            return initiative_window(
+                False,
+                f"感知系统判断当前不可主动打扰：interruptibility={interruptibility}。",
+                behavior_frame,
+            )
+        if confidence < 0.7:
+            return initiative_window(
+                False,
+                f"可打扰性置信度不足：{confidence:.2f} < 0.70。",
+                behavior_frame,
+            )
+        if behavior_frame.get("focus_level") == "high":
+            return initiative_window(False, "感知系统判断用户专注度较高。", behavior_frame)
         if proactive_cooldown_active(initiative):
             return initiative_window(False, "主动搭话仍在冷却时间内。", behavior_frame)
         return {
             "allowed": True,
-            "reason": "空闲时长达到阈值，允许一次低打扰主动搭话判断。",
+            "reason": "达到最低空闲阈值，且感知系统判断用户可被低打扰搭话。",
             "max_interrupt_level": "low",
             "max_length": "short",
             "allowed_types": ["self_life_share"],
@@ -982,6 +1027,16 @@ def build_initiative_signals(state: JsonDict, event_bus: JsonDict, initiative_wi
         ]
 
     world_signal = next((signal for signal in base_signals if signal["source"] == "worldops" and signal["type"] == "world_event_share"), None)
+    if world_signal and state.get("initiative", {}).get("user_preference", {}).get("worldops_share_when_free", True):
+        event_id = (world_signal.get("evidence") or {}).get("event_ids", [None])[0]
+        # Topic history suppresses repeated unsolicited openings only. The
+        # underlying WorldOps event remains available when the user asks.
+        used_topics = {
+            item.get("topic_id")
+            for item in state.get("initiative", {}).get("proactive_topic_history", [])
+        }
+        if event_bus.get("turn_kind") == "proactive" and event_id in used_topics:
+            world_signal = None
     if world_signal and state.get("initiative", {}).get("user_preference", {}).get("worldops_share_when_free", True):
         event_id = (world_signal.get("evidence") or {}).get("event_ids", [None])[0]
         bias = float(state.get("initiative", {}).get("origin_bias", {}).get("self_life_share", 0.0) or 0.0)
@@ -1123,11 +1178,16 @@ def record_proactive_attempt(
     emitted: bool,
     reply: str | None = None,
     reason: str | None = None,
+    topic_id: str | None = None,
 ) -> None:
     initiative = state.setdefault("initiative", {})
     timestamp = now_ms()
     if emitted:
         initiative["last_initiated_at"] = timestamp
+        if topic_id:
+            history = initiative.setdefault("proactive_topic_history", [])
+            history.append({"topic_id": topic_id, "used_at": timestamp})
+            del history[:-50]
     attempts = initiative.setdefault("recent_attempts", [])
     attempts.append({
         "at": timestamp,
@@ -1135,8 +1195,17 @@ def record_proactive_attempt(
         "emitted": emitted,
         "reply": reply,
         "reason": reason,
+        "topic_id": topic_id,
     })
     del attempts[:-20]
+
+
+def selected_proactive_topic_id(context_pack: JsonDict) -> str | None:
+    selected = set(context_pack.get("arbitration_result", {}).get("selected_signals", []))
+    for signal in context_pack.get("signals", []):
+        if signal.get("id") in selected and signal.get("source") == "initiative":
+            return signal.get("topic_id")
+    return None
 
 
 def finalize_silent_proactive_result(

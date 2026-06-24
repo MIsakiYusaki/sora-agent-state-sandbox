@@ -25,7 +25,7 @@ Event Bus
 - v0.4 逻辑并行架构：各子系统观察同一轮 Event Bus 并产出标准 Signal，Initiative 判断是否存在主动窗口，Arbiter 决定 selected/background/suppressed。
 - v0.5 Origin Template 冷启动：首次状态创建时随机选择一个世界观人物模板，给 Sora 初始生活底色、trait 偏移、WorldOps 入口和主动性 bias。
 - v0.6 可插拔子系统：Memory、Persona、WorldOps 等能力统一通过 `SubsystemRegistry` 和 Adapter 契约接入；支持并行求值、超时、单模块降级及 HTTP 服务替换。
-- 主动唤醒：REPL 内置空闲计时器，默认 3 分钟无输入时创建 proactive turn；Initiative 与 Arbiter 可以选择发出短消息或保持静默。
+- 主动唤醒：REPL 内置空闲评估计时器，默认 3 分钟无输入时创建 proactive turn；3 分钟只是最低评估门槛，感知状态、Initiative 与 Arbiter 共同决定发出短消息或保持静默。
 
 ## 子系统模块化
 
@@ -52,13 +52,18 @@ Idle Timer -> Event Bus -> Subsystem Signals -> Initiative Window
 -> Arbiter -> Response Planner -> Sora 主动消息或静默
 ```
 
-主动消息仍受场景、WorldOps 内容源和 15 分钟最小间隔约束。`focus_work`、
-未达到空闲阈值、冷却中或没有适合的话题时，Runtime 会静默且不调用 LLM。
+主动消息要求 Behavior 明确提供 `interruptibility=available`、置信度不低于
+`0.70`、用户在场、非高专注且隐私风险可接受，同时还要有 WorldOps 内容源
+并通过 15 分钟最小间隔。未达到任一条件时，Runtime 会静默且不调用 LLM。
+同一个 WorldOps 事件不会被重复用于主动开场，但用户主动询问时仍可召回并继续展开。
+
+默认 Mock Behavior 是 `casual_idle`，方便直接测试；`project_design` 和
+`focus_work` 都会阻止主动搭话。
 
 快速验证：
 
 ```text
-/set-behavior game_companion
+/set-behavior casual_idle
 /activate-world-event evt_echo_market_postbox_001
 /simulate-idle 3m
 ```

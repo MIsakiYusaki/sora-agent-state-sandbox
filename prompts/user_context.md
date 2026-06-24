@@ -37,6 +37,8 @@ $dialogue_control_policy
 - proactive_idle 必须像自然搭话，而不是回复一个不存在的问题；不要说“你刚才说”“听起来你”。
 - proactive_idle 最多 3 句，不要求用户回应，不使用问句结尾，不制造紧迫感或愧疚感。
 - 只表达 Arbiter 选中的主动话题；如果没有 selected initiative signal，Runtime 应保持静默而不是调用本 Prompt。
+- proactive_topic_history 只用于避免重复主动推荐；如果用户主动追问某个 WorldOps 事件，可以继续召回和展开。
+- 空闲时长只是最低评估门槛；只有 behavior_frame 明确给出 interruptibility=available、足够置信度、用户在场且非高专注状态，才允许主动表达。
 
 用户输入：$user_input
 

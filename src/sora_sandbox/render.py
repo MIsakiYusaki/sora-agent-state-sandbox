@@ -38,6 +38,13 @@ def render_trace_panel(result: JsonDict) -> str:
 
     lines.append("")
     lines.append(f"💻 行为（{_changed_label(behavior)}）: {_format_behavior(behavior)}")
+    lines.append(
+        "   可打扰性: "
+        f"{behavior.get('interruptibility', 'unknown')} | "
+        f"confidence={float(behavior.get('interruptibility_confidence', 0) or 0):.2f} | "
+        f"present={behavior.get('user_present', False)} | "
+        f"focus={behavior.get('focus_level', 'unknown')}"
+    )
 
     memory_summaries = recollection.get("memory_summaries", [])
     if memory_summaries:

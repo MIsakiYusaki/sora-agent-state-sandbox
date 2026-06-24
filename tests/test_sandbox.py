@@ -42,6 +42,8 @@ class SandboxTests(unittest.TestCase):
         self.assertIn("origin", state)
         self.assertIn("template_id", state["origin"])
         self.assertIn("origin_bias", state["initiative"])
+        self.assertEqual(state["behavior"]["current"]["preset"], "casual_idle")
+        self.assertEqual(state["behavior"]["current"]["interruptibility"], "available")
 
     def test_set_trait_records_debug_override(self) -> None:
         state = seed_state()
@@ -439,6 +441,34 @@ class SandboxTests(unittest.TestCase):
         self.assertIsNone(result["response_plan"])
         self.assertEqual(result["token_usage"], {})
 
+    def test_proactive_idle_turn_stays_silent_during_project_design(self) -> None:
+        state = seed_state()
+        handle_command("/set-behavior project_design", state)
+        result = AgentRunner(FakeLLMClient()).run_proactive(state, {
+            "type": "idle_timer",
+            "idle_seconds": 180,
+            "fired_at": 1,
+            "simulated": False,
+        })
+        self.assertFalse(result["emitted"])
+        self.assertIn(
+            "interruptibility=blocked",
+            result["context_pack"]["initiative_window"]["reason"],
+        )
+        self.assertEqual(result["token_usage"], {})
+
+    def test_proactive_idle_turn_requires_user_presence(self) -> None:
+        state = seed_state()
+        state["behavior"]["current"]["user_present"] = False
+        result = AgentRunner(FakeLLMClient()).run_proactive(state, {
+            "type": "idle_timer",
+            "idle_seconds": 180,
+            "fired_at": 1,
+            "simulated": False,
+        })
+        self.assertFalse(result["emitted"])
+        self.assertIn("不在设备前", result["context_pack"]["initiative_window"]["reason"])
+
     def test_proactive_idle_turn_requires_threshold(self) -> None:
         state = seed_state()
         result = AgentRunner(FakeLLMClient()).run_proactive(state, {
@@ -459,6 +489,66 @@ class SandboxTests(unittest.TestCase):
         self.assertTrue(first["emitted"])
         self.assertFalse(second["emitted"])
         self.assertIn("冷却", second["context_pack"]["initiative_window"]["reason"])
+
+    def test_used_proactive_worldops_topic_remains_available_when_user_asks(self) -> None:
+        state = seed_state()
+        handle_command("/activate-world-event evt_archive_misfiled_letter_001", state)
+        runner = AgentRunner(FakeLLMClient())
+        proactive = runner.run_proactive(state, {
+            "type": "idle_timer",
+            "idle_seconds": 180,
+            "fired_at": 1,
+            "simulated": False,
+        })
+        self.assertTrue(proactive["emitted"])
+        self.assertEqual(
+            state["initiative"]["proactive_topic_history"][-1]["topic_id"],
+            "evt_archive_misfiled_letter_001",
+        )
+
+        reactive = runner.run(state, "那封误投的旧信后来怎么样了？")
+        worldops_signals = [
+            signal
+            for signal in reactive["context_pack"]["signals"]
+            if signal["source"] == "worldops" and signal["type"] == "world_event_share"
+        ]
+        self.assertEqual(len(worldops_signals), 1)
+        self.assertEqual(
+            worldops_signals[0]["evidence"]["event_ids"],
+            ["evt_archive_misfiled_letter_001"],
+        )
+
+    def test_used_worldops_topic_is_not_repeated_as_proactive_opening(self) -> None:
+        state = seed_state()
+        handle_command("/activate-world-event evt_archive_misfiled_letter_001", state)
+        runner = AgentRunner(FakeLLMClient())
+        trigger = {"type": "idle_timer", "idle_seconds": 180, "fired_at": 1, "simulated": False}
+        first = runner.run_proactive(state, trigger)
+        self.assertTrue(first["emitted"])
+
+        state["initiative"]["last_initiated_at"] = None
+        second = runner.run_proactive(state, trigger)
+        self.assertFalse(second["emitted"])
+        self.assertEqual(
+            second["context_pack"]["arbitration_result"]["primary_mode"],
+            "proactive_silent",
+        )
+
+    def test_proactive_context_only_injects_recent_three_rounds(self) -> None:
+        state = seed_state()
+        for idx in range(10):
+            append_recent_turn(state, "user", f"u{idx}")
+            append_recent_turn(state, "sora", f"s{idx}")
+        result = AgentRunner(FakeLLMClient()).run_proactive(state, {
+            "type": "idle_timer",
+            "idle_seconds": 180,
+            "fired_at": 1,
+            "simulated": False,
+        })
+        session = result["context_pack"]["session_context"]
+        self.assertEqual(session["recent_turns_mode"], "proactive_tail")
+        self.assertEqual(session["history_items"], 6)
+        self.assertEqual(session["recent_turns"][0]["content"], "u7")
 
     def test_idle_duration_parser(self) -> None:
         self.assertEqual(parse_duration_seconds("3m"), 180)

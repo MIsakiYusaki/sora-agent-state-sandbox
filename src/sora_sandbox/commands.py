@@ -293,7 +293,7 @@ WorldOps：
 Behavior：
   /behavior
       查看当前 mock 行为感知状态和可用 preset。
-  /set-behavior project_design|focus_work|game_companion|watch_companion
+  /set-behavior casual_idle|project_design|focus_work|game_companion|watch_companion
       切换 mock 行为场景；切换后一轮 changed=true，随后变为沿用。
 
 状态管理：
