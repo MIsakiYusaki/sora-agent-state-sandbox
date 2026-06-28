@@ -1,0 +1,137 @@
+memory_id,type,topic,summary,tags,status,sensitivity,confidence,importance,supersedes_id,source_group
+eval_mem_001,preference,需求澄清,用户在需求澄清时偏好先列出假设和边界，再讨论实现方案。,preference;需求澄清,active,low,0.92,0.62,,preference
+eval_mem_002,preference,工程设计,用户在工程设计时偏好先看模块职责和接口，再看代码细节。,preference;工程设计,active,low,0.92,0.62,,preference
+eval_mem_003,preference,编码,用户在编码时偏好优先做最小可运行纵切，再扩展功能。,preference;编码,active,low,0.92,0.62,,preference
+eval_mem_004,preference,代码审查,用户在代码审查时偏好先看正确性和边界问题，再讨论风格。,preference;代码审查,active,low,0.92,0.62,,preference
+eval_mem_005,preference,调试,用户在调试时偏好先复现和收集证据，不急着改代码。,preference;调试,active,low,0.92,0.62,,preference
+eval_mem_006,preference,技术选型,用户在技术选型时偏好先比较维护成本和退出成本，再比较功能数量。,preference;技术选型,active,low,0.92,0.62,,preference
+eval_mem_007,preference,方案讨论,用户在方案讨论时偏好希望先给结论，再解释关键取舍。,preference;方案讨论,active,low,0.92,0.62,,preference
+eval_mem_008,preference,长任务,用户在长任务时偏好希望分阶段同步进展，但不要频繁打断。,preference;长任务,active,low,0.92,0.62,,preference
+eval_mem_009,preference,文档,用户在文档时偏好喜欢短段落和明确的小标题。,preference;文档,active,low,0.92,0.62,,preference
+eval_mem_010,preference,命令行输出,用户在命令行输出时偏好希望保留关键结果，减少冗长日志。,preference;命令行输出,active,low,0.92,0.62,,preference
+eval_mem_011,preference,测试,用户在测试时偏好优先覆盖高风险边界和回归路径。,preference;测试,active,low,0.92,0.62,,preference
+eval_mem_012,preference,重构,用户在重构时偏好偏好小步提交并保持行为不变。,preference;重构,active,low,0.92,0.62,,preference
+eval_mem_013,preference,API 设计,用户在API 设计时偏好偏好稳定的小接口，避免过早暴露内部结构。,preference;API 设计,active,low,0.92,0.62,,preference
+eval_mem_014,preference,数据库迁移,用户在数据库迁移时偏好要求可回滚并保留兼容窗口。,preference;数据库迁移,active,low,0.92,0.62,,preference
+eval_mem_015,preference,异常处理,用户在异常处理时偏好希望错误信息直接说明原因和下一步。,preference;异常处理,active,low,0.92,0.62,,preference
+eval_mem_016,preference,依赖引入,用户在依赖引入时偏好倾向先评估标准库和已有依赖能否解决。,preference;依赖引入,active,low,0.92,0.62,,preference
+eval_mem_017,preference,性能优化,用户在性能优化时偏好希望先测量瓶颈，再选择优化点。,preference;性能优化,active,low,0.92,0.62,,preference
+eval_mem_018,preference,安全设计,用户在安全设计时偏好默认采用最小权限和本地优先。,preference;安全设计,active,low,0.92,0.62,,preference
+eval_mem_019,preference,飞书文档,用户在飞书文档时偏好希望设计决策和实施状态保持同步。,preference;飞书文档,active,low,0.92,0.62,,preference
+eval_mem_020,preference,界面设计,用户在界面设计时偏好偏好信息密度适中，不堆叠无用控制项。,preference;界面设计,active,low,0.92,0.62,,preference
+eval_mem_021,preference,主动提醒,用户在主动提醒时偏好偏好低频、可忽略且不制造压力。,preference;主动提醒,active,low,0.92,0.62,,preference
+eval_mem_022,preference,回答风格,用户在回答风格时偏好希望直接进入重点，避免重复问题背景。,preference;回答风格,active,low,0.92,0.62,,preference
+eval_mem_023,preference,协作方式,用户在协作方式时偏好允许代理自主推进可逆的工程步骤。,preference;协作方式,active,low,0.92,0.62,,preference
+eval_mem_024,preference,交付,用户在交付时偏好希望同时拿到可运行结果和验证证据。,preference;交付,active,low,0.92,0.62,,preference
+eval_mem_025,project_principle,Memory Store,关于Memory Store，项目原则是：SQLite canonical store 是唯一事实源，JSON 只保留调试投影。,principle;Memory Store,active,low,0.92,0.72,,principle
+eval_mem_026,project_principle,写入治理,关于写入治理，项目原则是：普通对话必须先形成 candidate，不能直接写长期记忆。,principle;写入治理,active,low,0.92,0.72,,principle
+eval_mem_027,project_principle,显式记忆,关于显式记忆，项目原则是：用户明确要求记住的低敏偏好可以自动提交。,principle;显式记忆,active,low,0.92,0.72,,principle
+eval_mem_028,project_principle,秘密信息,关于秘密信息，项目原则是：密码、验证码、API Key、token 和私钥禁止持久化。,principle;秘密信息,active,low,0.92,0.72,,principle
+eval_mem_029,project_principle,敏感信息,关于敏感信息，项目原则是：敏感记忆只能本地保存，并需要更严格的使用与披露策略。,principle;敏感信息,active,low,0.92,0.72,,principle
+eval_mem_030,project_principle,召回结果,关于召回结果，项目原则是：Orchestrator 只接收治理后的 gist，不接触原始证据全文。,principle;召回结果,active,low,0.92,0.72,,principle
+eval_mem_031,project_principle,证据链,关于证据链，项目原则是：每条 canonical memory 必须能追溯到 evidence。,principle;证据链,active,low,0.92,0.72,,principle
+eval_mem_032,project_principle,修订,关于修订，项目原则是：新事实通过 supersedes 建立版本关系，不覆盖旧记录。,principle;修订,active,low,0.92,0.72,,principle
+eval_mem_033,project_principle,删除,关于删除，项目原则是：PoC 阶段使用软删除并保留修订记录。,principle;删除,active,low,0.92,0.72,,principle
+eval_mem_034,project_principle,召回架构,关于召回架构，项目原则是：默认使用自研 SQLite FTS，并逐步增加本地向量与混合召回。,principle;召回架构,active,low,0.92,0.72,,principle
+eval_mem_035,project_principle,方案对比,关于方案对比，项目原则是：不同自研召回方案必须使用同一 canonical memory 快照。,principle;方案对比,active,low,0.92,0.72,,principle
+eval_mem_036,project_principle,无答案,关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。,principle;无答案,active,low,0.92,0.72,,principle
+eval_mem_037,project_principle,上下文优先级,关于上下文优先级，项目原则是：当前用户输入和短期 Session 高于长期记忆。,principle;上下文优先级,active,low,0.92,0.72,,principle
+eval_mem_038,project_principle,主动回合,关于主动回合，项目原则是：主动搭话不得使用敏感记忆，也不能倾倒历史。,principle;主动回合,active,low,0.92,0.72,,principle
+eval_mem_039,project_principle,可观察性,关于可观察性，项目原则是：每次召回应记录 query、排序、过滤理由、延迟和 trace id。,principle;可观察性,active,low,0.92,0.72,,principle
+eval_mem_040,project_principle,延迟预算,关于延迟预算，项目原则是：记忆召回应保持在交互链路可接受的毫秒级预算内。,principle;延迟预算,active,low,0.92,0.72,,principle
+eval_mem_041,project_principle,本地运行,关于本地运行，项目原则是：运行 run.py 时 Memory Runtime 与 Orchestrator 在同一进程启动。,principle;本地运行,active,low,0.92,0.72,,principle
+eval_mem_042,project_principle,HTTP 边界,关于HTTP 边界，项目原则是：HTTP 只用于未来跨进程部署，不是本地运行前置条件。,principle;HTTP 边界,active,low,0.92,0.72,,principle
+eval_mem_043,project_principle,评测,关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。,principle;评测,active,low,0.92,0.72,,principle
+eval_mem_044,project_principle,安全门槛,关于安全门槛，项目原则是：安全指标是硬门槛，不能用更高召回率交换泄漏风险。,principle;安全门槛,active,low,0.92,0.72,,principle
+eval_mem_045,goal,记忆层纵切,当前关于记忆层纵切的目标是：完成本地召回、候选提交、证据追踪和管理界面的闭环。,goal;记忆层纵切,active,low,0.92,0.72,,goal
+eval_mem_046,goal,召回评测,当前关于召回评测的目标是：建立可重复运行的黄金集并形成基线报告。,goal;召回评测,active,low,0.92,0.72,,goal
+eval_mem_047,goal,语义召回,当前关于语义召回的目标是：在 canonical store 不变的前提下实现本地向量召回。,goal;语义召回,active,low,0.92,0.72,,goal
+eval_mem_048,goal,管理界面,当前关于管理界面的目标是：让用户能从 REPL 进入 Memory Console 管理记忆。,goal;管理界面,active,low,0.92,0.72,,goal
+eval_mem_049,goal,召回解释,当前关于召回解释的目标是：让每条召回结果展示命中原因和证据强度。,goal;召回解释,active,low,0.92,0.72,,goal
+eval_mem_050,goal,冲突处理,当前关于冲突处理的目标是：让新偏好能够替代旧偏好且不误召回旧记录。,goal;冲突处理,active,low,0.92,0.72,,goal
+eval_mem_051,goal,敏感治理,当前关于敏感治理的目标是：完成敏感记忆的本地隔离、禁用和披露控制。,goal;敏感治理,active,low,0.92,0.72,,goal
+eval_mem_052,goal,性能基线,当前关于性能基线的目标是：记录 SQLite FTS 的 P50、P95 和最慢查询。,goal;性能基线,active,low,0.92,0.72,,goal
+eval_mem_053,goal,数据扩充,当前关于数据扩充的目标是：将黄金集扩展到覆盖中文口语、省略和错别字。,goal;数据扩充,active,low,0.92,0.72,,goal
+eval_mem_054,goal,回归自动化,当前关于回归自动化的目标是：把召回评测接入本地测试命令。,goal;回归自动化,active,low,0.92,0.72,,goal
+eval_mem_055,goal,失败分析,当前关于失败分析的目标是：输出每条漏召回、误召回和排序错误的明细。,goal;失败分析,active,low,0.92,0.72,,goal
+eval_mem_056,goal,版本管理,当前关于版本管理的目标是：为评测集和 memory schema 增加明确版本号。,goal;版本管理,active,low,0.92,0.72,,goal
+eval_mem_057,goal,导出能力,当前关于导出能力的目标是：支持将记忆、候选和召回轨迹导出供人工检查。,goal;导出能力,active,low,0.92,0.72,,goal
+eval_mem_058,goal,真实数据迁移,当前关于真实数据迁移的目标是：设计从模拟记忆迁移到真实用户记忆的安全流程。,goal;真实数据迁移,active,low,0.92,0.72,,goal
+eval_mem_059,goal,混合召回,当前关于混合召回的目标是：评估关键词和语义召回融合是否显著提升质量。,goal;混合召回,active,low,0.92,0.72,,goal
+eval_mem_060,goal,发布门槛,当前关于发布门槛的目标是：定义记忆系统进入下一阶段前必须达到的指标阈值。,goal;发布门槛,active,low,0.92,0.72,,goal
+eval_mem_061,episode,架构评审,用户和 Sora 完成了 Memory Runtime 的模块边界评审。,episode;架构评审,active,low,0.92,0.62,,episode
+eval_mem_062,episode,接口收敛,用户和 Sora 确认 Orchestrator 通过 recollection_frame 使用记忆。,episode;接口收敛,active,low,0.92,0.62,,episode
+eval_mem_063,episode,运行方式,用户确认最终应直接启动 run.py 测试完整系统。,episode;运行方式,active,low,0.92,0.62,,episode
+eval_mem_064,episode,本地方案,用户质疑默认 HTTP 方案后，双方决定采用进程内本地运行。,episode;本地方案,active,low,0.92,0.62,,episode
+eval_mem_065,episode,管理入口,用户确认从 REPL 输入 /memory 进入记忆管理界面。,episode;管理入口,active,low,0.92,0.62,,episode
+eval_mem_066,episode,数据源,双方确认 SQLite canonical store 不与 state.json 双写事实。,episode;数据源,active,low,0.92,0.62,,episode
+eval_mem_067,episode,候选机制,双方确认普通推断先进入 candidate，再由规则或人工提交。,episode;候选机制,active,low,0.92,0.62,,episode
+eval_mem_068,episode,显式记忆,双方确认低敏的明确记住请求可以自动提交。,episode;显式记忆,active,low,0.92,0.62,,episode
+eval_mem_069,episode,自研定位,双方确认记忆抽取、治理、召回和排序均采用自研组件。,episode;自研定位,active,low,0.92,0.62,,episode
+eval_mem_070,episode,评测方法,双方确认不同自研召回方案使用同一黄金集比较。,episode;评测方法,active,low,0.92,0.62,,episode
+eval_mem_071,episode,测试通过,本地 Memory Runtime 首个纵切通过了完整回归测试。,episode;测试通过,active,low,0.92,0.62,,episode
+eval_mem_072,episode,轨迹面板,召回后端、延迟和 trace id 已显示在 Agent 轨迹中。,episode;轨迹面板,active,low,0.92,0.62,,episode
+eval_mem_073,episode,安全测试,API Key 禁止持久化的测试已经通过。,episode;安全测试,active,low,0.92,0.62,,episode
+eval_mem_074,episode,敏感测试,敏感显式记忆保持 pending 和 local_only 的测试已经通过。,episode;敏感测试,active,low,0.92,0.62,,episode
+eval_mem_075,episode,旧数据迁移,旧 JSON memory 可以在首次启动时迁入 canonical store。,episode;旧数据迁移,active,low,0.92,0.62,,episode
+eval_mem_076,episode,软删除,记忆删除与恢复生命周期已经通过自动化测试。,episode;软删除,active,low,0.92,0.62,,episode
+eval_mem_077,episode,修订链,记忆修订会创建新记录并将旧记录标记为 superseded。,episode;修订链,active,low,0.92,0.62,,episode
+eval_mem_078,episode,飞书设计文档,记忆层工程设计方案已经在飞书文档中持续收敛。,episode;飞书设计文档,active,low,0.92,0.62,,episode
+eval_mem_079,worldops_episode,星港灯,用户和 Sora 一起写了一盏送回星港的灯。,worldops;星港灯,active,low,0.92,0.62,,worldops
+eval_mem_080,worldops_episode,回声邮筒,用户听 Sora 讲过会模仿留言语气的旧邮筒。,worldops;回声邮筒,active,low,0.92,0.62,,worldops
+eval_mem_081,worldops_episode,雨夜车站,用户陪 Sora 在雨夜车站等过一班不存在的列车。,worldops;雨夜车站,active,low,0.92,0.62,,worldops
+eval_mem_082,worldops_episode,漂浮书店,用户帮 Sora 为漂浮书店挑选了一本没有结尾的小说。,worldops;漂浮书店,active,low,0.92,0.62,,worldops
+eval_mem_083,worldops_episode,月面花房,用户和 Sora 给月面花房里最晚开的花取了名字。,worldops;月面花房,active,low,0.92,0.62,,worldops
+eval_mem_084,worldops_episode,旧地图,用户与 Sora 修补过一张会忘记道路的旧地图。,worldops;旧地图,active,low,0.92,0.62,,worldops
+eval_mem_085,worldops_episode,风铃巷,用户听过风铃巷在无风时响起的短故事。,worldops;风铃巷,active,low,0.92,0.62,,worldops
+eval_mem_086,worldops_episode,云端茶摊,用户和 Sora 在云端茶摊交换过一种不存在的茶名。,worldops;云端茶摊,active,low,0.92,0.62,,worldops
+eval_mem_087,worldops_episode,夜航广播,用户帮 Sora 为夜航广播写过一句短开场。,worldops;夜航广播,active,low,0.92,0.62,,worldops
+eval_mem_088,worldops_episode,玻璃海,用户与 Sora 讨论过玻璃海为何只映出过去。,worldops;玻璃海,active,low,0.92,0.62,,worldops
+eval_mem_089,worldops_episode,钟表森林,用户和 Sora 给一只走慢的钟表找过回家的方向。,worldops;钟表森林,active,low,0.92,0.62,,worldops
+eval_mem_090,worldops_episode,纸船集市,用户在纸船集市替 Sora 留下一句可以被雨读到的话。,worldops;纸船集市,active,low,0.92,0.62,,worldops
+eval_mem_091,profile,工作时间,用户通常在深夜进行 Project Sora 的集中开发。,profile;工作时间,active,low,0.92,0.62,,profile
+eval_mem_092,profile,设备环境,用户当前主要在 Windows 和 PowerShell 环境开发。,profile;设备环境,active,low,0.92,0.62,,profile
+eval_mem_093,profile,语言,用户在项目讨论中主要使用中文。,profile;语言,active,low,0.92,0.62,,profile
+eval_mem_094,profile,项目阶段,Project Sora 当前处于工程 PoC 和架构收敛阶段。,profile;项目阶段,active,low,0.92,0.62,,profile
+eval_mem_095,profile,测试习惯,用户会先用 fake provider 做本地验证。,profile;测试习惯,active,low,0.92,0.62,,profile
+eval_mem_096,profile,文档习惯,用户习惯在飞书文档中审阅和收敛工程方案。,profile;文档习惯,active,low,0.92,0.62,,profile
+eval_mem_097,profile,交互入口,当前 PoC 的主要交互入口是命令行 REPL。,profile;交互入口,active,low,0.92,0.62,,profile
+eval_mem_098,profile,技术关注,用户近期重点关注 Orchestrator、Memory 和主动性机制。,profile;技术关注,active,low,0.92,0.62,,profile
+eval_mem_099,profile,部署偏好,用户希望核心能力默认在本地运行。,profile;部署偏好,active,low,0.92,0.62,,profile
+eval_mem_100,profile,评审方式,用户倾向逐项确认设计后再进入开发。,profile;评审方式,active,low,0.92,0.62,,profile
+eval_mem_101,sensitive_boundary,健康边界,用户的健康相关信息只能在明确相关的对话中谨慎使用。,sensitive;健康边界;local_only,active,sensitive,0.92,0.62,,sensitive
+eval_mem_102,sensitive_boundary,财务边界,用户的财务信息不得在普通项目讨论中被主动提起。,sensitive;财务边界;local_only,active,sensitive,0.92,0.62,,sensitive
+eval_mem_103,sensitive_boundary,住址边界,用户的住址信息不得用于个性化寒暄或主动提醒。,sensitive;住址边界;local_only,active,sensitive,0.92,0.62,,sensitive
+eval_mem_104,sensitive_boundary,身份边界,用户的身份凭证信息不得进入长期记忆。,sensitive;身份边界;local_only,active,sensitive,0.92,0.62,,sensitive
+eval_mem_105,sensitive_boundary,私人关系,用户的私人关系信息只允许在用户主动提及时使用。,sensitive;私人关系;local_only,active,sensitive,0.92,0.62,,sensitive
+eval_mem_106,sensitive_boundary,医疗经历,用户的医疗经历不得用于推断情绪或行为。,sensitive;医疗经历;local_only,active,sensitive,0.92,0.62,,sensitive
+eval_mem_107,sensitive_boundary,收入信息,用户的收入信息不得参与推荐和优先级判断。,sensitive;收入信息;local_only,active,sensitive,0.92,0.62,,sensitive
+eval_mem_108,sensitive_boundary,联系方式,用户的私人联系方式不得通过记忆系统披露。,sensitive;联系方式;local_only,active,sensitive,0.92,0.62,,sensitive
+eval_mem_109,preference,回复长度,旧偏好：用户偏好详细展开所有背景。,superseded;回复长度;old_version,superseded,low,0.8,0.62,,superseded
+eval_mem_110,preference,回复长度,当前偏好：用户偏好先给简短结论，需要时再展开。,replacement;回复长度;current_version,active,low,0.92,0.62,eval_mem_109,replacement
+eval_mem_111,preference,开发顺序,旧偏好：用户希望直接开始编码。,superseded;开发顺序;old_version,superseded,low,0.8,0.62,,superseded
+eval_mem_112,preference,开发顺序,当前偏好：用户希望先确认工程设计，再开始编码。,replacement;开发顺序;current_version,active,low,0.92,0.62,eval_mem_111,replacement
+eval_mem_113,preference,进度同步,旧偏好：用户希望每个操作都立即同步。,superseded;进度同步;old_version,superseded,low,0.8,0.62,,superseded
+eval_mem_114,preference,进度同步,当前偏好：用户希望按阶段同步关键进展。,replacement;进度同步;current_version,active,low,0.92,0.62,eval_mem_113,replacement
+eval_mem_115,preference,依赖策略,旧偏好：用户愿意优先引入第三方依赖。,superseded;依赖策略;old_version,superseded,low,0.8,0.62,,superseded
+eval_mem_116,preference,依赖策略,当前偏好：用户倾向先使用标准库和已有依赖。,replacement;依赖策略;current_version,active,low,0.92,0.62,eval_mem_115,replacement
+eval_mem_117,preference,部署方式,旧偏好：记忆系统默认作为 HTTP 服务运行。,superseded;部署方式;old_version,superseded,low,0.8,0.62,,superseded
+eval_mem_118,preference,部署方式,当前偏好：记忆系统默认与 Orchestrator 同进程运行。,replacement;部署方式;current_version,active,low,0.92,0.62,eval_mem_117,replacement
+eval_mem_119,preference,记忆写入,旧偏好：模型判断有用的信息可以直接写入。,superseded;记忆写入;old_version,superseded,low,0.8,0.62,,superseded
+eval_mem_120,preference,记忆写入,当前偏好：普通信息必须先形成 candidate 再提交。,replacement;记忆写入;current_version,active,low,0.92,0.62,eval_mem_119,replacement
+eval_mem_121,preference,删除策略,旧偏好：删除记忆时立即物理删除。,superseded;删除策略;old_version,superseded,low,0.8,0.62,,superseded
+eval_mem_122,preference,删除策略,当前偏好：PoC 阶段删除记忆采用可恢复的软删除。,replacement;删除策略;current_version,active,low,0.92,0.62,eval_mem_121,replacement
+eval_mem_123,preference,召回呈现,旧偏好：召回后应展示完整原始记录。,superseded;召回呈现;old_version,superseded,low,0.8,0.62,,superseded
+eval_mem_124,preference,召回呈现,当前偏好：召回只向 Orchestrator 提供治理后的 gist。,replacement;召回呈现;current_version,active,low,0.92,0.62,eval_mem_123,replacement
+eval_mem_125,preference,旧编辑器,用户曾经偏好使用旧版编辑器快捷键。,disabled;旧编辑器,disabled,low,0.8,0.62,,disabled
+eval_mem_126,preference,过期模型,用户曾要求默认使用已经停用的模型版本。,disabled;过期模型,disabled,low,0.8,0.62,,disabled
+eval_mem_127,preference,临时语气,用户曾临时要求每句话都使用夸张语气。,disabled;临时语气,disabled,low,0.8,0.62,,disabled
+eval_mem_128,preference,旧目录,Project Sora 曾经位于一个已经废弃的目录。,disabled;旧目录,disabled,low,0.8,0.62,,disabled
+eval_mem_129,preference,临时提醒,用户曾要求每五分钟提醒一次进度。,disabled;临时提醒,disabled,low,0.8,0.62,,disabled
+eval_mem_130,preference,旧命名,记忆管理界面曾经叫做 Memory Admin Panel。,disabled;旧命名,disabled,low,0.8,0.62,,disabled
+eval_mem_131,profile,错误偏好,用户喜欢在回答中加入大量表情符号。,deleted;错误偏好,deleted,low,0.8,0.62,,deleted
+eval_mem_132,profile,错误环境,用户主要使用 Linux zsh 开发 Project Sora。,deleted;错误环境,deleted,low,0.8,0.62,,deleted
+eval_mem_133,profile,错误入口,当前 PoC 已经拥有完整 Web 主界面。,deleted;错误入口,deleted,low,0.8,0.62,,deleted
+eval_mem_134,profile,错误事实源,外部检索框架是系统的 canonical memory store。,deleted;错误事实源,deleted,low,0.8,0.62,,deleted
+eval_mem_135,profile,错误策略,敏感信息可以上传云端用于提高召回率。,deleted;错误策略,deleted,low,0.8,0.62,,deleted
+eval_mem_136,profile,错误目标,Project Sora 的 Agent 是自动执行办公任务的机器人。,deleted;错误目标,deleted,low,0.8,0.62,,deleted

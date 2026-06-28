@@ -4,7 +4,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from .contracts import TurnContext
 from .llm import LLMClient
@@ -28,10 +28,121 @@ def _elapsed_since(start_ms: float) -> float:
     return round(_timer() - start_ms, 2)
 
 
+class ArbitrationJudger(Protocol):
+    def score(self, context: JsonDict, signals: list[JsonDict]) -> JsonDict:
+        ...
+
+
+class TurnInterpreter(Protocol):
+    def interpret(self, context: JsonDict) -> JsonDict:
+        ...
+
+
+@dataclass
+class LLMTurnInterpreter:
+    llm: LLMClient
+
+    def interpret(self, context: JsonDict) -> JsonDict:
+        if context.get("proactive_trigger"):
+            return rule_turn_interpretation(
+                context.get("user_input", ""),
+                context.get("recent_turns", []),
+                proactive_trigger=context.get("proactive_trigger"),
+            )
+        system = (
+            "You are Project Sora's turn interpreter. "
+            "Read the current user input with recent conversation context. "
+            "Resolve implicit references, infer conversation move, intent, domain, risk, "
+            "and whether world/persona framing is literal or stylistic. "
+            "Return strict JSON only; do not answer the user."
+        )
+        user = json.dumps(
+            {
+                "task": "interpret_turn",
+                "schema": turn_interpretation_schema(),
+                "context": context,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        result = self.llm.chat(system=system, user=user, temperature=0.0, max_tokens=900)
+        content = result.get("content", "")
+        try:
+            payload = extract_json_object(content)
+        except ValueError as exc:
+            fallback = rule_turn_interpretation(
+                context.get("user_input", ""),
+                context.get("recent_turns", []),
+                proactive_trigger=context.get("proactive_trigger"),
+            )
+            fallback["mode"] = "llm_degraded"
+            fallback["degraded_reason"] = f"invalid_json: {exc}"
+            fallback["raw"] = content[:500]
+            return fallback
+        return normalize_turn_interpretation(payload)
+
+
+@dataclass
+class LLMArbitrationJudger:
+    llm: LLMClient
+
+    def score(self, context: JsonDict, signals: list[JsonDict]) -> JsonDict:
+        if not signals:
+            return {"mode": "skipped", "scores": {}, "reason": "no_gray_signals"}
+        system = (
+            "You are Project Sora's semantic arbitration judge. "
+            "Hard policy has already removed forbidden actions. "
+            "Score only whether candidate signals are semantically natural, relevant, "
+            "and low-risk for this turn. Return strict JSON only."
+        )
+        user = json.dumps(
+            {
+                "task": "score_candidate_signals",
+                "output_schema": {
+                    "signal_scores": [
+                        {
+                            "signal_id": "string",
+                            "semantic_relevance": "0..1",
+                            "naturalness": "0..1",
+                            "interruption_risk": "0..1",
+                            "boundary_risk": "0..1",
+                            "recommended_visibility": "active|background|suppress",
+                            "reason": "short string",
+                        }
+                    ],
+                    "overall": {
+                        "should_expand_topic": "boolean",
+                        "max_length": "short|medium",
+                        "question_budget": "integer",
+                    },
+                },
+                "context": context,
+                "candidate_signals": signals,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        result = self.llm.chat(system=system, user=user, temperature=0.0, max_tokens=700)
+        content = result.get("content", "")
+        try:
+            payload = extract_json_object(content)
+        except ValueError as exc:
+            return {
+                "mode": "llm_degraded",
+                "scores": {},
+                "reason": f"invalid_json: {exc}",
+                "raw": content[:500],
+            }
+        return normalize_arbitration_judgment(payload)
+
+
 @dataclass
 class AgentRunner:
     llm: LLMClient
     subsystem_registry: SubsystemRegistry | None = None
+    memory_runtime: Any | None = None
+    arbitration_judger: ArbitrationJudger | None = None
+    turn_interpreter: TurnInterpreter | None = None
 
     def run(self, state: JsonDict, user_input: str) -> JsonDict:
         return self._run(state, user_input=user_input, proactive_trigger=None)
@@ -67,6 +178,9 @@ class AgentRunner:
             timing,
             subsystem_registry=self.subsystem_registry,
             proactive_trigger=proactive_trigger,
+            memory_runtime=self.memory_runtime,
+            arbitration_judger=self.arbitration_judger or LLMArbitrationJudger(self.llm),
+            turn_interpreter=self.turn_interpreter or LLMTurnInterpreter(self.llm),
         )
         mark_behavior_observed(state)
 
@@ -95,6 +209,24 @@ class AgentRunner:
         append_recent_turn(state, "sora", reply)
         update_session(state, user_input or "[proactive idle turn]", reply)
         persist_response_candidates(state, response_plan)
+        memory_updates: list[JsonDict] = []
+        if self.memory_runtime is not None:
+            if not proactive_trigger:
+                explicit_update = self.memory_runtime.observe_turn(user_input, reply)
+                if explicit_update:
+                    memory_updates.append(explicit_update)
+            hook_update = self.memory_runtime.observe_response_plan(response_plan)
+            if hook_update:
+                memory_updates.append(hook_update)
+            self.memory_runtime.sync_state_cache(state)
+            if memory_updates:
+                step(
+                    "memory.candidates.observed",
+                    {
+                        "count": len(memory_updates),
+                        "statuses": [item.get("status") for item in memory_updates],
+                    },
+                )
         if proactive_trigger:
             record_proactive_attempt(
                 state,
@@ -122,6 +254,7 @@ class AgentRunner:
             "trace": trace,
             "timing": timing,
             "token_usage": response_plan.get("token_usage", {}),
+            "memory_updates": memory_updates,
         }
 
         state["observability"]["last_trace"] = trace
@@ -179,13 +312,39 @@ def build_context_pack(
     timing: dict[str, float],
     subsystem_registry: SubsystemRegistry | None = None,
     proactive_trigger: JsonDict | None = None,
+    memory_runtime: Any | None = None,
+    arbitration_judger: ArbitrationJudger | None = None,
+    turn_interpreter: TurnInterpreter | None = None,
 ) -> JsonDict:
     context_start = _timer()
     behavior_frame = dict(state["behavior"]["current"])
     behavior_frame["changed"] = bool(behavior_frame.get("changed", True))
     step("behavior.frame.provided", {"scene_type": behavior_frame["scene_type"], "changed": behavior_frame["changed"]})
 
-    turn_frame = build_turn_frame(state, user_input, proactive_trigger=proactive_trigger)
+    t0 = _timer()
+    turn_interpretation = interpret_turn(
+        state,
+        user_input,
+        proactive_trigger=proactive_trigger,
+        interpreter=turn_interpreter,
+    )
+    timing["turn_interpretation"] = _elapsed_since(t0)
+    step(
+        "turn.interpretation.provided",
+        {
+            "mode": turn_interpretation.get("mode"),
+            "move": turn_interpretation.get("conversation_move"),
+            "intent": turn_interpretation.get("intent", {}).get("primary"),
+            "references_previous_context": turn_interpretation.get("context_reference", {}).get("references_previous_context"),
+        },
+    )
+
+    turn_frame = build_turn_frame(
+        state,
+        user_input,
+        proactive_trigger=proactive_trigger,
+        interpretation=turn_interpretation,
+    )
     step("turn.frame.built", {"speech_act": turn_frame["speech_act"], "context_relevance": turn_frame["context_relevance"]})
 
     context_use_policy = build_context_use_policy(turn_frame)
@@ -197,7 +356,15 @@ def build_context_pack(
     origin_frame = build_origin_frame(state)
     step("origin.frame.provided", {"template_id": origin_frame.get("template_id"), "name": origin_frame.get("name")})
 
-    recollection_frame = retrieve_memories(state, user_input)
+    if memory_runtime is None:
+        recollection_frame = retrieve_memories(state, user_input)
+    else:
+        recollection_frame = memory_runtime.recall(
+            user_input,
+            turn_frame=turn_frame,
+            context_use_policy=context_use_policy,
+        )
+        timing["memory_recall"] = recollection_frame.get("latency_ms", 0.0)
     step("memory.recollection.provided", {"ids": recollection_frame["retrieved_ids"], "surface_action": recollection_frame["surface_action"]})
 
     persona_frame = build_persona_frame(state)
@@ -214,6 +381,8 @@ def build_context_pack(
             "question_budget": 0,
             "preferred_closing": "brief_statement",
         })
+    else:
+        apply_turn_interpretation_dialogue_control(dialogue_control_frame, turn_interpretation, turn_frame)
     timing["context_frames"] = _elapsed_since(context_start)
 
     t0 = _timer()
@@ -255,7 +424,13 @@ def build_context_pack(
 
     signals = base_signals + initiative_signals
     t0 = _timer()
-    arbitration_result = arbitrate_signals(signals, initiative_window, turn_frame, behavior_frame)
+    arbitration_result = arbitrate_signals(
+        signals,
+        initiative_window,
+        turn_frame,
+        behavior_frame,
+        semantic_judger=arbitration_judger,
+    )
     timing["arbitration"] = _elapsed_since(t0)
     step(
         "subsystems.signals.collected",
@@ -275,6 +450,7 @@ def build_context_pack(
         "worldops_frame": worldops_frame,
         "origin_frame": origin_frame,
         "turn_frame": turn_frame,
+        "turn_interpretation": turn_interpretation,
         "context_use_policy": context_use_policy,
         "dialogue_control_frame": dialogue_control_frame,
         "event_bus": event_bus,
@@ -300,6 +476,8 @@ def build_session_context(state: JsonDict, behavior_frame: JsonDict, context_use
         recent_turns = all_recent_turns
     elif mode == "proactive_tail":
         recent_turns = all_recent_turns[-20:]
+    elif mode == "greeting_tail":
+        recent_turns = all_recent_turns[-4:]
     else:
         recent_turns = []
     return {
@@ -346,10 +524,218 @@ def build_origin_frame(state: JsonDict) -> JsonDict:
     }
 
 
+def interpret_turn(
+    state: JsonDict,
+    user_input: str,
+    *,
+    proactive_trigger: JsonDict | None,
+    interpreter: TurnInterpreter | None,
+) -> JsonDict:
+    recent_turns = state.get("session", {}).get("recent_turns", [])[-8:]
+    context = {
+        "user_input": user_input,
+        "recent_turns": recent_turns,
+        "session_dialogue_state": state.get("session", {}).get("dialogue_state", {}),
+        "persona_core": state.get("persona", {}).get("persona_core", {}),
+        "origin": state.get("origin", {}),
+        "behavior": state.get("behavior", {}).get("current", {}),
+        "proactive_trigger": proactive_trigger,
+    }
+    if interpreter is None:
+        interpretation = rule_turn_interpretation(user_input, recent_turns, proactive_trigger=proactive_trigger)
+        return repair_turn_interpretation(interpretation, user_input, recent_turns, state.get("worldops", {}))
+    try:
+        interpretation = interpreter.interpret(context)
+        return repair_turn_interpretation(interpretation, user_input, recent_turns, state.get("worldops", {}))
+    except Exception as exc:
+        fallback = rule_turn_interpretation(user_input, recent_turns, proactive_trigger=proactive_trigger)
+        fallback["mode"] = "interpreter_degraded"
+        fallback["degraded_reason"] = f"{type(exc).__name__}: {exc}"
+        return repair_turn_interpretation(fallback, user_input, recent_turns, state.get("worldops", {}))
+
+
+def repair_turn_interpretation(interpretation: JsonDict, user_input: str, recent_turns: list[JsonDict], worldops: JsonDict | None = None) -> JsonDict:
+    repaired = normalize_turn_interpretation(interpretation)
+    repairs: list[str] = []
+    move = repaired.get("conversation_move")
+    reference = repaired.get("context_reference", {})
+    targets = reference.get("resolved_targets", [])
+    needs_context = move in {"continue_previous_topic", "repair_or_correction", "clarification_request"} or has_deictic_reference(user_input)
+
+    if needs_context and recent_turns and (not reference.get("references_previous_context") or not targets):
+        inferred = infer_recent_reference_target(user_input, recent_turns)
+        if inferred:
+            reference["references_previous_context"] = True
+            reference["reference_type"] = "implicit_deictic" if has_deictic_reference(user_input) else "topic_resume"
+            reference["resolved_targets"] = [inferred]
+            reference["unresolved_references"] = []
+            repairs.append("filled_resolved_target_from_recent_turns")
+
+            topic = repaired.setdefault("topic", {})
+            if not topic.get("current_topic"):
+                topic["current_topic"] = inferred["summary"]
+            if not topic.get("user_visible_topic_label"):
+                topic["user_visible_topic_label"] = inferred["summary"][:120]
+            topic["topic_shift"] = "none"
+            topic["topic_continuity"] = "strong"
+            if inferred.get("source_turn") == "last_sora_turn":
+                domain = repaired.setdefault("domain", {})
+                if domain.get("primary") == "general":
+                    domain["primary"] = "world_lore"
+                    repairs.append("marked_world_lore_domain_from_sora_context")
+                framing = repaired.setdefault("framing", {})
+                if framing.get("frame_role") == "none":
+                    framing["requested_frame"] = "sora_world"
+                    framing["frame_role"] = "literal_topic"
+                    framing["should_answer_in_frame"] = True
+                    framing["frame_must_not_override_reality"] = True
+                    repairs.append("marked_sora_world_literal_topic_from_sora_context")
+
+    active_event_target = infer_active_worldops_event_target(user_input, worldops or {})
+    if active_event_target:
+        reference["references_previous_context"] = True
+        reference["reference_type"] = "explicit"
+        existing_targets = reference.get("resolved_targets", [])
+        if not any(target.get("event_id") == active_event_target.get("event_id") for target in existing_targets):
+            reference["resolved_targets"] = [active_event_target] + existing_targets[:4]
+            repairs.append("linked_active_worldops_event")
+        reference["unresolved_references"] = []
+
+        topic = repaired.setdefault("topic", {})
+        topic["current_topic"] = active_event_target["summary"]
+        topic["user_visible_topic_label"] = active_event_target["summary"][:120]
+        topic["topic_shift"] = "none"
+        topic["topic_continuity"] = "strong"
+
+        domain = repaired.setdefault("domain", {})
+        if domain.get("primary") == "general":
+            domain["primary"] = "world_lore"
+            repairs.append("marked_world_lore_domain_from_active_event")
+        framing = repaired.setdefault("framing", {})
+        if framing.get("frame_role") == "none":
+            framing["requested_frame"] = "sora_world"
+            framing["frame_role"] = "literal_topic"
+            framing["should_answer_in_frame"] = True
+            framing["frame_must_not_override_reality"] = True
+            repairs.append("marked_sora_world_literal_topic_from_active_event")
+
+    if reference.get("references_previous_context") and not reference.get("resolved_targets"):
+        reference["unresolved_references"] = list(dict.fromkeys(reference.get("unresolved_references", []) + ["previous_context_target"]))
+        repairs.append("marked_unresolved_context_reference")
+
+    if is_sora_world_question(user_input):
+        framing = repaired.setdefault("framing", {})
+        if framing.get("frame_role") == "none":
+            framing["requested_frame"] = "sora_world"
+            framing["frame_role"] = "literal_topic"
+            framing["should_answer_in_frame"] = True
+            framing["frame_must_not_override_reality"] = True
+            repairs.append("marked_sora_world_literal_topic")
+        domain = repaired.setdefault("domain", {})
+        if domain.get("primary") == "general":
+            domain["primary"] = "world_lore"
+            repairs.append("marked_world_lore_domain")
+
+    repaired["consistency"] = {
+        "status": "repaired" if repairs else "ok",
+        "repairs": repairs,
+    }
+    return repaired
+
+
+def infer_active_worldops_event_target(user_input: str, worldops: JsonDict) -> JsonDict | None:
+    event = find_world_event(worldops, worldops.get("active_event_id"))
+    if not event or not text_mentions_worldops_event(user_input, event):
+        return None
+    return {
+        "target_type": "active_worldops_event",
+        "source_turn": "worldops_active_event",
+        "event_id": event.get("event_id"),
+        "summary": event.get("title") or event.get("one_sentence") or event.get("event_id", ""),
+        "confidence": 0.9,
+    }
+
+
+def text_mentions_worldops_event(text: str, event: JsonDict) -> bool:
+    lowered = text.lower()
+    return any(alias and alias.lower() in lowered for alias in worldops_event_aliases(event))
+
+
+def worldops_event_aliases(event: JsonDict) -> list[str]:
+    aliases: set[str] = set()
+    for field in ["event_id", "title", "one_sentence"]:
+        value = str(event.get(field, "") or "").strip()
+        if value:
+            aliases.add(value)
+    for field in ["related_factions", "affected_personas"]:
+        for item in event.get(field, []) or []:
+            if item:
+                aliases.add(str(item).strip())
+
+    for suffix in ["前夜", "后续", "事件"]:
+        title = str(event.get("title", "") or "")
+        if title.endswith(suffix) and len(title) > len(suffix) + 1:
+            aliases.add(title[: -len(suffix)])
+
+    source_text = " ".join(
+        str(event.get(field, "") or "")
+        for field in ["title", "one_sentence"]
+    )
+    for chunk in re.findall(r"[\u4e00-\u9fffA-Za-z0-9_]{2,}", source_text):
+        max_len = min(6, len(chunk))
+        for size in range(2, max_len + 1):
+            for idx in range(0, len(chunk) - size + 1):
+                aliases.add(chunk[idx : idx + size])
+
+    stopwords = {
+        "Sora", "sora", "开始", "准备", "想起", "自己", "第一次", "这里",
+        "一个", "一小", "小段", "表现", "平时", "更安", "安静",
+        "星港", "同盟", "白塔", "档案", "第七", "观测", "回声", "集市",
+    }
+    return sorted(
+        alias
+        for alias in aliases
+        if alias and alias not in stopwords and not alias.isdigit()
+    )
+
+
+def has_deictic_reference(text: str) -> bool:
+    return any(term in text for term in [
+        "这", "这个", "这样", "这种", "这些",
+        "那", "那个", "那里", "那边", "那种", "那些",
+        "之类", "刚才", "上面", "前面", "继续",
+        "it", "that", "this", "those", "there",
+    ])
+
+
+def is_sora_world_question(text: str) -> bool:
+    return any(term in text for term in [
+        "你们那边", "你那边", "你们那个世界", "你的世界",
+        "星港", "灯塔", "信标", "夜航", "你那里",
+    ])
+
+
+def infer_recent_reference_target(user_input: str, recent_turns: list[JsonDict]) -> JsonDict | None:
+    last_user = next((turn for turn in reversed(recent_turns) if turn.get("role") == "user"), None)
+    last_sora = next((turn for turn in reversed(recent_turns) if turn.get("role") == "sora"), None)
+    advice_like = any(term in user_input for term in ["怎么办", "怎么做", "办法", "建议", "如何"])
+    source = last_user if advice_like and last_user else (last_sora or last_user)
+    if not source:
+        return None
+    role = source.get("role", "turn")
+    return {
+        "target_type": "previous_user_problem" if role == "user" and advice_like else "previous_conversation_topic",
+        "source_turn": "last_user_turn" if role == "user" else "last_sora_turn",
+        "summary": str(source.get("content", ""))[:240],
+        "confidence": 0.68,
+    }
+
+
 def build_turn_frame(
     state: JsonDict,
     user_input: str,
     proactive_trigger: JsonDict | None = None,
+    interpretation: JsonDict | None = None,
 ) -> JsonDict:
     if proactive_trigger:
         return {
@@ -367,23 +753,51 @@ def build_turn_frame(
             },
             "decision_reason": "用户持续空闲，系统发起主动回合；只允许短、可忽略、无需用户回应的话题入口。",
             "proactive_trigger": proactive_trigger,
+            "interpretation": interpretation or {},
         }
     input_mode = classify_input_mode(user_input)
+    interpretation = interpretation or rule_turn_interpretation(user_input, state["session"].get("recent_turns", []))
+    if should_use_interpreted_followup(interpretation):
+        domain = interpretation.get("domain", {})
+        context_reference = interpretation.get("context_reference", {})
+        resolved = context_reference.get("resolved_targets", [])
+        has_resolved_context = bool(resolved)
+        style = "resolved_context_reply" if has_resolved_context else "contextual_followup_unresolved"
+        return {
+            "input_mode": input_mode,
+            "speech_act": interpreted_speech_act(interpretation),
+            "context_relevance": "high" if context_reference.get("references_previous_context") else "medium",
+            "current_turn_priority": "current_input_with_resolved_context" if has_resolved_context else "current_input_with_unresolved_context",
+            "blocked_inferences": interpreted_blocked_inferences(interpretation),
+            "reply_shape": {
+                "max_sentences": 7 if domain.get("risk_level") in {"medium", "high"} else 6,
+                "can_ask_question": bool(interpretation.get("response_requirements", {}).get("needs_clarification", False)),
+                "can_reference_recent_topic": True,
+                "can_reference_worldops": interpretation.get("framing", {}).get("frame_role") in {"literal_topic", "metaphor_or_style", "roleplay"},
+                "style": style,
+            },
+            "decision_reason": (
+                "LLM Turn Interpreter 判断本轮输入依赖上文；"
+                f"resolved_targets={len(resolved)}，domain={domain.get('primary')}，risk={domain.get('risk_level')}。"
+            ),
+            "interpretation": interpretation,
+        }
     if input_mode == "greeting":
         return {
             "input_mode": input_mode,
             "speech_act": "greeting_ack",
-            "context_relevance": "low",
-            "current_turn_priority": "current_input_only",
-            "blocked_inferences": ["user_preference", "topic_choice", "relationship_claim", "recent_topic_continuation"],
+            "context_relevance": "low_commitment",
+            "current_turn_priority": "current_input_with_light_continuity",
+            "blocked_inferences": ["user_preference", "topic_choice", "relationship_claim", "topic_expansion", "explicit_memory_disclosure"],
             "reply_shape": {
                 "max_sentences": 2,
                 "can_ask_question": False,
-                "can_reference_recent_topic": False,
+                "can_reference_recent_topic": True,
                 "can_reference_worldops": False,
-                "style": "short_warm_ack",
+                "style": "short_warm_ack_with_optional_continuity",
             },
-            "decision_reason": "用户本轮只是轻量寒暄；上一轮话题不足以推断用户偏好或继续方向。",
+            "decision_reason": "用户本轮只是轻量寒暄；可以轻轻承接最近上下文的存在感，但不要推进旧话题、显式召回长期记忆或要求用户回应。",
+            "interpretation": interpretation,
         }
 
     if any(term in user_input for term in ["和我聊", "讲讲", "新鲜事", "你的生活", "你那边", "你最近"]):
@@ -401,6 +815,7 @@ def build_turn_frame(
                 "style": "specific_observation",
             },
             "decision_reason": "用户主动询问 Sora 的生活或近况，可以使用近期话题和 WorldOps 细节，但不要反问续命。",
+            "interpretation": interpretation,
         }
 
     return {
@@ -417,7 +832,51 @@ def build_turn_frame(
             "style": "natural_companion_reply",
         },
         "decision_reason": "普通陪伴输入；可以参考短期上下文，但必须以本轮输入为最高优先级。",
+        "interpretation": interpretation,
     }
+
+
+def should_use_interpreted_followup(interpretation: JsonDict) -> bool:
+    if interpretation.get("mode") in {"llm_degraded", "interpreter_degraded"} and interpretation.get("confidence", 0) < 0.6:
+        return False
+    move = interpretation.get("conversation_move")
+    references = interpretation.get("context_reference", {}).get("references_previous_context", False)
+    intent = interpretation.get("intent", {}).get("primary")
+    return bool(
+        references
+        or move in {"continue_previous_topic", "repair_or_correction", "clarification_request"}
+        or intent in {"correct_assumption", "answer_to_assistant_question"}
+    )
+
+
+def interpreted_speech_act(interpretation: JsonDict) -> str:
+    domain = interpretation.get("domain", {})
+    intent = interpretation.get("intent", {}).get("primary")
+    move = interpretation.get("conversation_move")
+    if move == "repair_or_correction":
+        return "topic_repair"
+    if domain.get("primary") == "health" and intent in {"ask_for_advice", "ask_for_information"}:
+        return "health_advice_followup"
+    if intent == "ask_for_advice":
+        return "advice_followup"
+    if intent == "ask_for_explanation":
+        return "explanation_followup"
+    return "contextual_followup"
+
+
+def interpreted_blocked_inferences(interpretation: JsonDict) -> list[str]:
+    blocked = ["relationship_claim"]
+    domain = interpretation.get("domain", {})
+    framing = interpretation.get("framing", {})
+    if domain.get("risk_level") in {"medium", "high"}:
+        blocked.extend(["overconfident_advice", "diagnosis_or_professional_claim"])
+    if framing.get("frame_role") in {"metaphor_or_style", "roleplay"}:
+        blocked.append("world_framing_overrides_reality")
+    for item in interpretation.get("response_requirements", {}).get("should_avoid", []):
+        key = str(item).strip().replace(" ", "_")
+        if key:
+            blocked.append(key)
+    return list(dict.fromkeys(blocked))
 
 
 def build_context_use_policy(turn_frame: JsonDict) -> JsonDict:
@@ -425,15 +884,29 @@ def build_context_use_policy(turn_frame: JsonDict) -> JsonDict:
     blocked = []
     recent_turns_mode = "full"
     omitted_reason = None
+    interpretation = turn_frame.get("interpretation", {})
 
     if turn_frame["speech_act"] == "proactive_opening":
         recent_turns_mode = "proactive_tail"
         omitted_reason = "主动搭话只注入最近 10 轮，兼顾关系连续性与上下文成本。"
         allowed.extend(["recent_turns_tail", "worldops_event"])
         blocked.extend(["full_recent_turns", "memory_recollection"])
+    elif interpretation.get("context_reference", {}).get("references_previous_context"):
+        recent_turns_mode = "full"
+        omitted_reason = "Turn Interpreter 判断本轮依赖上文，完整注入短期上下文用于指代消解。"
+        allowed.extend(["recent_turns", "resolved_previous_context", "memory_recollection"])
+        if interpretation.get("framing", {}).get("frame_role") in {"literal_topic", "metaphor_or_style", "roleplay"}:
+            allowed.append("worldops_event")
+        else:
+            blocked.append("worldops_event")
+    elif turn_frame["speech_act"] == "greeting_ack":
+        recent_turns_mode = "greeting_tail"
+        omitted_reason = "轻量寒暄只注入最近 2 轮用于连续感；禁止借此推进旧话题或展开新信息。"
+        allowed.extend(["recent_turns_light_continuity"])
+        blocked.extend(["memory_recollection", "worldops_event", "topic_expansion"])
     elif turn_frame["context_relevance"] == "low":
         recent_turns_mode = "metadata_only"
-        omitted_reason = "当前输入为轻量寒暄，recent_turns 只用于统计，不进入生成上下文。"
+        omitted_reason = "当前输入为低上下文输入，recent_turns 只用于统计，不进入生成上下文。"
         blocked.extend(["recent_turns_content", "memory_recollection", "worldops_event"])
     else:
         allowed.extend(["recent_turns", "memory_recollection", "worldops_event"])
@@ -478,6 +951,31 @@ def build_dialogue_control_frame(state: JsonDict, user_input: str) -> JsonDict:
             "用户只是打招呼时，不要从历史推断“你更喜欢/你看来想要/你是不是”。",
         ],
     }
+
+
+def apply_turn_interpretation_dialogue_control(
+    dialogue_control_frame: JsonDict,
+    interpretation: JsonDict,
+    turn_frame: JsonDict,
+) -> None:
+    requirements = interpretation.get("response_requirements", {})
+    if not should_use_interpreted_followup(interpretation):
+        return
+
+    question_budget = int(requirements.get("question_budget", dialogue_control_frame.get("question_budget", 0)) or 0)
+    needs_clarification = bool(requirements.get("needs_clarification", False))
+    if not needs_clarification:
+        question_budget = 0
+    question_budget = max(0, min(question_budget, 1))
+
+    dialogue_control_frame.update({
+        "interpreted_intent": interpretation.get("intent", {}).get("primary"),
+        "conversation_move": interpretation.get("conversation_move"),
+        "should_ask_question": bool(question_budget),
+        "question_budget": question_budget,
+        "preferred_closing": "brief_statement" if question_budget == 0 else dialogue_control_frame.get("preferred_closing", "statement_or_light_offer"),
+    })
+    turn_frame["reply_shape"]["can_ask_question"] = bool(question_budget)
 
 
 def retrieve_memories(state: JsonDict, user_input: str) -> JsonDict:
@@ -742,6 +1240,7 @@ def build_signal(event_bus: JsonDict, source: str, signal_type: str, **fields: A
 
 
 def dialogue_signal(event_bus: JsonDict, turn_frame: JsonDict, dialogue_control_frame: JsonDict) -> JsonDict:
+    interpretation = turn_frame.get("interpretation", {})
     return build_signal(
         event_bus,
         "dialogue",
@@ -757,6 +1256,11 @@ def dialogue_signal(event_bus: JsonDict, turn_frame: JsonDict, dialogue_control_
         metadata={
             "question_budget": dialogue_control_frame["question_budget"],
             "context_relevance": turn_frame["context_relevance"],
+            "interpreted_intent": interpretation.get("intent", {}).get("primary"),
+            "conversation_move": interpretation.get("conversation_move"),
+            "resolved_targets": interpretation.get("context_reference", {}).get("resolved_targets", []),
+            "domain": interpretation.get("domain", {}),
+            "framing": interpretation.get("framing", {}),
         },
     )
 
@@ -871,7 +1375,7 @@ def worldops_signal(event_bus: JsonDict, worldops_frame: JsonDict, behavior_fram
             interrupt_level="none",
             suggested_use="本轮不要凭空发明 Sora 那边的新鲜事。",
         )
-    user_invited = turn_frame["speech_act"] == "sora_life_share"
+    user_invited = turn_frame["speech_act"] == "sora_life_share" or turn_asks_active_worldops_event(turn_frame, event)
     non_work = is_non_work_scene(behavior_frame)
     visibility = "active" if user_invited else ("candidate" if non_work else "silent")
     return build_signal(
@@ -893,8 +1397,25 @@ def worldops_signal(event_bus: JsonDict, worldops_frame: JsonDict, behavior_fram
             "expression_level": worldops_frame.get("expression_level"),
             "scene_type": behavior_frame.get("scene_type"),
             "user_invited": user_invited,
+            "matched_active_event": turn_asks_active_worldops_event(turn_frame, event),
         },
     )
+
+
+def turn_asks_active_worldops_event(turn_frame: JsonDict, event: JsonDict) -> bool:
+    if not allows_sora_world_lore_answer(turn_frame):
+        return False
+    interpretation = turn_frame.get("interpretation", {})
+    reference = interpretation.get("context_reference", {})
+    for target in reference.get("resolved_targets", []) or []:
+        if target.get("event_id") == event.get("event_id"):
+            return True
+        if target.get("target_type") == "active_worldops_event":
+            return True
+        if text_mentions_worldops_event(str(target.get("summary", "")), event):
+            return True
+    topic = interpretation.get("topic", {})
+    return text_mentions_worldops_event(str(topic.get("current_topic", "")), event)
 
 
 def relationship_signal(event_bus: JsonDict, state: JsonDict, session_context: JsonDict, turn_frame: JsonDict) -> JsonDict:
@@ -1077,39 +1598,441 @@ def build_initiative_signals(state: JsonDict, event_bus: JsonDict, initiative_wi
     ]
 
 
-def arbitrate_signals(signals: list[JsonDict], initiative_window_frame: JsonDict, turn_frame: JsonDict, behavior_frame: JsonDict) -> JsonDict:
+def extract_json_object(text: str) -> JsonDict:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("no JSON object found")
+    value = json.loads(cleaned[start : end + 1])
+    if not isinstance(value, dict):
+        raise ValueError("JSON root must be an object")
+    return value
+
+
+def normalize_arbitration_judgment(payload: JsonDict) -> JsonDict:
+    scores: JsonDict = {}
+    for raw in payload.get("signal_scores", []):
+        if not isinstance(raw, dict) or not raw.get("signal_id"):
+            continue
+        relevance = clamp01(raw.get("semantic_relevance", 0.0))
+        naturalness = clamp01(raw.get("naturalness", 0.0))
+        interruption = clamp01(raw.get("interruption_risk", 0.0))
+        boundary = clamp01(raw.get("boundary_risk", 0.0))
+        final_score = round(
+            0.45 * relevance
+            + 0.35 * naturalness
+            + 0.10 * (1.0 - interruption)
+            + 0.10 * (1.0 - boundary),
+            4,
+        )
+        visibility = str(raw.get("recommended_visibility", "background"))
+        if visibility not in {"active", "background", "suppress"}:
+            visibility = "background"
+        scores[str(raw["signal_id"])] = {
+            "semantic_relevance": relevance,
+            "naturalness": naturalness,
+            "interruption_risk": interruption,
+            "boundary_risk": boundary,
+            "recommended_visibility": visibility,
+            "final_score": final_score,
+            "reason": str(raw.get("reason", ""))[:240],
+        }
+    return {
+        "mode": "llm",
+        "scores": scores,
+        "overall": payload.get("overall", {}),
+    }
+
+
+def turn_interpretation_schema() -> JsonDict:
+    return {
+        "version": "turn_interpretation_v1",
+        "speech_act": [
+            "greeting",
+            "question",
+            "request",
+            "correction",
+            "complaint",
+            "preference_statement",
+            "status_update",
+            "joke",
+            "roleplay_invite",
+            "planning",
+            "proactive_trigger",
+        ],
+        "conversation_move": [
+            "new_topic",
+            "continue_previous_topic",
+            "repair_or_correction",
+            "clarification_request",
+            "answer_to_assistant_question",
+            "greeting_reentry",
+            "emotional_disclosure",
+            "task_request",
+            "meta_discussion",
+        ],
+        "intent_primary": [
+            "ask_for_advice",
+            "ask_for_information",
+            "ask_for_explanation",
+            "ask_for_identity",
+            "ask_for_action",
+            "share_state",
+            "express_emotion",
+            "set_preference",
+            "correct_assumption",
+            "continue_chat",
+            "invite_assistant_self_disclosure",
+        ],
+        "reference_type": [
+            "none",
+            "explicit",
+            "implicit_deictic",
+            "ellipsis",
+            "correction",
+            "topic_resume",
+        ],
+        "domain_primary": [
+            "general",
+            "health",
+            "legal",
+            "finance",
+            "coding",
+            "project_design",
+            "relationship",
+            "emotional_support",
+            "personal_memory",
+            "world_lore",
+            "daily_life",
+        ],
+        "risk_level": ["none", "low", "medium", "high"],
+        "frame_role": ["none", "literal_topic", "metaphor_or_style", "roleplay", "emotional_distance"],
+    }
+
+
+def normalize_turn_interpretation(payload: JsonDict) -> JsonDict:
+    schema = turn_interpretation_schema()
+    intent = payload.get("intent") if isinstance(payload.get("intent"), dict) else {}
+    context_reference = payload.get("context_reference") if isinstance(payload.get("context_reference"), dict) else {}
+    topic = payload.get("topic") if isinstance(payload.get("topic"), dict) else {}
+    domain = payload.get("domain") if isinstance(payload.get("domain"), dict) else {}
+    framing = payload.get("framing") if isinstance(payload.get("framing"), dict) else {}
+    response_requirements = payload.get("response_requirements") if isinstance(payload.get("response_requirements"), dict) else {}
+    return {
+        "mode": payload.get("mode", "llm"),
+        "version": "turn_interpretation_v1",
+        "input_summary": str(payload.get("input_summary", ""))[:300],
+        "speech_act": enum_value(payload.get("speech_act"), schema["speech_act"], "question"),
+        "conversation_move": enum_value(payload.get("conversation_move"), schema["conversation_move"], "new_topic"),
+        "intent": {
+            "primary": enum_value(intent.get("primary"), schema["intent_primary"], "ask_for_information"),
+            "secondary": [str(item) for item in intent.get("secondary", []) if item][:5],
+            "confidence": clamp01(intent.get("confidence", payload.get("confidence", 0.5))),
+        },
+        "context_reference": {
+            "references_previous_context": bool(context_reference.get("references_previous_context", False)),
+            "reference_type": enum_value(context_reference.get("reference_type"), schema["reference_type"], "none"),
+            "resolved_targets": normalize_resolved_targets(context_reference.get("resolved_targets", [])),
+            "unresolved_references": [str(item)[:160] for item in context_reference.get("unresolved_references", []) if item][:5],
+        },
+        "topic": {
+            "current_topic": str(topic.get("current_topic", ""))[:200],
+            "topic_shift": str(topic.get("topic_shift", "unknown"))[:80],
+            "topic_continuity": str(topic.get("topic_continuity", "unknown"))[:80],
+            "user_visible_topic_label": str(topic.get("user_visible_topic_label", ""))[:120],
+        },
+        "domain": {
+            "primary": enum_value(domain.get("primary"), schema["domain_primary"], "general"),
+            "secondary": [str(item) for item in domain.get("secondary", []) if item][:5],
+            "risk_level": enum_value(domain.get("risk_level"), schema["risk_level"], "low"),
+            "safety_policies": [str(item) for item in domain.get("safety_policies", []) if item][:8],
+        },
+        "framing": {
+            "requested_frame": str(framing.get("requested_frame", "none"))[:120],
+            "frame_role": enum_value(framing.get("frame_role"), schema["frame_role"], "none"),
+            "should_answer_in_frame": bool(framing.get("should_answer_in_frame", False)),
+            "frame_must_not_override_reality": bool(framing.get("frame_must_not_override_reality", True)),
+        },
+        "response_requirements": {
+            "answer_directness": str(response_requirements.get("answer_directness", "direct"))[:80],
+            "needs_clarification": bool(response_requirements.get("needs_clarification", False)),
+            "question_budget": int(response_requirements.get("question_budget", 0) or 0),
+            "should_acknowledge_context": bool(response_requirements.get("should_acknowledge_context", False)),
+            "should_avoid": [str(item)[:160] for item in response_requirements.get("should_avoid", []) if item][:8],
+        },
+        "confidence": clamp01(payload.get("confidence", intent.get("confidence", 0.5))),
+        "fallback_if_uncertain": str(payload.get("fallback_if_uncertain", "briefly clarify before answering"))[:200],
+    }
+
+
+def enum_value(value: Any, allowed: list[str], default: str) -> str:
+    text = str(value or "")
+    return text if text in allowed else default
+
+
+def normalize_resolved_targets(value: Any) -> list[JsonDict]:
+    if not isinstance(value, list):
+        return []
+    targets: list[JsonDict] = []
+    for item in value[:5]:
+        if not isinstance(item, dict):
+            continue
+        targets.append({
+            "target_type": str(item.get("target_type", ""))[:80],
+            "source_turn": str(item.get("source_turn", ""))[:80],
+            "event_id": str(item.get("event_id", ""))[:120] or None,
+            "summary": str(item.get("summary", ""))[:240],
+            "confidence": clamp01(item.get("confidence", 0.5)),
+        })
+    return targets
+
+
+def rule_turn_interpretation(
+    user_input: str,
+    recent_turns: list[JsonDict],
+    proactive_trigger: JsonDict | None = None,
+) -> JsonDict:
+    if proactive_trigger:
+        return normalize_turn_interpretation({
+            "mode": "rule",
+            "speech_act": "proactive_trigger",
+            "conversation_move": "new_topic",
+            "intent": {"primary": "continue_chat", "confidence": 0.7},
+            "domain": {"primary": "general", "risk_level": "low"},
+        })
+    text = user_input.strip()
+    references_previous = bool(recent_turns) and any(
+        term in text for term in ["这个", "那个", "这样", "那怎么办", "怎么办", "有什么办法", "继续", "我是说", "你刚才"]
+    )
+    last_user = next((turn for turn in reversed(recent_turns) if turn.get("role") == "user"), {})
+    resolved_targets = []
+    if references_previous and last_user:
+        resolved_targets.append({
+            "target_type": "previous_user_turn",
+            "source_turn": "last_user_turn",
+            "summary": str(last_user.get("content", ""))[:160],
+            "confidence": 0.65,
+        })
+    domain = "health" if any(term in text + " " + str(last_user.get("content", "")) for term in ["疼", "痛", "腰", "病", "医生", "治疗"]) else "general"
+    risk = "medium" if domain == "health" else "low"
+    frame_role = "metaphor_or_style" if any(term in text for term in ["你们那个世界", "你那边", "按你们", "如果是 Sora"]) and references_previous else "none"
+    return normalize_turn_interpretation({
+        "mode": "rule",
+        "input_summary": text[:200],
+        "speech_act": "question" if "?" in text or "？" in text or "吗" in text else "status_update",
+        "conversation_move": "continue_previous_topic" if references_previous else "new_topic",
+        "intent": {
+            "primary": "ask_for_advice" if "办法" in text or "怎么办" in text else "ask_for_information",
+            "confidence": 0.68 if references_previous else 0.55,
+        },
+        "context_reference": {
+            "references_previous_context": references_previous,
+            "reference_type": "implicit_deictic" if references_previous else "none",
+            "resolved_targets": resolved_targets,
+        },
+        "topic": {
+            "current_topic": resolved_targets[0]["summary"] if resolved_targets else text[:120],
+            "topic_shift": "none" if references_previous else "unknown",
+            "topic_continuity": "strong" if references_previous else "unknown",
+        },
+        "domain": {
+            "primary": domain,
+            "risk_level": risk,
+            "safety_policies": ["health_advice", "no_diagnosis"] if domain == "health" else [],
+        },
+        "framing": {
+            "requested_frame": "sora_world" if "世界" in text or "你那边" in text else "none",
+            "frame_role": frame_role,
+            "should_answer_in_frame": frame_role != "none",
+            "frame_must_not_override_reality": True,
+        },
+        "response_requirements": {
+            "question_budget": 0 if references_previous else 1,
+            "should_acknowledge_context": references_previous,
+            "should_avoid": ["ignoring previous context"] if references_previous else [],
+        },
+        "confidence": 0.68 if references_previous else 0.55,
+    })
+
+
+def clamp01(value: Any) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return round(max(0.0, min(1.0, number)), 4)
+
+
+def is_semantic_gray_signal(signal: JsonDict, initiative_window_frame: JsonDict) -> bool:
+    if signal.get("source") == "initiative":
+        return bool(
+            initiative_window_frame.get("allowed")
+            and signal.get("type") in initiative_window_frame.get("allowed_types", [])
+        )
+    return signal.get("source") in {"memory", "worldops", "relationship"}
+
+
+def score_gray_signals(
+    semantic_judger: ArbitrationJudger | None,
+    gray_signals: list[JsonDict],
+    initiative_window_frame: JsonDict,
+    turn_frame: JsonDict,
+    behavior_frame: JsonDict,
+) -> JsonDict:
+    if not gray_signals:
+        return {"mode": "skipped", "scores": {}, "reason": "no_gray_signals"}
+    if semantic_judger is None:
+        return {"mode": "rule_only", "scores": {}, "reason": "no_semantic_judger"}
+    context = {
+        "turn_frame": turn_frame,
+        "behavior_frame": behavior_frame,
+        "initiative_window": initiative_window_frame,
+        "hard_policy": {
+            "llm_cannot_override": [
+                "greeting_ack_blocks_topic_expansion",
+                "focus_work_blocks_proactive_interruption",
+                "memory_raw_evidence_disclosure_forbidden",
+            ],
+            "semantic_score_is_advisory": True,
+        },
+    }
+    try:
+        return semantic_judger.score(context, gray_signals)
+    except Exception as exc:
+        return {
+            "mode": "llm_degraded",
+            "scores": {},
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+
+
+def semantic_blocks_signal(signal: JsonDict, scores: JsonDict) -> bool:
+    score = scores.get(signal.get("id"))
+    if not score:
+        return False
+    return score.get("recommended_visibility") == "suppress" or float(score.get("final_score", 0.0)) < 0.45
+
+
+def semantic_promotes_signal(signal: JsonDict, scores: JsonDict) -> bool:
+    score = scores.get(signal.get("id"))
+    if not score:
+        return False
+    if score.get("recommended_visibility") != "active":
+        return False
+    if signal.get("source") not in {"memory", "worldops", "relationship"}:
+        return False
+    return float(score.get("final_score", 0.0)) >= 0.72
+
+
+def semantic_backgrounds_signal(signal: JsonDict, scores: JsonDict) -> bool:
+    score = scores.get(signal.get("id"))
+    if not score:
+        return False
+    return score.get("recommended_visibility") == "background" and float(score.get("final_score", 0.0)) >= 0.45
+
+
+def semantic_suppress_reason(signal: JsonDict, scores: JsonDict) -> str:
+    score = scores.get(signal.get("id"), {})
+    reason = score.get("reason") or "LLM semantic judge marked this signal unsuitable for expression."
+    return f"semantic_judge_suppressed: {reason}"
+
+
+def score_entry(signal: JsonDict, decision: str, reason: str, scores: JsonDict) -> JsonDict:
+    score = scores.get(signal.get("id"), {})
+    return {
+        "id": signal.get("id"),
+        "source": signal.get("source"),
+        "type": signal.get("type"),
+        "decision": decision,
+        "reason": reason,
+        "priority": signal.get("priority"),
+        "confidence": signal.get("confidence"),
+        "semantic": score or None,
+    }
+
+
+def arbitrate_signals(
+    signals: list[JsonDict],
+    initiative_window_frame: JsonDict,
+    turn_frame: JsonDict,
+    behavior_frame: JsonDict,
+    semantic_judger: ArbitrationJudger | None = None,
+) -> JsonDict:
     selected: list[str] = []
     background: list[str] = []
     suppressed: list[JsonDict] = []
+    score_breakdown: list[JsonDict] = []
     directives = {
         "tone": "warm_natural",
         "length": "short" if turn_frame["speech_act"] == "greeting_ack" else "medium",
         "question_budget": 0 if not turn_frame["reply_shape"].get("can_ask_question", True) else 1,
-        "context_depth": "shallow" if turn_frame["context_relevance"] == "low" else "normal",
+        "context_depth": "shallow" if turn_frame["context_relevance"] in {"low", "low_commitment"} else "normal",
         "worldops_expression": "none",
+        "worldops_event_expression": "none",
+        "sora_world_lore_answer": "allowed" if allows_sora_world_lore_answer(turn_frame) else "none",
         "memory_expression": "implicit",
         "expression_hint": "text",
     }
+    gray_signals = [
+        signal
+        for signal in signals
+        if signal.get("visibility", "candidate") == "candidate"
+        and is_semantic_gray_signal(signal, initiative_window_frame)
+    ]
+    semantic_judgment = score_gray_signals(
+        semantic_judger,
+        gray_signals,
+        initiative_window_frame,
+        turn_frame,
+        behavior_frame,
+    )
+    semantic_scores = semantic_judgment.get("scores", {})
 
     for signal in sorted(signals, key=lambda item: item.get("priority", 0), reverse=True):
         source = signal["source"]
         visibility = signal.get("visibility", "candidate")
         if visibility == "active":
             selected.append(signal["id"])
+            score_breakdown.append(score_entry(signal, "selected", "active_visibility", semantic_scores))
             if source == "worldops":
                 directives["worldops_expression"] = "active"
+                directives["worldops_event_expression"] = "active"
                 directives["expression_hint"] = "bubble"
             continue
         if source == "initiative" and initiative_window_frame.get("allowed") and signal.get("type") in initiative_window_frame.get("allowed_types", []):
+            if semantic_blocks_signal(signal, semantic_scores):
+                reason = semantic_suppress_reason(signal, semantic_scores)
+                suppressed.append({"id": signal["id"], "source": source, "type": signal["type"], "reason": reason})
+                score_breakdown.append(score_entry(signal, "suppressed", reason, semantic_scores))
+                continue
             selected.append(signal["id"])
+            score_breakdown.append(score_entry(signal, "selected", "initiative_allowed_semantic_pass", semantic_scores))
             directives["worldops_expression"] = "initiative_candidate" if signal.get("topic_source") == "worldops" else directives["worldops_expression"]
+            directives["worldops_event_expression"] = "initiative_candidate" if signal.get("topic_source") == "worldops" else directives["worldops_event_expression"]
             directives["expression_hint"] = "text"
+            continue
+        if semantic_promotes_signal(signal, semantic_scores):
+            selected.append(signal["id"])
+            score_breakdown.append(score_entry(signal, "selected", "semantic_judge_promoted", semantic_scores))
+            if source == "worldops":
+                directives["worldops_expression"] = "active"
+                directives["worldops_event_expression"] = "active"
+            continue
+        if semantic_backgrounds_signal(signal, semantic_scores):
+            background.append(signal["id"])
+            score_breakdown.append(score_entry(signal, "background", "semantic_judge_background", semantic_scores))
             continue
         if visibility == "background":
             background.append(signal["id"])
+            score_breakdown.append(score_entry(signal, "background", "background_visibility", semantic_scores))
             continue
         reason = suppress_reason(signal, initiative_window_frame, turn_frame, behavior_frame)
         suppressed.append({"id": signal["id"], "source": source, "type": signal["type"], "reason": reason})
+        score_breakdown.append(score_entry(signal, "suppressed", reason, semantic_scores))
 
     primary_mode = {
         "greeting_ack": "light_greeting_reply",
@@ -1130,6 +2053,8 @@ def arbitrate_signals(signals: list[JsonDict], initiative_window_frame: JsonDict
         "background_signals": background,
         "suppressed_signals": suppressed,
         "response_directives": directives,
+        "semantic_judgment": semantic_judgment,
+        "score_breakdown": score_breakdown,
         "state_candidates": {
             "memory_hooks": [],
             "growth_events": [],
@@ -1140,11 +2065,24 @@ def arbitrate_signals(signals: list[JsonDict], initiative_window_frame: JsonDict
     }
 
 
+def allows_sora_world_lore_answer(turn_frame: JsonDict) -> bool:
+    interpretation = turn_frame.get("interpretation", {})
+    domain = interpretation.get("domain", {})
+    framing = interpretation.get("framing", {})
+    if turn_frame["speech_act"] == "sora_life_share":
+        return True
+    if domain.get("primary") == "world_lore":
+        return True
+    return framing.get("frame_role") in {"literal_topic", "metaphor_or_style", "roleplay"}
+
+
 def suppress_reason(signal: JsonDict, initiative_window_frame: JsonDict, turn_frame: JsonDict, behavior_frame: JsonDict) -> str:
     if signal["source"] == "worldops" and turn_frame["speech_act"] == "greeting_ack":
         return "用户只是问候，不主动插入 WorldOps。"
     if signal["source"] == "initiative" and not initiative_window_frame.get("allowed"):
         return initiative_window_frame.get("reason", "主动窗口未开启。")
+    if signal["source"] == "worldops" and allows_sora_world_lore_answer(turn_frame):
+        return "本轮可以回答 Sora 世界设定，但未明确命中当前 WorldOps 事件，事件保持背景。"
     if signal["source"] == "worldops" and not is_non_work_scene(behavior_frame):
         return "当前不是非工作陪伴场景，WorldOps 保持静默或背景。"
     return "优先级或可见性不足，未进入本轮表达。"
@@ -1273,6 +2211,7 @@ def build_system_prompt(context_pack: JsonDict) -> str:
 
 def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
     safe_pack = {
+        "turn_interpretation": context_pack.get("turn_interpretation", {}),
         "turn_frame": context_pack["turn_frame"],
         "context_use_policy": context_pack["context_use_policy"],
         "session_context": context_pack["session_context"],
@@ -1295,13 +2234,18 @@ def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
 def route_expression(response_plan: JsonDict, context_pack: JsonDict, step) -> JsonDict:
     hint = response_plan.get("expression_hint", "text")
     world_level = context_pack["worldops_frame"].get("expression_level", "L0")
-    worldops_expression = context_pack.get("arbitration_result", {}).get("response_directives", {}).get("worldops_expression", "none")
+    directives = context_pack.get("arbitration_result", {}).get("response_directives", {})
+    worldops_expression = directives.get("worldops_expression", "none")
+    worldops_event_expression = directives.get("worldops_event_expression", worldops_expression)
+    sora_world_lore_answer = directives.get("sora_world_lore_answer", "none")
     if hint == "micro_quest_invite" and world_level != "L3":
         hint = "bubble"
     event = {
         "route": hint,
         "worldops_expression_level": world_level,
         "worldops_expression": worldops_expression,
+        "worldops_event_expression": worldops_event_expression,
+        "sora_world_lore_answer": sora_world_lore_answer,
         "reason": "用户主动输入时可以返回文本；WorldOps 和主动性由 Arbiter 决定可见性。",
     }
     step("expression.routed", event)
@@ -1316,11 +2260,23 @@ def update_session(state: JsonDict, user_input: str, reply: str) -> None:
 
 
 def build_state_diff(context_pack: JsonDict, response_plan: JsonDict, expression_event: JsonDict) -> JsonDict:
+    active_worldops_event = context_pack["worldops_frame"].get("selected_event_id")
     return {
         "session_changed": True,
+        "turn_interpretation": {
+            "conversation_move": context_pack.get("turn_interpretation", {}).get("conversation_move"),
+            "intent": context_pack.get("turn_interpretation", {}).get("intent", {}).get("primary"),
+            "references_previous_context": context_pack.get("turn_interpretation", {}).get("context_reference", {}).get("references_previous_context"),
+            "domain": context_pack.get("turn_interpretation", {}).get("domain", {}).get("primary"),
+            "risk_level": context_pack.get("turn_interpretation", {}).get("domain", {}).get("risk_level"),
+        },
         "memories_used": response_plan["used_memory_ids"],
         "persona_debug_overrides_used": [item.get("target") for item in context_pack["persona_frame"].get("debug_overrides", [])],
-        "worldops_event_used": context_pack["worldops_frame"].get("selected_event_id"),
+        "active_worldops_event": active_worldops_event,
+        "worldops_event_available": active_worldops_event,
+        "worldops_event_expressed": expression_event.get("worldops_event_expression") not in {None, "none"},
+        "worldops_event_used": active_worldops_event if expression_event.get("worldops_event_expression") not in {None, "none"} else None,
+        "sora_world_lore_answer": expression_event.get("sora_world_lore_answer", "none"),
         "origin_template": context_pack.get("origin_frame", {}).get("template_id"),
         "growth_event_created": bool(response_plan.get("growth_event_candidate")),
         "memory_hook_created": bool(response_plan.get("memory_hook_candidate")),
@@ -1344,6 +2300,11 @@ def summarize_context_pack(context_pack: JsonDict) -> JsonDict:
         "scene_type": context_pack["behavior_frame"]["scene_type"],
         "behavior_changed": context_pack["behavior_frame"].get("changed", False),
         "memory_ids": context_pack["recollection_frame"]["retrieved_ids"],
+        "memory_runtime": {
+            "backend": context_pack["recollection_frame"].get("backend", "legacy_json"),
+            "recall_trace_id": context_pack["recollection_frame"].get("recall_trace_id"),
+            "latency_ms": context_pack["recollection_frame"].get("latency_ms"),
+        },
         "persona_influences": context_pack["persona_frame"]["influence_summary"],
         "worldops": {
             "event": context_pack["worldops_frame"].get("selected_event_id"),
@@ -1358,6 +2319,10 @@ def summarize_context_pack(context_pack: JsonDict) -> JsonDict:
             "recent_sora_question_streak": context_pack["dialogue_control_frame"]["recent_sora_question_streak"],
         },
         "turn_frame": {
+            "conversation_move": context_pack.get("turn_interpretation", {}).get("conversation_move"),
+            "intent": context_pack.get("turn_interpretation", {}).get("intent", {}).get("primary"),
+            "references_previous_context": context_pack.get("turn_interpretation", {}).get("context_reference", {}).get("references_previous_context"),
+            "domain": context_pack.get("turn_interpretation", {}).get("domain", {}).get("primary"),
             "speech_act": context_pack["turn_frame"]["speech_act"],
             "context_relevance": context_pack["turn_frame"]["context_relevance"],
             "recent_turns_mode": context_pack["context_use_policy"]["recent_turns_mode"],
@@ -1372,7 +2337,7 @@ def summarize_context_pack(context_pack: JsonDict) -> JsonDict:
 
 
 def maybe_growth_candidate(context_pack: JsonDict, user_input: str, reply: str) -> JsonDict | None:
-    if any(term in user_input for term in ["喜欢", "不错", "可以", "哈哈", "接住", "吐槽"]):
+    if is_positive_style_feedback(user_input):
         return {
             "candidate_id": f"growth_{now_ms()}",
             "target_type": "persona_trait",
@@ -1384,6 +2349,24 @@ def maybe_growth_candidate(context_pack: JsonDict, user_input: str, reply: str) 
             "recommendation": "hold",
         }
     return None
+
+
+def is_positive_style_feedback(user_input: str) -> bool:
+    text = user_input.strip()
+    if not text:
+        return False
+    question_markers = ["?", "？", "吗", "嘛", "能不能", "可不可以", "可以看到", "可以看", "是否"]
+    if any(marker in text for marker in question_markers):
+        return False
+    direct_style_feedback = [
+        "我喜欢", "挺喜欢", "这个语气", "这种语气", "这样说", "这么说",
+        "接住", "这个吐槽", "这种吐槽", "哈哈，可以",
+    ]
+    if any(term in text for term in direct_style_feedback):
+        return True
+    positive_terms = ["不错", "可以", "挺好", "很好", "哈哈", "有意思", "不赖", "喜欢"]
+    feedback_targets = ["你", "Sora", "回复", "语气", "说法", "这样", "这个", "吐槽"]
+    return any(term in text for term in positive_terms) and any(target in text for target in feedback_targets)
 
 
 def maybe_memory_hook_candidate(context_pack: JsonDict, user_input: str, reply: str) -> JsonDict | None:
@@ -1526,7 +2509,7 @@ def enforce_question_budget(text: str, dialogue_control: JsonDict) -> str:
 def enforce_turn_frame(text: str, turn_frame: JsonDict) -> str:
     if turn_frame.get("speech_act") != "greeting_ack":
         return text
-    blocked = ["看来你", "你更喜欢", "你是不是", "你想先", "需要我", "工程验证", "Project Sora", "我这边的事"]
+    blocked = ["看来你", "你更喜欢", "你是不是", "你想先", "需要我"]
     if any(term in text for term in blocked):
         return trim_to_greeting_ack(text)
     return text
@@ -1534,7 +2517,7 @@ def enforce_turn_frame(text: str, turn_frame: JsonDict) -> str:
 
 def trim_to_greeting_ack(text: str) -> str:
     first_sentence = re.split(r"(?<=[。！？!?])", text.strip(), maxsplit=1)[0].strip()
-    if first_sentence and not any(term in first_sentence for term in ["看来你", "你更喜欢", "你是不是", "工程验证", "Project Sora"]):
+    if first_sentence and not any(term in first_sentence for term in ["看来你", "你更喜欢", "你是不是", "你想先", "需要我"]):
         return first_sentence
     return "你好呀。"
 

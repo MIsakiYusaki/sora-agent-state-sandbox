@@ -1,0 +1,40 @@
+{
+  "dataset_version": "recall_eval_v1",
+  "memory_records": 136,
+  "recall_cases": 180,
+  "category_counts": {
+    "conflict_resolution": 10,
+    "direct_match": 36,
+    "governance": 24,
+    "multi_memory": 20,
+    "no_answer": 24,
+    "semantic_paraphrase": 40,
+    "sensitive_boundary": 16,
+    "surface_action": 10
+  },
+  "memory_status_counts": {
+    "active": 116,
+    "deleted": 6,
+    "disabled": 6,
+    "superseded": 8
+  },
+  "memory_type_counts": {
+    "episode": 18,
+    "goal": 16,
+    "preference": 46,
+    "profile": 16,
+    "project_principle": 20,
+    "sensitive_boundary": 8,
+    "worldops_episode": 12
+  },
+  "eval_database": "C:\\Users\\aizen\\Documents\\Project Sora\\sora-agent-state-sandbox\\.sandbox\\evals\\memory_eval.db",
+  "runtime_health": {
+    "imported": 136,
+    "status": "ok",
+    "mode": "in_process",
+    "backend": "sqlite_fts",
+    "database": "C:\\Users\\aizen\\Documents\\Project Sora\\sora-agent-state-sandbox\\.sandbox\\evals\\memory_eval.db",
+    "active_memories": 116,
+    "pending_candidates": 0
+  }
+}

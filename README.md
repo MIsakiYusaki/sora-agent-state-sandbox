@@ -25,6 +25,8 @@ Event Bus
 - v0.4 逻辑并行架构：各子系统观察同一轮 Event Bus 并产出标准 Signal，Initiative 判断是否存在主动窗口，Arbiter 决定 selected/background/suppressed。
 - v0.5 Origin Template 冷启动：首次状态创建时随机选择一个世界观人物模板，给 Sora 初始生活底色、trait 偏移、WorldOps 入口和主动性 bias。
 - v0.6 可插拔子系统：Memory、Persona、WorldOps 等能力统一通过 `SubsystemRegistry` 和 Adapter 契约接入；支持并行求值、超时、单模块降级及 HTTP 服务替换。
+- 本地 Memory Runtime：随 `run.py` 在同一进程启动，以 SQLite 为唯一事实源，提供 FTS 召回、evidence、candidate、revision 和 recall trace；不需要另起 HTTP 服务。
+- 显式低风险记忆：用户明确说“记住……”时可自动提交；普通推断和 WorldOps memory hook 仍先进入候选。密码、API Key、token 等禁止持久化。
 - 主动唤醒：REPL 内置空闲评估计时器，默认 3 分钟无输入时创建 proactive turn；3 分钟只是最低评估门槛，感知状态、Initiative 与 Arbiter 共同决定发出短消息或保持静默。
 
 ## 子系统模块化
@@ -41,6 +43,10 @@ SUBSYSTEM_API.md                 # 独立系统接入协议与示例
 可以单独替换对应 Adapter，不需要修改 Event Bus、Arbiter 或 Response Planner。
 每轮运行结果的 `context_pack.subsystem_health` 会记录各模块状态；REPL 使用
 `/subsystems` 查看最近一轮的延迟和降级原因。
+
+Memory 与其他可替换子系统略有不同：PoC 默认使用同进程的
+`MemoryRuntime`，canonical 数据保存在 `.sandbox/memory.db`。HTTP 只作为未来
+跨进程部署时的可选适配方式，不是本地运行的前置条件。
 
 ## 主动搭话
 
@@ -94,11 +100,33 @@ REPL 中可以直接查看当前 prompt：
 
 ## 运行
 
+Windows PowerShell 5.1 有时会把 UTF-8 中文输出显示成 mojibake（例如 `鐢ㄦ埛`、`璁板繂`）。这通常是终端输出编码问题，不代表仓库文件已经损坏。运行或查看中文文件前，可以先在当前 PowerShell 会话执行：
+
+```powershell
+$utf8 = [System.Text.UTF8Encoding]::new($false); [Console]::InputEncoding = $utf8; [Console]::OutputEncoding = $utf8; $OutputEncoding = $utf8
+```
+
+如果本机允许运行脚本，也可以执行 `. .\scripts\Use-Utf8Console.ps1`。
+
+如果 `Get-Content README.md` 仍然显示乱码，改用项目内的 UTF-8 查看脚本：
+
+```powershell
+python scripts/read_utf8.py README.md
+```
+
 通用方式：
 
 ```powershell
 python run.py
 ```
+
+这条命令会同时启动 Orchestrator、Memory Runtime 和 REPL。进入主界面后输入：
+
+```text
+/memory
+```
+
+即可进入 Memory Console；输入 `back` 返回 Sora 主界面。
 
 不需要真实 LLM 密钥的本地演示：
 
@@ -153,7 +181,11 @@ python run.py --provider fake --once "你好呀" --trace
 /clear-history
 /prompts
 /prompt system
+/memory
 /memories
+/memory-candidates
+/memory-health
+/recall-traces
 /memory-hooks
 /commit-memory-hook <id>
 /reject-memory-hook <id>
@@ -179,7 +211,10 @@ python run.py --provider fake --once "你好呀" --trace
 
 ## 设计红线
 
-- Agent Runtime 不直接写长期记忆。
+- SQLite canonical store 是长期记忆的唯一事实源，`state.json` 只保留兼容调试投影。
+- 普通对话不得直接写长期记忆；必须先形成 candidate。
+- 用户明确要求记住的低敏偏好、目标和项目原则可以自动提交。
+- 密码、验证码、API Key、token、私钥等禁止写入 evidence、candidate 或 canonical memory。
 - LLM 不直接修改 Persona 长期状态。
 - Memory Hook 必须手动 `/commit-memory-hook` 才写入长期 Memory。
 - Growth Event 必须手动 `/apply-growth-event` 才修改长期 Persona trait。
@@ -195,3 +230,20 @@ python run.py --provider fake --once "你好呀" --trace
 ```powershell
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s tests
 ```
+
+## 记忆召回评测
+
+生成隔离的模拟记忆库和黄金集：
+
+```powershell
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" evals/generate_recall_dataset.py
+```
+
+运行 SQLite FTS 基线：
+
+```powershell
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" evals/run_recall_eval.py
+```
+
+报告输出到 `evals/reports/sqlite_fts/`。评测使用
+`.sandbox/evals/memory_eval.db`，不会污染日常 `.sandbox/memory.db`。

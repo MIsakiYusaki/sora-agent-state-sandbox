@@ -4,17 +4,30 @@ import threading
 
 from .agent import AgentRunner
 from .commands import CommandError, handle_command
+from .memory_console import MemoryConsole
+from .memory_runtime import MemoryRuntime
 from .proactive import ProactiveScheduler, ProactiveTrigger
 from .render import render_trace_panel
 from .state import StateStore
 
 
 class SoraRepl:
-    def __init__(self, store: StateStore, runner: AgentRunner, show_trace_panel: bool = True) -> None:
+    def __init__(
+        self,
+        store: StateStore,
+        runner: AgentRunner,
+        show_trace_panel: bool = True,
+        memory_runtime: MemoryRuntime | None = None,
+    ) -> None:
         self.store = store
         self.runner = runner
         self.state = store.load()
         self.show_trace_panel = show_trace_panel
+        self.memory_runtime = memory_runtime
+        if self.memory_runtime is not None:
+            self.memory_runtime.import_legacy_memories(self.state["memory"].get("items", []))
+            self.memory_runtime.sync_state_cache(self.state)
+            self.store.save(self.state)
         self._runtime_lock = threading.RLock()
         self.scheduler = ProactiveScheduler(
             self._on_proactive_trigger,
@@ -42,17 +55,29 @@ class SoraRepl:
                 if line.startswith("/simulate-idle"):
                     self._simulate_idle(line)
                     continue
+                if line == "/memory":
+                    self._memory_console()
+                    continue
                 if line.startswith("/"):
                     try:
                         with self._runtime_lock:
-                            output, should_exit = handle_command(line, self.state)
+                            output, should_exit = handle_command(
+                                line,
+                                self.state,
+                                memory_admin=self.memory_runtime,
+                            )
+                            if self.memory_runtime is not None:
+                                self.memory_runtime.import_legacy_memories(
+                                    self.state["memory"].get("items", [])
+                                )
+                                self.memory_runtime.sync_state_cache(self.state)
                             self._sync_scheduler_config()
                             self.store.save(self.state)
                         if output:
                             print(output)
                         if should_exit:
                             return
-                    except CommandError as exc:
+                    except (CommandError, ValueError, TypeError) as exc:
                         print(f"命令错误：{exc}")
                     continue
 
@@ -106,6 +131,32 @@ class SoraRepl:
         self.scheduler.idle_seconds = int(
             self.state["initiative"].get("idle_threshold_sec", 180)
         )
+
+    def _memory_console(self) -> None:
+        if self.memory_runtime is None:
+            print("Memory Runtime 未启用。")
+            return
+        console = MemoryConsole(self.memory_runtime)
+        print(console.banner())
+        while True:
+            try:
+                line = input("memory> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n返回 Sora 主界面。")
+                return
+            if not line:
+                continue
+            try:
+                with self._runtime_lock:
+                    output, should_back = console.execute(line)
+                    self.memory_runtime.sync_state_cache(self.state)
+                    self.store.save(self.state)
+                if output:
+                    print(output)
+                if should_back:
+                    return
+            except (ValueError, TypeError) as exc:
+                print(f"Memory Console 错误：{exc}")
 
 
 def parse_duration_seconds(value: str) -> int:

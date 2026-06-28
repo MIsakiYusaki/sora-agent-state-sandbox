@@ -7,6 +7,7 @@ import sys
 from .agent import AgentRunner
 from .credentials import CredentialError, CredentialManager
 from .llm import DeepSeekClient, FakeLLMClient
+from .memory_runtime import MemoryRuntime
 from .render import render_trace_panel
 from .repl import SoraRepl
 from .state import StateStore
@@ -48,27 +49,38 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     store = StateStore.default()
+    memory_runtime = MemoryRuntime.default()
     if args.reset_state:
         store.reset()
+        memory_runtime.reset()
 
     try:
         llm = make_llm(args.provider, args.model, args.no_prompt_key)
     except CredentialError as exc:
+        memory_runtime.close()
         print(f"凭据错误：{exc}", file=sys.stderr)
         return 2
 
-    runner = AgentRunner(llm)
-    repl = SoraRepl(store, runner, show_trace_panel=not args.compact)
+    runner = AgentRunner(llm, memory_runtime=memory_runtime)
+    repl = SoraRepl(
+        store,
+        runner,
+        show_trace_panel=not args.compact,
+        memory_runtime=memory_runtime,
+    )
 
-    if args.once:
-        result = repl.run_once(args.once)
-        if args.json:
-            print(json.dumps(result, ensure_ascii=False, indent=2))
-        elif args.trace:
-            print(render_trace_panel(result))
-        else:
-            print(result["reply"])
+    try:
+        if args.once:
+            result = repl.run_once(args.once)
+            if args.json:
+                print(json.dumps(result, ensure_ascii=False, indent=2))
+            elif args.trace:
+                print(render_trace_panel(result))
+            else:
+                print(result["reply"])
+            return 0
+
+        repl.loop()
         return 0
-
-    repl.loop()
-    return 0
+    finally:
+        memory_runtime.close()

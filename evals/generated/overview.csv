@@ -1,0 +1,18 @@
+section,item,value,description
+dataset,dataset_version,recall_eval_v1,稳定 ID，可重复生成。
+dataset,memory_records,136,写入隔离的本地 SQLite Memory Runtime。
+dataset,active_memories,116,可以参与正常召回的 canonical memory。
+dataset,recall_cases,180,黄金评测查询总数。
+dataset,eval_database,.sandbox/evals/memory_eval.db,与日常 .sandbox/memory.db 隔离，避免污染真实记忆。
+case_category,conflict_resolution,10,存在新旧事实冲突时只使用当前版本。
+case_category,direct_match,36,显式询问某一已知主题，验证直接命中。
+case_category,governance,24,验证 disabled、deleted、superseded 状态过滤。
+case_category,multi_memory,20,同一查询需要召回两条相关记忆。
+case_category,no_answer,24,库中无答案，验证系统能否保持空召回。
+case_category,semantic_paraphrase,40,不复述原摘要，通过语义改写验证召回。
+case_category,sensitive_boundary,16,验证敏感记忆只在明确相关场景使用。
+case_category,surface_action,10,区分 gist、implicit 和 none 的表面动作。
+memory_status,active,116,用于验证状态过滤和治理行为。
+memory_status,deleted,6,用于验证状态过滤和治理行为。
+memory_status,disabled,6,用于验证状态过滤和治理行为。
+memory_status,superseded,8,用于验证状态过滤和治理行为。

@@ -17,6 +17,7 @@ def render_trace_panel(result: JsonDict) -> str:
     session = context_pack.get("session_context", {})
     dialogue_control = context_pack.get("dialogue_control_frame", {})
     turn_frame = context_pack.get("turn_frame", {})
+    interpretation = context_pack.get("turn_interpretation", {})
     context_use_policy = context_pack.get("context_use_policy", {})
     signals = context_pack.get("signals", [])
     initiative_window = context_pack.get("initiative_window", {})
@@ -47,8 +48,15 @@ def render_trace_panel(result: JsonDict) -> str:
     )
 
     memory_summaries = recollection.get("memory_summaries", [])
-    if memory_summaries:
+    if recollection.get("backend"):
         lines.append("")
+        lines.append(
+            "🗄️ 记忆召回: "
+            f"backend={recollection.get('backend')} | "
+            f"latency={float(recollection.get('latency_ms', 0) or 0):.2f}ms | "
+            f"trace={recollection.get('recall_trace_id', '-')}"
+        )
+    if memory_summaries:
         lines.append(f"🧠 记忆 ({len(memory_summaries)} 条):")
         for memory_id, summary in zip(recollection.get("retrieved_ids", []), memory_summaries):
             lines.append(f"   - [{memory_id}] {_truncate(summary, 86)}")
@@ -105,6 +113,21 @@ def render_trace_panel(result: JsonDict) -> str:
             f"closing={dialogue_control.get('preferred_closing', '-')}"
         )
 
+    if interpretation:
+        intent = interpretation.get("intent", {})
+        reference = interpretation.get("context_reference", {})
+        domain = interpretation.get("domain", {})
+        framing = interpretation.get("framing", {})
+        resolved_count = len(reference.get("resolved_targets", []) or [])
+        lines.append(
+            "意图识别: "
+            f"move={interpretation.get('conversation_move', '-')} | "
+            f"intent={intent.get('primary', '-')} | "
+            f"refs={reference.get('references_previous_context', False)}/{resolved_count} | "
+            f"domain={domain.get('primary', '-')}:{domain.get('risk_level', '-')} | "
+            f"frame={framing.get('frame_role', '-')}"
+        )
+
     if arbitration:
         source_counts: dict[str, int] = {}
         for signal in signals:
@@ -149,15 +172,12 @@ def render_trace_panel(result: JsonDict) -> str:
             value = float(timing.get(key) or 0)
             pct = (value / total * 100) if total else 0.0
             lines.append(f"   {key:<16} {value:>8.2f}ms  ({pct:5.1f}%)")
-        signal_keys = ["sig_dialogue", "sig_behavior", "sig_memory", "sig_persona", "sig_worldops", "sig_relationship", "sig_origin", "sig_initiative"]
-        if any(key in timing for key in signal_keys):
-            lines.append("   Signal timings")
-            for key in signal_keys:
-                if key not in timing:
+            for child_key in timing_child_keys(key):
+                if child_key not in timing:
                     continue
-                value = float(timing.get(key) or 0)
-                pct = (value / total * 100) if total else 0.0
-                lines.append(f"   {key:<16} {value:>8.2f}ms  ({pct:5.1f}%)")
+                child_value = float(timing.get(child_key) or 0)
+                child_pct = (child_value / total * 100) if total else 0.0
+                lines.append(f"     {child_key:<14} {child_value:>8.2f}ms  ({child_pct:5.1f}%)")
 
     lines.append("=" * 60)
     return "\n".join(lines)
@@ -204,6 +224,23 @@ def _extract_usage(result: JsonDict) -> JsonDict:
     completion = int(usage.get("completion", usage.get("completion_tokens", 0)) or 0)
     total = int(usage.get("total", usage.get("total_tokens", prompt + completion)) or 0)
     return {"prompt": prompt, "completion": completion, "total": total}
+
+
+def timing_child_keys(key: str) -> list[str]:
+    children = {
+        "context_frames": ["turn_interpretation", "memory_recall"],
+        "subsystem_signals": [
+            "sig_dialogue",
+            "sig_behavior",
+            "sig_memory",
+            "sig_persona",
+            "sig_worldops",
+            "sig_relationship",
+            "sig_origin",
+            "sig_initiative",
+        ],
+    }
+    return children.get(key, [])
 
 
 def _truncate(text: str, limit: int) -> str:

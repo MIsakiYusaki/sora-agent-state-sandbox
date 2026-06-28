@@ -12,6 +12,7 @@ from .state import (
     apply_growth_event,
     commit_memory_hook,
     find_world_event,
+    find_memory_hook,
     load_origin_templates,
     list_memory_hooks,
     now_ms,
@@ -29,7 +30,11 @@ class CommandError(RuntimeError):
     pass
 
 
-def handle_command(line: str, state: JsonDict) -> tuple[str, bool]:
+def handle_command(
+    line: str,
+    state: JsonDict,
+    memory_admin: Any | None = None,
+) -> tuple[str, bool]:
     parts = shlex.split(line, posix=False)
     if not parts:
         return "", False
@@ -57,6 +62,13 @@ def handle_command(line: str, state: JsonDict) -> tuple[str, bool]:
         return dump(state["observability"].get("last_context_pack", {}).get("signals", [])), False
     if command == "/subsystems":
         return dump(state["observability"].get("last_context_pack", {}).get("subsystem_health", [])), False
+    if command == "/interpretation":
+        return dump(state["observability"].get("last_context_pack", {}).get("turn_interpretation", {})), False
+    if command == "/context-pack":
+        return dump(state["observability"].get("last_context_pack", {})), False
+    if command == "/turn-debug":
+        mode = arg_value(args[0]).lower() if args else "summary"
+        return dump(build_turn_debug_snapshot(state, mode=mode)), False
     if command == "/arbitration":
         return dump(state["observability"].get("last_context_pack", {}).get("arbitration_result", {})), False
     if command == "/initiative":
@@ -88,21 +100,64 @@ def handle_command(line: str, state: JsonDict) -> tuple[str, bool]:
         return "短期对话历史已清空。", False
 
     if command == "/memories":
+        if memory_admin is not None:
+            return dump(memory_admin.list_memories()), False
         return dump(state["memory"]["items"]), False
     if command == "/add-memory":
+        if memory_admin is not None:
+            return dump(add_memory_runtime(args, memory_admin)), False
         return add_memory(args, state), False
     if command == "/search-memory":
+        if memory_admin is not None:
+            return dump(memory_admin.search(" ".join(args).strip('"'))), False
         return search_memory(args, state), False
     if command == "/disable-memory":
+        if memory_admin is not None:
+            return dump(memory_admin.disable(required_arg(args, "/disable-memory <id>"))), False
         return set_memory_status(args, state, "disabled"), False
     if command == "/delete-memory":
+        if memory_admin is not None:
+            return dump(memory_admin.delete(required_arg(args, "/delete-memory <id>"))), False
         return set_memory_status(args, state, "deleted"), False
+    if command == "/restore-memory":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.restore(required_arg(args, "/restore-memory <id>"))), False
+    if command == "/memory-candidates":
+        require_memory_admin(memory_admin)
+        status = arg_value(args[0]).lower() if args else "pending"
+        return dump(memory_admin.list_candidates(None if status == "all" else status)), False
+    if command == "/commit-memory":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.commit([required_arg(args, "/commit-memory <candidate_id>")])), False
+    if command == "/reject-memory":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.reject(required_arg(args, "/reject-memory <candidate_id>"))), False
+    if command == "/revise-memory":
+        require_memory_admin(memory_admin)
+        if len(args) < 2:
+            raise CommandError("用法：/revise-memory <memory_id> <新内容>")
+        return dump(memory_admin.revise(arg_value(args[0]), arg_value(" ".join(args[1:])))), False
+    if command == "/memory-evidence":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.evidence_for_memory(required_arg(args, "/memory-evidence <id>"))), False
+    if command == "/memory-revisions":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.revisions_for_memory(required_arg(args, "/memory-revisions <id>"))), False
+    if command == "/recall-traces":
+        require_memory_admin(memory_admin)
+        limit = int(arg_value(args[0])) if args else 20
+        return dump(memory_admin.list_recall_traces(limit)), False
+    if command == "/memory-health":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.health()), False
+    if command == "/memory":
+        return "交互式 REPL 中输入 /memory 可进入 Memory Console。", False
     if command == "/memory-hooks":
         return dump(list_memory_hooks(state)), False
     if command == "/commit-memory-hook":
-        return commit_memory_hook_command(args, state), False
+        return commit_memory_hook_command(args, state, memory_admin), False
     if command == "/reject-memory-hook":
-        return reject_memory_hook_command(args, state), False
+        return reject_memory_hook_command(args, state, memory_admin), False
 
     if command == "/persona":
         return dump(state["persona"]), False
@@ -165,11 +220,66 @@ def dump(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
 
 
+def build_turn_debug_snapshot(state: JsonDict, *, mode: str = "summary") -> JsonDict:
+    result = state["observability"].get("last_run_result", {}) or {}
+    context_pack = state["observability"].get("last_context_pack", {}) or {}
+    if mode not in {"summary", "full"}:
+        raise CommandError("Usage: /turn-debug [summary|full]")
+    if mode == "full":
+        return {
+            "mode": "full",
+            "user_input": result.get("user_input", ""),
+            "turn_kind": result.get("turn_kind"),
+            "proactive_trigger": result.get("proactive_trigger"),
+            "context_pack": context_pack,
+            "response_plan": state["observability"].get("last_response_plan", {}),
+            "expression_event": result.get("expression_event"),
+            "state_diff": state["observability"].get("last_state_diff", {}),
+            "trace": state["observability"].get("last_trace", []),
+            "timing": result.get("timing", {}),
+            "token_usage": result.get("token_usage", {}),
+        }
+    return {
+        "mode": "summary",
+        "user_input": result.get("user_input", ""),
+        "turn_kind": result.get("turn_kind"),
+        "turn_interpretation": context_pack.get("turn_interpretation", {}),
+        "turn_frame": context_pack.get("turn_frame", {}),
+        "context_use_policy": context_pack.get("context_use_policy", {}),
+        "session_context": context_pack.get("session_context", {}),
+        "event_bus": context_pack.get("event_bus", {}),
+        "recollection_frame": context_pack.get("recollection_frame", {}),
+        "persona_frame": context_pack.get("persona_frame", {}),
+        "origin_frame": context_pack.get("origin_frame", {}),
+        "worldops_frame": context_pack.get("worldops_frame", {}),
+        "dialogue_control_frame": context_pack.get("dialogue_control_frame", {}),
+        "signals": context_pack.get("signals", []),
+        "subsystem_health": context_pack.get("subsystem_health", []),
+        "initiative_window": context_pack.get("initiative_window", {}),
+        "arbitration_result": context_pack.get("arbitration_result", {}),
+        "response_plan": state["observability"].get("last_response_plan", {}),
+        "expression_event": result.get("expression_event"),
+        "state_diff": state["observability"].get("last_state_diff", {}),
+        "timing": result.get("timing", {}),
+    }
+
+
 def arg_value(value: str) -> str:
     value = value.strip().strip('"')
     if len(value) >= 2 and value[0] == "<" and value[-1] == ">":
         return value[1:-1].strip()
     return value
+
+
+def required_arg(args: list[str], usage: str) -> str:
+    if not args:
+        raise CommandError(f"用法：{usage}")
+    return arg_value(args[0])
+
+
+def require_memory_admin(memory_admin: Any | None) -> None:
+    if memory_admin is None:
+        raise CommandError("Memory Runtime 未启用。")
 
 
 def help_text() -> str:
@@ -197,6 +307,12 @@ def help_text() -> str:
       查看上一轮各子系统产出的标准 Signal，适合判断哪些系统想发声。
   /subsystems
       查看上一轮子系统 Adapter 的状态、延迟、Signal 数量和降级原因。
+  /interpretation
+      查看上一轮 Turn Interpreter 的意图、指代消解、领域风险和世界观框架判断。
+  /context-pack
+      查看上一轮完整 context_pack；适合一次性检查所有注入给 LLM 的运行时上下文。
+  /turn-debug [summary|full]
+      按流水线查看上一轮输入后的中间结果：意图识别、turn_frame、signals、Arbiter、response_plan、state_diff 等。
   /arbitration
       查看上一轮 Arbiter 结果：selected/background/suppressed signals 与回复指令。
   /initiative
@@ -225,8 +341,10 @@ def help_text() -> str:
       清空短期对话窗口，用于验证无上下文时的回复稳定性。
 
 Memory：
+  /memory
+      进入本地 Memory Console；可查看候选、证据、修订和召回轨迹。
   /memories
-      列出所有 mock/seed/manual memory。
+      列出 SQLite canonical memory。
   /add-memory <内容> --type <类型> --tags <tag1,tag2>
       手动添加一条记忆。例：/add-memory 用户喜欢先聊方案 --type preference --tags workflow,agent
   /search-memory <关键词>
@@ -235,6 +353,16 @@ Memory：
       禁用一条 memory，让召回不再使用它。
   /delete-memory <id>
       标记删除一条 memory；当前是软删除，不直接物理移除。
+  /restore-memory <id>
+      恢复一条 disabled/deleted memory。
+  /memory-candidates [pending|committed|rejected|all]
+      查看 Memory Runtime 写入候选。
+  /commit-memory <candidate_id> /reject-memory <candidate_id>
+      提交或拒绝记忆候选。
+  /memory-evidence <id> /memory-revisions <id>
+      查看记忆证据与修订历史。
+  /recall-traces [数量] /memory-health
+      查看召回轨迹和本地 Runtime 健康状态。
   /memory-hooks
       查看待提交或已处理的记忆写入候选。
   /commit-memory-hook <id>
@@ -351,7 +479,11 @@ def set_origin_command(args: list[str], state: JsonDict) -> str:
         template = select_origin_template(state, arg_value(args[0]), mode="manual_set")
     except ValueError as exc:
         raise CommandError(str(exc)) from exc
-    return dump({"selected": template, "origin": state.get("origin", {})})
+    return dump({
+        "selected": template,
+        "origin": state.get("origin", {}),
+        "persona_core": state.get("persona", {}).get("persona_core", {}),
+    })
 
 
 def reroll_origin_command(state: JsonDict) -> str:
@@ -359,7 +491,11 @@ def reroll_origin_command(state: JsonDict) -> str:
         template = select_origin_template(state, mode="manual_reroll")
     except ValueError as exc:
         raise CommandError(str(exc)) from exc
-    return dump({"selected": template, "origin": state.get("origin", {})})
+    return dump({
+        "selected": template,
+        "origin": state.get("origin", {}),
+        "persona_core": state.get("persona", {}).get("persona_core", {}),
+    })
 
 
 def add_memory(args: list[str], state: JsonDict) -> str:
@@ -384,6 +520,32 @@ def add_memory(args: list[str], state: JsonDict) -> str:
     return f"已添加 memory: {item['id']}"
 
 
+def add_memory_runtime(args: list[str], memory_admin: Any) -> JsonDict:
+    if not args:
+        raise CommandError("用法：/add-memory <内容> --type preference --tags a,b")
+    memory_type = "preference"
+    tags: list[str] = []
+    content_parts: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--type" and i + 1 < len(args):
+            memory_type = arg_value(args[i + 1])
+            i += 2
+        elif args[i] == "--tags" and i + 1 < len(args):
+            tags = [tag.strip() for tag in arg_value(args[i + 1]).split(",") if tag.strip()]
+            i += 2
+        else:
+            content_parts.append(args[i])
+            i += 1
+    content = arg_value(" ".join(content_parts))
+    if not content:
+        raise CommandError("记忆内容不能为空。")
+    try:
+        return memory_admin.add_manual(content, memory_type=memory_type, tags=tags)
+    except ValueError as exc:
+        raise CommandError(str(exc)) from exc
+
+
 def search_memory(args: list[str], state: JsonDict) -> str:
     query = " ".join(args).strip('"')
     rows = []
@@ -405,20 +567,65 @@ def set_memory_status(args: list[str], state: JsonDict, status: str) -> str:
     raise CommandError(f"找不到 memory: {memory_id}")
 
 
-def commit_memory_hook_command(args: list[str], state: JsonDict) -> str:
+def commit_memory_hook_command(
+    args: list[str],
+    state: JsonDict,
+    memory_admin: Any | None = None,
+) -> str:
     if not args:
         raise CommandError("用法：/commit-memory-hook <id>")
     try:
-        return dump(commit_memory_hook(state, arg_value(args[0])))
+        result = commit_memory_hook(state, arg_value(args[0]))
+        if memory_admin is None:
+            return dump(result)
+
+        legacy_memory = result["memory"]
+        summary = legacy_memory["content"]
+        pending = [
+            candidate
+            for candidate in memory_admin.list_candidates("pending")
+            if candidate.get("summary") == summary
+        ]
+        if pending:
+            canonical = memory_admin.commit([pending[0]["candidate_id"]])["committed"][0]
+        else:
+            canonical = memory_admin.add_manual(
+                summary,
+                memory_type=legacy_memory.get("type", "episode"),
+                tags=legacy_memory.get("tags", []),
+            )
+        _, hook = find_memory_hook(state, arg_value(args[0]))
+        hook["committed_memory_id"] = canonical["id"]
+        state["memory"]["items"] = [
+            item for item in state["memory"]["items"] if item.get("id") != legacy_memory["id"]
+        ]
+        result["hook"]["committed_memory_id"] = canonical["id"]
+        result["memory"] = canonical
+        return dump(result)
     except ValueError as exc:
         raise CommandError(str(exc)) from exc
 
 
-def reject_memory_hook_command(args: list[str], state: JsonDict) -> str:
+def reject_memory_hook_command(
+    args: list[str],
+    state: JsonDict,
+    memory_admin: Any | None = None,
+) -> str:
     if not args:
         raise CommandError("用法：/reject-memory-hook <id>")
     try:
-        return dump(reject_memory_hook(state, arg_value(args[0])))
+        _, hook = find_memory_hook(state, arg_value(args[0]))
+        summary = hook.get("episode_summary") or hook.get("content")
+        result = reject_memory_hook(state, arg_value(args[0]))
+        if memory_admin is not None and summary:
+            for candidate in memory_admin.list_candidates("pending"):
+                if candidate.get("summary") == summary:
+                    memory_admin.reject(
+                        candidate["candidate_id"],
+                        reason=f"legacy_hook_rejected:{arg_value(args[0])}",
+                    )
+                    break
+        return dump(result)
     except ValueError as exc:
         raise CommandError(str(exc)) from exc
 

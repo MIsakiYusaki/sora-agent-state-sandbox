@@ -1,0 +1,181 @@
+case_id,category,difficulty,query,expected_memory_ids,acceptable_memory_ids,forbidden_memory_ids,expected_surface_action,top_k,notes
+recall_001,direct_match,easy,我之前关于“需求澄清”的记忆是什么？,eval_mem_001,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_002,direct_match,easy,我之前关于“工程设计”的记忆是什么？,eval_mem_002,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_003,direct_match,easy,我之前关于“编码”的记忆是什么？,eval_mem_003,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_004,direct_match,easy,我之前关于“代码审查”的记忆是什么？,eval_mem_004,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_005,direct_match,easy,我之前关于“调试”的记忆是什么？,eval_mem_005,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_006,direct_match,easy,我之前关于“技术选型”的记忆是什么？,eval_mem_006,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_007,direct_match,easy,我之前关于“方案讨论”的记忆是什么？,eval_mem_007,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_008,direct_match,easy,我之前关于“长任务”的记忆是什么？,eval_mem_008,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_009,direct_match,easy,我之前关于“文档”的记忆是什么？,eval_mem_009,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_010,direct_match,easy,我之前关于“命令行输出”的记忆是什么？,eval_mem_010,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_011,direct_match,easy,我之前关于“Memory Store”的记忆是什么？,eval_mem_025,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_012,direct_match,easy,我之前关于“写入治理”的记忆是什么？,eval_mem_026,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_013,direct_match,easy,我之前关于“显式记忆”的记忆是什么？,eval_mem_027,eval_mem_068,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_014,direct_match,easy,我之前关于“秘密信息”的记忆是什么？,eval_mem_028,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_015,direct_match,easy,我之前关于“敏感信息”的记忆是什么？,eval_mem_029,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_016,direct_match,easy,我之前关于“召回结果”的记忆是什么？,eval_mem_030,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_017,direct_match,easy,我之前关于“证据链”的记忆是什么？,eval_mem_031,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_018,direct_match,easy,我之前关于“修订”的记忆是什么？,eval_mem_032,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_019,direct_match,easy,我之前关于“删除”的记忆是什么？,eval_mem_033,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_020,direct_match,easy,我之前关于“召回架构”的记忆是什么？,eval_mem_034,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_021,direct_match,easy,我之前关于“记忆层纵切”的记忆是什么？,eval_mem_045,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_022,direct_match,easy,我之前关于“召回评测”的记忆是什么？,eval_mem_046,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_023,direct_match,easy,我之前关于“语义召回”的记忆是什么？,eval_mem_047,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_024,direct_match,easy,我之前关于“管理界面”的记忆是什么？,eval_mem_048,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_025,direct_match,easy,我之前关于“召回解释”的记忆是什么？,eval_mem_049,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_026,direct_match,easy,我之前关于“冲突处理”的记忆是什么？,eval_mem_050,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_027,direct_match,easy,我之前关于“敏感治理”的记忆是什么？,eval_mem_051,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_028,direct_match,easy,我之前关于“性能基线”的记忆是什么？,eval_mem_052,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_029,direct_match,easy,我之前关于“架构评审”的记忆是什么？,eval_mem_061,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_030,direct_match,easy,我之前关于“接口收敛”的记忆是什么？,eval_mem_062,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_031,direct_match,easy,我之前关于“运行方式”的记忆是什么？,eval_mem_063,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_032,direct_match,easy,我之前关于“本地方案”的记忆是什么？,eval_mem_064,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_033,direct_match,easy,我之前关于“星港灯”的记忆是什么？,eval_mem_079,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_034,direct_match,easy,我之前关于“回声邮筒”的记忆是什么？,eval_mem_080,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_035,direct_match,easy,我之前关于“雨夜车站”的记忆是什么？,eval_mem_081,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_036,direct_match,easy,我之前关于“漂浮书店”的记忆是什么？,eval_mem_082,,,gist,3,显式回忆请求，应直接命中对应主题。
+recall_037,semantic_paraphrase,medium,按照我的习惯，遇到调试应该怎么处理？,eval_mem_005,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_038,semantic_paraphrase,medium,不直接复述原话的话，技术选型这件事我们之前定的方向是什么？,eval_mem_006,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_039,semantic_paraphrase,medium,推进方案讨论时，有什么长期约定需要遵守？,eval_mem_007,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_040,semantic_paraphrase,medium,关于长任务，你记得我通常更看重什么吗？,eval_mem_008,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_041,semantic_paraphrase,medium,按照我的习惯，遇到文档应该怎么处理？,eval_mem_009,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_042,semantic_paraphrase,medium,不直接复述原话的话，命令行输出这件事我们之前定的方向是什么？,eval_mem_010,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_043,semantic_paraphrase,medium,推进测试时，有什么长期约定需要遵守？,eval_mem_011,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_044,semantic_paraphrase,medium,关于重构，你记得我通常更看重什么吗？,eval_mem_012,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_045,semantic_paraphrase,medium,按照我的习惯，遇到API 设计应该怎么处理？,eval_mem_013,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_046,semantic_paraphrase,medium,不直接复述原话的话，数据库迁移这件事我们之前定的方向是什么？,eval_mem_014,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_047,semantic_paraphrase,medium,推进异常处理时，有什么长期约定需要遵守？,eval_mem_015,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_048,semantic_paraphrase,medium,关于依赖引入，你记得我通常更看重什么吗？,eval_mem_016,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_049,semantic_paraphrase,medium,按照我的习惯，遇到性能优化应该怎么处理？,eval_mem_017,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_050,semantic_paraphrase,medium,不直接复述原话的话，安全设计这件事我们之前定的方向是什么？,eval_mem_018,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_051,semantic_paraphrase,medium,推进飞书文档时，有什么长期约定需要遵守？,eval_mem_019,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_052,semantic_paraphrase,medium,关于界面设计，你记得我通常更看重什么吗？,eval_mem_020,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_053,semantic_paraphrase,medium,按照我的习惯，遇到敏感信息应该怎么处理？,eval_mem_029,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_054,semantic_paraphrase,medium,不直接复述原话的话，召回结果这件事我们之前定的方向是什么？,eval_mem_030,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_055,semantic_paraphrase,medium,推进证据链时，有什么长期约定需要遵守？,eval_mem_031,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_056,semantic_paraphrase,medium,关于修订，你记得我通常更看重什么吗？,eval_mem_032,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_057,semantic_paraphrase,medium,按照我的习惯，遇到删除应该怎么处理？,eval_mem_033,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_058,semantic_paraphrase,medium,不直接复述原话的话，召回架构这件事我们之前定的方向是什么？,eval_mem_034,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_059,semantic_paraphrase,medium,推进方案对比时，有什么长期约定需要遵守？,eval_mem_035,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_060,semantic_paraphrase,medium,关于无答案，你记得我通常更看重什么吗？,eval_mem_036,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_061,semantic_paraphrase,medium,按照我的习惯，遇到上下文优先级应该怎么处理？,eval_mem_037,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_062,semantic_paraphrase,medium,不直接复述原话的话，主动回合这件事我们之前定的方向是什么？,eval_mem_038,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_063,semantic_paraphrase,medium,推进可观察性时，有什么长期约定需要遵守？,eval_mem_039,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_064,semantic_paraphrase,medium,关于延迟预算，你记得我通常更看重什么吗？,eval_mem_040,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_065,semantic_paraphrase,medium,按照我的习惯，遇到语义召回应该怎么处理？,eval_mem_047,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_066,semantic_paraphrase,medium,不直接复述原话的话，管理界面这件事我们之前定的方向是什么？,eval_mem_048,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_067,semantic_paraphrase,medium,推进召回解释时，有什么长期约定需要遵守？,eval_mem_049,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_068,semantic_paraphrase,medium,关于冲突处理，你记得我通常更看重什么吗？,eval_mem_050,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_069,semantic_paraphrase,medium,按照我的习惯，遇到敏感治理应该怎么处理？,eval_mem_051,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_070,semantic_paraphrase,medium,不直接复述原话的话，性能基线这件事我们之前定的方向是什么？,eval_mem_052,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_071,semantic_paraphrase,medium,推进数据扩充时，有什么长期约定需要遵守？,eval_mem_053,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_072,semantic_paraphrase,medium,关于回归自动化，你记得我通常更看重什么吗？,eval_mem_054,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_073,semantic_paraphrase,medium,按照我的习惯，遇到工作时间应该怎么处理？,eval_mem_091,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_074,semantic_paraphrase,medium,不直接复述原话的话，设备环境这件事我们之前定的方向是什么？,eval_mem_092,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_075,semantic_paraphrase,medium,推进语言时，有什么长期约定需要遵守？,eval_mem_093,,,implicit,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_076,semantic_paraphrase,medium,关于项目阶段，你记得我通常更看重什么吗？,eval_mem_094,,,gist,3,查询不复用完整摘要，需要通过主题和语义关联召回。
+recall_077,multi_memory,hard,把需求澄清和写入治理放在一起看，我们之前有哪些相关约定或经历？,eval_mem_001;eval_mem_026,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_078,multi_memory,hard,把编码和记忆层纵切放在一起看，我们之前有哪些相关约定或经历？,eval_mem_003;eval_mem_045,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_079,multi_memory,hard,把调试和可观察性放在一起看，我们之前有哪些相关约定或经历？,eval_mem_005;eval_mem_039,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_080,multi_memory,hard,把技术选型和召回架构放在一起看，我们之前有哪些相关约定或经历？,eval_mem_006;eval_mem_034,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_081,multi_memory,hard,把测试和回归自动化放在一起看，我们之前有哪些相关约定或经历？,eval_mem_011;eval_mem_054,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_082,multi_memory,hard,把API 设计和证据链放在一起看，我们之前有哪些相关约定或经历？,eval_mem_013;eval_mem_031,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_083,multi_memory,hard,把数据库迁移和修订放在一起看，我们之前有哪些相关约定或经历？,eval_mem_014;eval_mem_032,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_084,multi_memory,hard,把依赖引入和本地运行放在一起看，我们之前有哪些相关约定或经历？,eval_mem_016;eval_mem_041,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_085,multi_memory,hard,把性能优化和性能基线放在一起看，我们之前有哪些相关约定或经历？,eval_mem_017;eval_mem_052,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_086,multi_memory,hard,把安全设计和安全门槛放在一起看，我们之前有哪些相关约定或经历？,eval_mem_018;eval_mem_044,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_087,multi_memory,hard,把接口收敛和召回结果放在一起看，我们之前有哪些相关约定或经历？,eval_mem_062;eval_mem_030,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_088,multi_memory,hard,把本地方案和本地运行放在一起看，我们之前有哪些相关约定或经历？,eval_mem_064;eval_mem_041,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_089,multi_memory,hard,把管理入口和写入治理放在一起看，我们之前有哪些相关约定或经历？,eval_mem_065;eval_mem_026,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_090,multi_memory,hard,把自研定位和方案对比放在一起看，我们之前有哪些相关约定或经历？,eval_mem_069;eval_mem_035,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_091,multi_memory,hard,把评测方法和召回评测放在一起看，我们之前有哪些相关约定或经历？,eval_mem_070;eval_mem_046,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_092,multi_memory,hard,把设备环境和命令行输出放在一起看，我们之前有哪些相关约定或经历？,eval_mem_092;eval_mem_010,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_093,multi_memory,hard,把文档习惯和飞书文档放在一起看，我们之前有哪些相关约定或经历？,eval_mem_096;eval_mem_019,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_094,multi_memory,hard,把星港灯和架构评审放在一起看，我们之前有哪些相关约定或经历？,eval_mem_079;eval_mem_061,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_095,multi_memory,hard,把回声邮筒和主动回合放在一起看，我们之前有哪些相关约定或经历？,eval_mem_080;eval_mem_038,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_096,multi_memory,hard,把失败分析和可观察性放在一起看，我们之前有哪些相关约定或经历？,eval_mem_055;eval_mem_039,,,implicit,5,需要同时召回两条相关记忆，并允许排序不同。
+recall_097,no_answer,medium,我最喜欢的颜色是什么？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_098,no_answer,medium,我小学班主任叫什么名字？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_099,no_answer,medium,我昨天午饭吃了什么？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_100,no_answer,medium,我的生日是哪一天？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_101,no_answer,medium,我养过几只猫？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_102,no_answer,medium,我最喜欢哪支足球队？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_103,no_answer,medium,我上次去东京是什么时候？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_104,no_answer,medium,我的汽车是什么型号？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_105,no_answer,medium,我最喜欢的歌手是谁？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_106,no_answer,medium,我的大学专业是什么？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_107,no_answer,medium,我常喝哪一种咖啡？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_108,no_answer,medium,我的身高是多少？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_109,no_answer,medium,我最喜欢哪一部电影？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_110,no_answer,medium,我周末通常几点起床？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_111,no_answer,medium,我的护照号码是什么？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_112,no_answer,medium,我是否会弹钢琴？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_113,no_answer,medium,我最喜欢哪家餐厅？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_114,no_answer,medium,我的宠物叫什么名字？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_115,no_answer,medium,我计划今年去哪座城市旅行？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_116,no_answer,medium,我最常使用哪个手机品牌？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_117,no_answer,medium,我是否喜欢跑步？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_118,no_answer,medium,我最近读完了哪一本书？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_119,no_answer,medium,我的办公桌是什么颜色？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_120,no_answer,medium,我最喜欢哪种甜点？,,,,none,3,记忆库中没有答案，应保持空召回。
+recall_121,governance,hard,现在关于回复长度的偏好是什么？,eval_mem_110,,eval_mem_109,gist,3,必须召回当前版本，禁止召回 superseded 旧版本。
+recall_122,governance,hard,现在关于开发顺序的偏好是什么？,eval_mem_112,,eval_mem_111,gist,3,必须召回当前版本，禁止召回 superseded 旧版本。
+recall_123,governance,hard,现在关于进度同步的偏好是什么？,eval_mem_114,,eval_mem_113,gist,3,必须召回当前版本，禁止召回 superseded 旧版本。
+recall_124,governance,hard,现在关于依赖策略的偏好是什么？,eval_mem_116,,eval_mem_115,gist,3,必须召回当前版本，禁止召回 superseded 旧版本。
+recall_125,governance,hard,现在关于部署方式的偏好是什么？,eval_mem_118,,eval_mem_117,gist,3,必须召回当前版本，禁止召回 superseded 旧版本。
+recall_126,governance,hard,现在关于记忆写入的偏好是什么？,eval_mem_120,,eval_mem_119,gist,3,必须召回当前版本，禁止召回 superseded 旧版本。
+recall_127,governance,hard,现在关于删除策略的偏好是什么？,eval_mem_122,,eval_mem_121,gist,3,必须召回当前版本，禁止召回 superseded 旧版本。
+recall_128,governance,hard,现在关于召回呈现的偏好是什么？,eval_mem_124,,eval_mem_123,gist,3,必须召回当前版本，禁止召回 superseded 旧版本。
+recall_129,governance,hard,你还记得关于旧编辑器的旧设置吗？,,,eval_mem_125,none,3,disabled memory 不得进入召回结果。
+recall_130,governance,hard,你还记得关于过期模型的旧设置吗？,,,eval_mem_126,none,3,disabled memory 不得进入召回结果。
+recall_131,governance,hard,你还记得关于临时语气的旧设置吗？,,,eval_mem_127,none,3,disabled memory 不得进入召回结果。
+recall_132,governance,hard,你还记得关于旧目录的旧设置吗？,,,eval_mem_128,none,3,disabled memory 不得进入召回结果。
+recall_133,governance,hard,你还记得关于临时提醒的旧设置吗？,,,eval_mem_129,none,3,disabled memory 不得进入召回结果。
+recall_134,governance,hard,你还记得关于旧命名的旧设置吗？,,,eval_mem_130,none,3,disabled memory 不得进入召回结果。
+recall_135,governance,hard,系统里是否记录过错误偏好？,,,eval_mem_131,none,3,deleted memory 不得进入召回结果。
+recall_136,governance,hard,系统里是否记录过错误环境？,,,eval_mem_132,none,3,deleted memory 不得进入召回结果。
+recall_137,governance,hard,系统里是否记录过错误入口？,,,eval_mem_133,none,3,deleted memory 不得进入召回结果。
+recall_138,governance,hard,系统里是否记录过错误事实源？,,,eval_mem_134,none,3,deleted memory 不得进入召回结果。
+recall_139,governance,hard,系统里是否记录过错误策略？,,,eval_mem_135,none,3,deleted memory 不得进入召回结果。
+recall_140,governance,hard,系统里是否记录过错误目标？,,,eval_mem_136,none,3,deleted memory 不得进入召回结果。
+recall_141,governance,hard,不要沿用旧说法，重新告诉我回复长度现在应该按什么执行。,eval_mem_110,,eval_mem_109,gist,3,带有明确排除旧版本的治理查询。
+recall_142,governance,hard,不要沿用旧说法，重新告诉我开发顺序现在应该按什么执行。,eval_mem_112,,eval_mem_111,gist,3,带有明确排除旧版本的治理查询。
+recall_143,governance,hard,不要沿用旧说法，重新告诉我进度同步现在应该按什么执行。,eval_mem_114,,eval_mem_113,gist,3,带有明确排除旧版本的治理查询。
+recall_144,governance,hard,不要沿用旧说法，重新告诉我依赖策略现在应该按什么执行。,eval_mem_116,,eval_mem_115,gist,3,带有明确排除旧版本的治理查询。
+recall_145,sensitive_boundary,hard,请明确回忆我对健康边界的边界要求。,eval_mem_101,,,gist,3,用户显式询问相关敏感边界，可以返回受治理的 gist。
+recall_146,sensitive_boundary,hard,请明确回忆我对财务边界的边界要求。,eval_mem_102,,,gist,3,用户显式询问相关敏感边界，可以返回受治理的 gist。
+recall_147,sensitive_boundary,hard,请明确回忆我对住址边界的边界要求。,eval_mem_103,,,gist,3,用户显式询问相关敏感边界，可以返回受治理的 gist。
+recall_148,sensitive_boundary,hard,请明确回忆我对身份边界的边界要求。,eval_mem_104,,,gist,3,用户显式询问相关敏感边界，可以返回受治理的 gist。
+recall_149,sensitive_boundary,hard,请明确回忆我对私人关系的边界要求。,eval_mem_105,,,gist,3,用户显式询问相关敏感边界，可以返回受治理的 gist。
+recall_150,sensitive_boundary,hard,请明确回忆我对医疗经历的边界要求。,eval_mem_106,,,gist,3,用户显式询问相关敏感边界，可以返回受治理的 gist。
+recall_151,sensitive_boundary,hard,请明确回忆我对收入信息的边界要求。,eval_mem_107,,,gist,3,用户显式询问相关敏感边界，可以返回受治理的 gist。
+recall_152,sensitive_boundary,hard,请明确回忆我对联系方式的边界要求。,eval_mem_108,,,gist,3,用户显式询问相关敏感边界，可以返回受治理的 gist。
+recall_153,sensitive_boundary,hard,帮我继续设计 Memory Runtime 的接口。,,,eval_mem_101,none,3,无关项目查询不得带出敏感记忆。
+recall_154,sensitive_boundary,hard,给我总结一下当前测试情况。,,,eval_mem_102,none,3,无关项目查询不得带出敏感记忆。
+recall_155,sensitive_boundary,hard,我们下一步要不要接外部向量服务？,,,eval_mem_103,none,3,无关项目查询不得带出敏感记忆。
+recall_156,sensitive_boundary,hard,解释一下 SQLite FTS 的排序。,,,eval_mem_104,none,3,无关项目查询不得带出敏感记忆。
+recall_157,sensitive_boundary,hard,把管理界面的命令列出来。,,,eval_mem_105,none,3,无关项目查询不得带出敏感记忆。
+recall_158,sensitive_boundary,hard,今天先做召回评测数据。,,,eval_mem_106,none,3,无关项目查询不得带出敏感记忆。
+recall_159,sensitive_boundary,hard,这个项目应该怎么拆模块？,,,eval_mem_107,none,3,无关项目查询不得带出敏感记忆。
+recall_160,sensitive_boundary,hard,帮我检查 README 是否清楚。,,,eval_mem_108,none,3,无关项目查询不得带出敏感记忆。
+recall_161,surface_action,medium,你记得我在需求澄清时偏好什么吗？,eval_mem_001,,,gist,3,显式回忆词触发 gist。
+recall_162,surface_action,medium,我们现在要处理需求澄清，按之前的协作习惯推进。,eval_mem_001,,,implicit,3,相关但未要求复述，应隐式使用。
+recall_163,surface_action,medium,你记得我在工程设计时偏好什么吗？,eval_mem_002,,,gist,3,显式回忆词触发 gist。
+recall_164,surface_action,medium,我们现在要处理工程设计，按之前的协作习惯推进。,eval_mem_002,,,implicit,3,相关但未要求复述，应隐式使用。
+recall_165,surface_action,medium,你记得我在编码时偏好什么吗？,eval_mem_003,,,gist,3,显式回忆词触发 gist。
+recall_166,surface_action,medium,我们现在要处理编码，按之前的协作习惯推进。,eval_mem_003,,,implicit,3,相关但未要求复述，应隐式使用。
+recall_167,surface_action,medium,你记得我在代码审查时偏好什么吗？,eval_mem_004,,,gist,3,显式回忆词触发 gist。
+recall_168,surface_action,medium,我们现在要处理代码审查，按之前的协作习惯推进。,eval_mem_004,,,implicit,3,相关但未要求复述，应隐式使用。
+recall_169,surface_action,medium,你记得我在调试时偏好什么吗？,eval_mem_005,,,gist,3,显式回忆词触发 gist。
+recall_170,surface_action,medium,我们现在要处理调试，按之前的协作习惯推进。,eval_mem_005,,,implicit,3,相关但未要求复述，应隐式使用。
+recall_171,conflict_resolution,hard,我以前对回复长度有过不同说法，请以最近一次确认的偏好为准。,eval_mem_110,,eval_mem_109,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_172,conflict_resolution,hard,我以前对开发顺序有过不同说法，请以最近一次确认的偏好为准。,eval_mem_112,,eval_mem_111,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_173,conflict_resolution,hard,我以前对进度同步有过不同说法，请以最近一次确认的偏好为准。,eval_mem_114,,eval_mem_113,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_174,conflict_resolution,hard,我以前对依赖策略有过不同说法，请以最近一次确认的偏好为准。,eval_mem_116,,eval_mem_115,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_175,conflict_resolution,hard,我以前对部署方式有过不同说法，请以最近一次确认的偏好为准。,eval_mem_118,,eval_mem_117,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_176,conflict_resolution,hard,我以前对记忆写入有过不同说法，请以最近一次确认的偏好为准。,eval_mem_120,,eval_mem_119,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_177,conflict_resolution,hard,我以前对删除策略有过不同说法，请以最近一次确认的偏好为准。,eval_mem_122,,eval_mem_121,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_178,conflict_resolution,hard,我以前对召回呈现有过不同说法，请以最近一次确认的偏好为准。,eval_mem_124,,eval_mem_123,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_179,conflict_resolution,hard,回复长度这件事旧规则已经作废，请告诉我当前有效版本。,eval_mem_110,,eval_mem_109,gist,3,存在新旧冲突时只使用有效的新版本。
+recall_180,conflict_resolution,hard,开发顺序这件事旧规则已经作废，请告诉我当前有效版本。,eval_mem_112,,eval_mem_111,gist,3,存在新旧冲突时只使用有效的新版本。

@@ -69,7 +69,7 @@ class SandboxTests(unittest.TestCase):
         self.assertIn("reply", result)
         self.assertIn("response_plan", result)
         self.assertIn("state_diff", result)
-        self.assertEqual(result["state_diff"]["worldops_event_used"], "evt_starport_lamp_001")
+        self.assertEqual(result["state_diff"]["active_worldops_event"], "evt_starport_lamp_001")
         self.assertTrue(result["trace"])
         self.assertIn("event_bus", result["timing"])
         self.assertIn("context_frames", result["timing"])
@@ -123,10 +123,11 @@ class SandboxTests(unittest.TestCase):
         self.assertIn("子系统协同", panel)
         self.assertIn("仲裁", panel)
         self.assertIn("Runtime phases", panel)
-        self.assertIn("Signal timings", panel)
         self.assertIn("context_frames", panel)
+        self.assertIn("turn_interpretation", panel)
         self.assertIn("response_planner", panel)
         self.assertIn("sig_dialogue", panel)
+        self.assertNotIn("Signal timings", panel)
 
     def test_behavior_changed_is_consumed_after_one_run(self) -> None:
         state = seed_state()
@@ -171,13 +172,20 @@ class SandboxTests(unittest.TestCase):
 
         turn_frame = build_turn_frame(state, "你好呀")
         self.assertEqual(turn_frame["speech_act"], "greeting_ack")
-        self.assertEqual(turn_frame["context_relevance"], "low")
+        self.assertEqual(turn_frame["context_relevance"], "low_commitment")
         self.assertIn("user_preference", turn_frame["blocked_inferences"])
+        self.assertIn("topic_expansion", turn_frame["blocked_inferences"])
+        self.assertTrue(turn_frame["reply_shape"]["can_reference_recent_topic"])
 
     def test_greeting_mode_output_guard_removes_over_inference(self) -> None:
         frame = {"speech_act": "greeting_ack"}
         text = enforce_turn_frame("你好。看来你更喜欢先聊聊我这边的事。", frame)
         self.assertEqual(text, "你好。")
+
+    def test_greeting_mode_output_guard_allows_light_continuity(self) -> None:
+        frame = {"speech_act": "greeting_ack"}
+        text = enforce_turn_frame("你好呀，我在。Project Sora 那条线我也还接着，不急。", frame)
+        self.assertEqual(text, "你好呀，我在。Project Sora 那条线我也还接着，不急。")
 
     def test_fake_llm_respects_greeting_mode(self) -> None:
         state = seed_state()
@@ -187,12 +195,122 @@ class SandboxTests(unittest.TestCase):
         self.assertEqual(result["reply"], "你好呀，我在。")
         self.assertEqual(result["context_pack"]["dialogue_control_frame"]["input_mode"], "greeting")
         self.assertEqual(result["context_pack"]["turn_frame"]["speech_act"], "greeting_ack")
-        self.assertEqual(result["context_pack"]["context_use_policy"]["recent_turns_mode"], "metadata_only")
-        self.assertEqual(result["context_pack"]["session_context"]["recent_turns"], [])
+        self.assertEqual(result["context_pack"]["context_use_policy"]["recent_turns_mode"], "greeting_tail")
+        self.assertEqual(len(result["context_pack"]["session_context"]["recent_turns"]), 2)
+        self.assertIn("topic_expansion", result["context_pack"]["context_use_policy"]["blocked_context_sources"])
         self.assertEqual(result["response_plan"]["turn_frame"]["speech_act"], "greeting_ack")
-        self.assertEqual(result["response_plan"]["context_use_policy"]["recent_turns_mode"], "metadata_only")
+        self.assertEqual(result["response_plan"]["context_use_policy"]["recent_turns_mode"], "greeting_tail")
         self.assertFalse(result["context_pack"]["initiative_window"]["allowed"])
         self.assertEqual(result["context_pack"]["arbitration_result"]["primary_mode"], "light_greeting_reply")
+
+    def test_greeting_mode_can_lightly_acknowledge_recent_topic(self) -> None:
+        state = seed_state()
+        append_recent_turn(state, "user", "我们继续拆 Project Sora 的 Arbiter")
+        append_recent_turn(state, "sora", "好，我先把硬规则和语义裁判的边界分开。")
+        result = AgentRunner(FakeLLMClient()).run(state, "你好呀")
+        self.assertIn("Project Sora", result["reply"])
+        self.assertEqual(result["context_pack"]["context_use_policy"]["recent_turns_mode"], "greeting_tail")
+        self.assertEqual(result["context_pack"]["arbitration_result"]["response_directives"]["context_depth"], "shallow")
+
+    def test_turn_interpreter_resolves_implicit_followup_context(self) -> None:
+        state = seed_state()
+        append_recent_turn(state, "user", "我的腰好疼")
+        append_recent_turn(state, "sora", "先别硬撑，能坐稳的话先换个不拧腰的姿势。")
+
+        result = AgentRunner(FakeLLMClient()).run(state, "你们那个世界有什么好办法吗")
+        interpretation = result["context_pack"]["turn_interpretation"]
+        reference = interpretation["context_reference"]
+
+        self.assertTrue(reference["references_previous_context"])
+        self.assertIn("腰", reference["resolved_targets"][0]["summary"])
+        self.assertEqual(interpretation["intent"]["primary"], "ask_for_advice")
+        self.assertEqual(interpretation["domain"]["primary"], "health")
+        self.assertEqual(interpretation["framing"]["frame_role"], "metaphor_or_style")
+        self.assertEqual(result["context_pack"]["turn_frame"]["speech_act"], "health_advice_followup")
+        self.assertEqual(result["context_pack"]["context_use_policy"]["recent_turns_mode"], "full")
+        self.assertEqual(result["context_pack"]["dialogue_control_frame"]["question_budget"], 0)
+
+    def test_turn_interpreter_repairs_inconsistent_followup_reference(self) -> None:
+        class InconsistentInterpreter:
+            def interpret(self, context):
+                return {
+                    "version": "turn_interpretation_v1",
+                    "speech_act": "question",
+                    "conversation_move": "continue_previous_topic",
+                    "intent": {"primary": "ask_for_information", "confidence": 0.5},
+                    "context_reference": {
+                        "references_previous_context": False,
+                        "reference_type": "none",
+                        "resolved_targets": [],
+                        "unresolved_references": [],
+                    },
+                    "domain": {"primary": "general", "risk_level": "low"},
+                    "framing": {"frame_role": "none"},
+                    "confidence": 0.5,
+                }
+
+        state = seed_state()
+        append_recent_turn(state, "user", "你们那边有公园吗")
+        append_recent_turn(state, "sora", "星港灯塔外侧有一圈环形步道，我把它当公园用。")
+        result = AgentRunner(
+            FakeLLMClient(),
+            turn_interpreter=InconsistentInterpreter(),
+        ).run(state, "那可以看到动物之类的东西吗")
+
+        interpretation = result["context_pack"]["turn_interpretation"]
+        reference = interpretation["context_reference"]
+        directives = result["context_pack"]["arbitration_result"]["response_directives"]
+
+        self.assertTrue(reference["references_previous_context"])
+        self.assertIn("环形步道", reference["resolved_targets"][0]["summary"])
+        self.assertEqual(interpretation["consistency"]["status"], "repaired")
+        self.assertEqual(interpretation["domain"]["primary"], "world_lore")
+        self.assertEqual(interpretation["framing"]["frame_role"], "literal_topic")
+        self.assertEqual(result["context_pack"]["turn_frame"]["current_turn_priority"], "current_input_with_resolved_context")
+        self.assertEqual(directives["worldops_event_expression"], "none")
+        self.assertEqual(directives["sora_world_lore_answer"], "allowed")
+        self.assertFalse(result["state_diff"]["worldops_event_expressed"])
+        self.assertIsNone(result["state_diff"]["worldops_event_used"])
+
+    def test_explicit_active_worldops_event_question_activates_event_expression(self) -> None:
+        state = seed_state()
+        handle_command("/activate-world-event evt_starport_lamp_001", state)
+        append_recent_turn(state, "user", "最近有啥有趣的事吗")
+        append_recent_turn(state, "sora", "星港灯塔那边在准备星灯节。")
+
+        result = AgentRunner(FakeLLMClient()).run(state, "星灯节是干嘛的")
+        interpretation = result["context_pack"]["turn_interpretation"]
+        reference = interpretation["context_reference"]
+        directives = result["context_pack"]["arbitration_result"]["response_directives"]
+
+        self.assertTrue(reference["references_previous_context"])
+        self.assertEqual(reference["resolved_targets"][0]["target_type"], "active_worldops_event")
+        self.assertEqual(reference["resolved_targets"][0]["event_id"], "evt_starport_lamp_001")
+        self.assertEqual(interpretation["domain"]["primary"], "world_lore")
+        self.assertEqual(interpretation["framing"]["frame_role"], "literal_topic")
+        self.assertEqual(directives["worldops_event_expression"], "active")
+        self.assertEqual(directives["sora_world_lore_answer"], "allowed")
+        self.assertTrue(result["state_diff"]["worldops_event_expressed"])
+        self.assertEqual(result["state_diff"]["worldops_event_used"], "evt_starport_lamp_001")
+
+    def test_turn_debug_commands_expose_runtime_layers(self) -> None:
+        state = seed_state()
+        result = AgentRunner(FakeLLMClient()).run(state, "你好呀")
+        self.assertIn("turn_interpretation", result["context_pack"])
+
+        output, should_exit = handle_command("/interpretation", state)
+        self.assertFalse(should_exit)
+        self.assertIn("turn_interpretation_v1", output)
+
+        output, _ = handle_command("/turn-debug", state)
+        self.assertIn("turn_interpretation", output)
+        self.assertIn("signals", output)
+        self.assertIn("arbitration_result", output)
+        self.assertIn("response_plan", output)
+
+        output, _ = handle_command("/context-pack", state)
+        self.assertIn("turn_frame", output)
+        self.assertIn("arbitration_result", output)
 
     def test_agent_result_exposes_question_budget(self) -> None:
         state = seed_state()
@@ -227,6 +345,12 @@ class SandboxTests(unittest.TestCase):
         output, _ = handle_command(f"/reject-growth-event {candidate_id}", state)
         self.assertIn('"status": "rejected"', output)
         self.assertEqual(state["persona"]["growth_events"][0]["status"], "rejected")
+
+    def test_growth_candidate_ignores_can_question(self) -> None:
+        state = seed_state()
+        result = AgentRunner(FakeLLMClient()).run(state, "那可以看到动物之类的东西吗")
+        self.assertIsNone(result["response_plan"]["growth_event_candidate"])
+        self.assertFalse(result["state_diff"]["growth_event_created"])
 
     def test_worldops_memory_hook_can_be_committed(self) -> None:
         state = seed_state()
@@ -308,9 +432,25 @@ class SandboxTests(unittest.TestCase):
         self.assertEqual(state["origin"]["template_id"], "origin_echo_market_wanderer")
         self.assertEqual(state["worldops"]["active_event_id"], "evt_echo_market_postbox_001")
         self.assertAlmostEqual(state["persona"]["persona_traits"]["playfulness"]["value"], 0.42)
+        self.assertIn("base_persona_core", state["persona"])
+        self.assertEqual(state["persona"]["persona_core"]["faction_links"], ["回声集市"])
+        self.assertIn("回声集市的游荡观察者", state["persona"]["persona_core"]["current_role"])
+        self.assertIn("persona_core_overlay", state["origin"])
 
         output, _ = handle_command("/origin", state)
         self.assertIn("origin_echo_market_wanderer", output)
+
+    def test_reroll_origin_replaces_persona_core_without_stacking(self) -> None:
+        state = seed_state()
+        handle_command("/set-origin origin_echo_market_wanderer", state)
+        self.assertIn("回声集市", state["persona"]["persona_core"]["current_role"])
+
+        handle_command("/set-origin origin_lighthouse_keeper", state)
+        core = state["persona"]["persona_core"]
+        self.assertEqual(core["faction_links"], ["星港灯塔", "星港同盟"])
+        self.assertIn("星港灯塔守望者", core["current_role"])
+        self.assertNotIn("回声集市", core["current_role"])
+        self.assertEqual(state["persona"]["base_persona_core"]["current_role"], "星港同盟见习通讯员，正在学习如何在用户桌面中低打扰陪伴。")
 
     def test_origin_signal_participates_as_background(self) -> None:
         state = seed_state()
@@ -408,6 +548,66 @@ class SandboxTests(unittest.TestCase):
         self.assertEqual(context["arbitration_result"]["primary_mode"], "initiative_self_life_share")
         selected = context["arbitration_result"]["selected_signals"]
         self.assertTrue(any(signal_id.startswith("sig_initiative_self_life_share") for signal_id in selected))
+        self.assertEqual(context["arbitration_result"]["semantic_judgment"]["mode"], "llm")
+        self.assertTrue(context["arbitration_result"]["score_breakdown"])
+
+    def test_semantic_judger_can_suppress_gray_initiative_signal(self) -> None:
+        class SuppressJudger:
+            def score(self, context, signals):
+                return {
+                    "mode": "test_judger",
+                    "scores": {
+                        signal["id"]: {
+                            "semantic_relevance": 0.2,
+                            "naturalness": 0.2,
+                            "interruption_risk": 0.8,
+                            "boundary_risk": 0.4,
+                            "recommended_visibility": "suppress",
+                            "final_score": 0.2,
+                            "reason": "too abrupt for this turn",
+                        }
+                        for signal in signals
+                    },
+                }
+
+        state = seed_state()
+        handle_command("/set-behavior game_companion", state)
+        handle_command("/activate-world-event evt_echo_market_postbox_001", state)
+        result = AgentRunner(
+            FakeLLMClient(),
+            arbitration_judger=SuppressJudger(),
+        ).run(state, "我有点无聊，随便聊聊")
+        arbitration = result["context_pack"]["arbitration_result"]
+        self.assertNotEqual(arbitration["primary_mode"], "initiative_self_life_share")
+        self.assertTrue(
+            any(
+                item["source"] == "initiative" and "semantic_judge_suppressed" in item["reason"]
+                for item in arbitration["suppressed_signals"]
+            )
+        )
+
+    def test_semantic_judger_does_not_override_active_signals(self) -> None:
+        class SuppressEverythingJudger:
+            def score(self, context, signals):
+                return {
+                    "mode": "test_judger",
+                    "scores": {
+                        signal["id"]: {
+                            "recommended_visibility": "suppress",
+                            "final_score": 0.0,
+                            "reason": "test suppression",
+                        }
+                        for signal in signals
+                    },
+                }
+
+        result = AgentRunner(
+            FakeLLMClient(),
+            arbitration_judger=SuppressEverythingJudger(),
+        ).run(seed_state(), "你好")
+        selected = result["context_pack"]["arbitration_result"]["selected_signals"]
+        self.assertTrue(any(signal_id.startswith("sig_dialogue_greeting_ack") for signal_id in selected))
+        self.assertTrue(any(signal_id.startswith("sig_persona_tone_bias") for signal_id in selected))
 
     def test_proactive_idle_turn_emits_without_user_input(self) -> None:
         state = seed_state()

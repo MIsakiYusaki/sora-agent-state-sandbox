@@ -177,6 +177,8 @@ def ensure_state_migrations(state: JsonDict) -> bool:
     if "origin" not in state:
         select_origin_template(state, mode="migration_random_seeded")
         changed = True
+    elif migrate_origin_persona_core(state):
+        changed = True
     initiative = state.setdefault("initiative", default_initiative_state())
     defaults = default_initiative_state()
     for key in (
@@ -228,6 +230,23 @@ def ensure_state_migrations(state: JsonDict) -> bool:
     return changed
 
 
+def migrate_origin_persona_core(state: JsonDict) -> bool:
+    persona = state.setdefault("persona", {})
+    origin = state.get("origin", {})
+    if not origin or "base_persona_core" in persona:
+        return False
+    ensure_base_persona_core(state)
+    template_id = origin.get("template_id")
+    if not template_id:
+        return True
+    try:
+        template = find_origin_template(template_id)
+    except ValueError:
+        return True
+    origin["persona_core_overlay"] = apply_origin_persona_core(state, template)
+    return True
+
+
 def default_initiative_state() -> JsonDict:
     return {
         "enabled": True,
@@ -269,6 +288,7 @@ def select_origin_template(state: JsonDict, template_id: str | None = None, mode
 def apply_origin_template(state: JsonDict, template: JsonDict, mode: str = "manual_set") -> None:
     reset_origin_effects(state)
     applied_offsets = apply_trait_offsets(state, template.get("trait_offsets", {}))
+    persona_core_overlay = apply_origin_persona_core(state, template)
     active_event_id = apply_origin_worldops(state, template)
     apply_origin_initiative_bias(state, template)
     state["origin"] = {
@@ -277,6 +297,7 @@ def apply_origin_template(state: JsonDict, template: JsonDict, mode: str = "manu
         "summary": template["summary"],
         "worldview_anchor": template.get("worldview_anchor", ""),
         "speech_habits": template.get("speech_habits", []),
+        "persona_core_overlay": persona_core_overlay,
         "initial_worldops_events": template.get("initial_worldops_events", []),
         "active_event_id": active_event_id,
         "trait_offsets": template.get("trait_offsets", {}),
@@ -298,6 +319,50 @@ def reset_origin_effects(state: JsonDict) -> None:
         new = max(float(trait["min_bound"]), min(float(trait["max_bound"]), old - float(delta)))
         trait["value"] = round(new, 4)
         trait["initial_value"] = round(new, 4)
+    restore_base_persona_core(state)
+
+
+def ensure_base_persona_core(state: JsonDict) -> JsonDict:
+    persona = state.setdefault("persona", {})
+    core = persona.setdefault("persona_core", {})
+    if "base_persona_core" not in persona:
+        persona["base_persona_core"] = copy.deepcopy(core)
+    return copy.deepcopy(persona["base_persona_core"])
+
+
+def restore_base_persona_core(state: JsonDict) -> None:
+    persona = state.setdefault("persona", {})
+    if "base_persona_core" in persona:
+        persona["persona_core"] = copy.deepcopy(persona["base_persona_core"])
+
+
+def apply_origin_persona_core(state: JsonDict, template: JsonDict) -> JsonDict:
+    base = ensure_base_persona_core(state)
+    overlay = build_persona_core_overlay(base, template)
+    merged = copy.deepcopy(base)
+    for key, value in overlay.items():
+        if value:
+            merged[key] = copy.deepcopy(value)
+    state["persona"]["persona_core"] = merged
+    return overlay
+
+
+def build_persona_core_overlay(base: JsonDict, template: JsonDict) -> JsonDict:
+    explicit = template.get("persona_core_overlay")
+    if isinstance(explicit, dict) and explicit:
+        return copy.deepcopy(explicit)
+    anchors = [
+        item.strip()
+        for item in str(template.get("worldview_anchor", "")).split("/")
+        if item.strip()
+    ]
+    name = template.get("name", "未命名 Origin")
+    summary = template.get("summary", "")
+    return {
+        "faction_links": anchors or list(base.get("faction_links", [])),
+        "origin": f"{name}：{summary}",
+        "current_role": f"{name}，{summary}也学习如何在用户桌面中低打扰陪伴。",
+    }
 
 
 def apply_trait_offsets(state: JsonDict, offsets: JsonDict) -> JsonDict:
