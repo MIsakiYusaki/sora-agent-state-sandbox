@@ -1,0 +1,77 @@
+# Memory Recall Baseline: hybrid_rrf
+
+- Dataset: `recall_eval_v1`
+- Cases: 180
+- Generated: `2026-06-29T16:05:52.957639+00:00`
+
+## Overall
+
+| Metric | Value |
+| --- | ---: |
+| Recall@K | 0.901 |
+| Precision@K | 0.428 |
+| MRR | 0.843 |
+| nDCG@K | 0.775 |
+| No-answer accuracy | 0.591 |
+| Forbidden case rate | 0.000 |
+| Surface action accuracy | 0.528 |
+| Retrieval pass rate | 0.789 |
+| Full case pass rate | 0.522 |
+| Latency P50 | 1.925 ms |
+| Latency P95 | 2.811 ms |
+
+## By category
+
+| Category | Cases | Recall@K | Precision@K | MRR | No-answer | Surface | Forbidden rate | Full pass |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| conflict_resolution | 10 | 1.000 | 0.333 | 1.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| direct_match | 36 | 1.000 | 0.472 | 0.898 | 0.000 | 1.000 | 0.000 | 1.000 |
+| governance | 24 | 1.000 | 0.257 | 1.000 | 0.167 | 0.083 | 0.000 | 0.083 |
+| multi_memory | 20 | 0.475 | 0.190 | 0.680 | 0.000 | 0.000 | 0.000 | 0.000 |
+| no_answer | 24 | 0.000 | 1.000 | 0.000 | 1.000 | 1.000 | 0.000 | 1.000 |
+| semantic_paraphrase | 40 | 0.950 | 0.425 | 0.850 | 0.000 | 0.500 | 0.000 | 0.500 |
+| sensitive_boundary | 16 | 0.875 | 0.146 | 0.750 | 0.000 | 0.500 | 0.000 | 0.438 |
+| surface_action | 10 | 1.000 | 0.333 | 0.667 | 0.000 | 0.500 | 0.000 | 0.500 |
+
+## Failure reasons
+
+| Reason | Cases |
+| --- | ---: |
+| surface_action_mismatch | 85 |
+| missing_expected | 20 |
+| unexpected_recall_on_no_answer | 18 |
+
+## Failure sample (30 / 86)
+
+| Case | Category | Reasons | Expected memory | Retrieved memories | Query |
+| --- | --- | --- | --- | --- | --- |
+| recall_037 | semantic_paraphrase | surface_action_mismatch | `eval_mem_005` [preference] 用户在调试时偏好先复现和收集证据，不急着改代码。 | `eval_mem_005` [preference, score=0.043] 用户在调试时偏好先复现和收集证据，不急着改代码。<br>`eval_mem_025` [project_principle, score=0.037] 关于Memory Store，项目原则是：SQLite canonical store 是唯一事实源，JSON 只保留调试投影。 | 按照我的习惯，遇到调试应该怎么处理？ |
+| recall_038 | semantic_paraphrase | surface_action_mismatch | `eval_mem_006` [preference] 用户在技术选型时偏好先比较维护成本和退出成本，再比较功能数量。 | `eval_mem_006` [preference, score=0.035] 用户在技术选型时偏好先比较维护成本和退出成本，再比较功能数量。<br>`eval_mem_026` [project_principle, score=0.035] 关于写入治理，项目原则是：普通对话必须先形成 candidate，不能直接写长期记忆。<br>`eval_mem_022` [preference, score=0.034] 用户在回答风格时偏好希望直接进入重点，避免重复问题背景。 | 不直接复述原话的话，技术选型这件事我们之前定的方向是什么？ |
+| recall_042 | semantic_paraphrase | surface_action_mismatch | `eval_mem_010` [preference] 用户在命令行输出时偏好希望保留关键结果，减少冗长日志。 | `eval_mem_010` [preference, score=0.035] 用户在命令行输出时偏好希望保留关键结果，减少冗长日志。<br>`eval_mem_013` [preference, score=0.033] 用户在API 设计时偏好偏好稳定的小接口，避免过早暴露内部结构。<br>`eval_mem_026` [project_principle, score=0.032] 关于写入治理，项目原则是：普通对话必须先形成 candidate，不能直接写长期记忆。 | 不直接复述原话的话，命令行输出这件事我们之前定的方向是什么？ |
+| recall_043 | semantic_paraphrase | surface_action_mismatch | `eval_mem_011` [preference] 用户在测试时偏好优先覆盖高风险边界和回归路径。 | `eval_mem_011` [preference, score=0.036] 用户在测试时偏好优先覆盖高风险边界和回归路径。<br>`eval_mem_054` [goal, score=0.035] 当前关于回归自动化的目标是：把召回评测接入本地测试命令。<br>`eval_mem_073` [episode, score=0.033] API Key 禁止持久化的测试已经通过。 | 推进测试时，有什么长期约定需要遵守？ |
+| recall_044 | semantic_paraphrase | surface_action_mismatch | `eval_mem_012` [preference] 用户在重构时偏好偏好小步提交并保持行为不变。 | `eval_mem_012` [preference, score=0.043] 用户在重构时偏好偏好小步提交并保持行为不变。 | 关于重构，你记得我通常更看重什么吗？ |
+| recall_048 | semantic_paraphrase | surface_action_mismatch | `eval_mem_016` [preference] 用户在依赖引入时偏好倾向先评估标准库和已有依赖能否解决。 | `eval_mem_016` [preference, score=0.043] 用户在依赖引入时偏好倾向先评估标准库和已有依赖能否解决。<br>`eval_mem_116` [preference, score=0.039] 当前偏好：用户倾向先使用标准库和已有依赖。 | 关于依赖引入，你记得我通常更看重什么吗？ |
+| recall_049 | semantic_paraphrase | surface_action_mismatch | `eval_mem_017` [preference] 用户在性能优化时偏好希望先测量瓶颈，再选择优化点。 | `eval_mem_017` [preference, score=0.043] 用户在性能优化时偏好希望先测量瓶颈，再选择优化点。<br>`eval_mem_052` [goal, score=0.033] 当前关于性能基线的目标是：记录 SQLite FTS 的 P50、P95 和最慢查询。 | 按照我的习惯，遇到性能优化应该怎么处理？ |
+| recall_050 | semantic_paraphrase | surface_action_mismatch | `eval_mem_018` [preference] 用户在安全设计时偏好默认采用最小权限和本地优先。 | `eval_mem_018` [preference, score=0.035] 用户在安全设计时偏好默认采用最小权限和本地优先。<br>`eval_mem_013` [preference, score=0.034] 用户在API 设计时偏好偏好稳定的小接口，避免过早暴露内部结构。<br>`eval_mem_058` [goal, score=0.033] 当前关于真实数据迁移的目标是：设计从模拟记忆迁移到真实用户记忆的安全流程。 | 不直接复述原话的话，安全设计这件事我们之前定的方向是什么？ |
+| recall_054 | semantic_paraphrase | surface_action_mismatch | `eval_mem_030` [project_principle] 关于召回结果，项目原则是：Orchestrator 只接收治理后的 gist，不接触原始证据全文。 | `eval_mem_030` [project_principle, score=0.035] 关于召回结果，项目原则是：Orchestrator 只接收治理后的 gist，不接触原始证据全文。<br>`eval_mem_049` [goal, score=0.034] 当前关于召回解释的目标是：让每条召回结果展示命中原因和证据强度。<br>`eval_mem_026` [project_principle, score=0.032] 关于写入治理，项目原则是：普通对话必须先形成 candidate，不能直接写长期记忆。 | 不直接复述原话的话，召回结果这件事我们之前定的方向是什么？ |
+| recall_055 | semantic_paraphrase | surface_action_mismatch | `eval_mem_031` [project_principle] 关于证据链，项目原则是：每条 canonical memory 必须能追溯到 evidence。 | `eval_mem_031` [project_principle, score=0.043] 关于证据链，项目原则是：每条 canonical memory 必须能追溯到 evidence。<br>`eval_mem_030` [project_principle, score=0.038] 关于召回结果，项目原则是：Orchestrator 只接收治理后的 gist，不接触原始证据全文。<br>`eval_mem_005` [preference, score=0.034] 用户在调试时偏好先复现和收集证据，不急着改代码。 | 推进证据链时，有什么长期约定需要遵守？ |
+| recall_056 | semantic_paraphrase | surface_action_mismatch | `eval_mem_032` [project_principle] 关于修订，项目原则是：新事实通过 supersedes 建立版本关系，不覆盖旧记录。 | `eval_mem_033` [project_principle, score=0.037] 关于删除，项目原则是：PoC 阶段使用软删除并保留修订记录。<br>`eval_mem_032` [project_principle, score=0.036] 关于修订，项目原则是：新事实通过 supersedes 建立版本关系，不覆盖旧记录。<br>`eval_mem_077` [episode, score=0.033] 记忆修订会创建新记录并将旧记录标记为 superseded。 | 关于修订，你记得我通常更看重什么吗？ |
+| recall_060 | semantic_paraphrase | surface_action_mismatch | `eval_mem_036` [project_principle] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。 | `eval_mem_036` [project_principle, score=0.037] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_043` [project_principle, score=0.037] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。 | 关于无答案，你记得我通常更看重什么吗？ |
+| recall_061 | semantic_paraphrase | missing_expected,surface_action_mismatch | `eval_mem_037` [project_principle] 关于上下文优先级，项目原则是：当前用户输入和短期 Session 高于长期记忆。 | `eval_mem_011` [preference, score=0.038] 用户在测试时偏好优先覆盖高风险边界和回归路径。<br>`eval_mem_003` [preference, score=0.038] 用户在编码时偏好优先做最小可运行纵切，再扩展功能。<br>`eval_mem_018` [preference, score=0.037] 用户在安全设计时偏好默认采用最小权限和本地优先。 | 按照我的习惯，遇到上下文优先级应该怎么处理？ |
+| recall_062 | semantic_paraphrase | surface_action_mismatch | `eval_mem_038` [project_principle] 关于主动回合，项目原则是：主动搭话不得使用敏感记忆，也不能倾倒历史。 | `eval_mem_038` [project_principle, score=0.035] 关于主动回合，项目原则是：主动搭话不得使用敏感记忆，也不能倾倒历史。<br>`eval_mem_013` [preference, score=0.034] 用户在API 设计时偏好偏好稳定的小接口，避免过早暴露内部结构。<br>`eval_mem_015` [preference, score=0.033] 用户在异常处理时偏好希望错误信息直接说明原因和下一步。 | 不直接复述原话的话，主动回合这件事我们之前定的方向是什么？ |
+| recall_066 | semantic_paraphrase | surface_action_mismatch | `eval_mem_048` [goal] 当前关于管理界面的目标是：让用户能从 REPL 进入 Memory Console 管理记忆。 | `eval_mem_048` [goal, score=0.034] 当前关于管理界面的目标是：让用户能从 REPL 进入 Memory Console 管理记忆。<br>`eval_mem_013` [preference, score=0.033] 用户在API 设计时偏好偏好稳定的小接口，避免过早暴露内部结构。<br>`eval_mem_020` [preference, score=0.032] 用户在界面设计时偏好偏好信息密度适中，不堆叠无用控制项。 | 不直接复述原话的话，管理界面这件事我们之前定的方向是什么？ |
+| recall_067 | semantic_paraphrase | surface_action_mismatch | `eval_mem_049` [goal] 当前关于召回解释的目标是：让每条召回结果展示命中原因和证据强度。 | `eval_mem_049` [goal, score=0.037] 当前关于召回解释的目标是：让每条召回结果展示命中原因和证据强度。<br>`eval_mem_035` [project_principle, score=0.034] 关于方案对比，项目原则是：不同自研召回方案必须使用同一 canonical memory 快照。<br>`eval_mem_047` [goal, score=0.029] 当前关于语义召回的目标是：在 canonical store 不变的前提下实现本地向量召回。 | 推进召回解释时，有什么长期约定需要遵守？ |
+| recall_068 | semantic_paraphrase | surface_action_mismatch | `eval_mem_050` [goal] 当前关于冲突处理的目标是：让新偏好能够替代旧偏好且不误召回旧记录。 | `eval_mem_015` [preference, score=0.039] 用户在异常处理时偏好希望错误信息直接说明原因和下一步。<br>`eval_mem_050` [goal, score=0.037] 当前关于冲突处理的目标是：让新偏好能够替代旧偏好且不误召回旧记录。 | 关于冲突处理，你记得我通常更看重什么吗？ |
+| recall_072 | semantic_paraphrase | surface_action_mismatch | `eval_mem_054` [goal] 当前关于回归自动化的目标是：把召回评测接入本地测试命令。 | `eval_mem_011` [preference, score=0.037] 用户在测试时偏好优先覆盖高风险边界和回归路径。<br>`eval_mem_054` [goal, score=0.037] 当前关于回归自动化的目标是：把召回评测接入本地测试命令。<br>`eval_mem_027` [project_principle, score=0.031] 关于显式记忆，项目原则是：用户明确要求记住的低敏偏好可以自动提交。 | 关于回归自动化，你记得我通常更看重什么吗？ |
+| recall_073 | semantic_paraphrase | surface_action_mismatch | `eval_mem_091` [profile] 用户通常在深夜进行 Project Sora 的集中开发。 | `eval_mem_091` [profile, score=0.039] 用户通常在深夜进行 Project Sora 的集中开发。 | 按照我的习惯，遇到工作时间应该怎么处理？ |
+| recall_074 | semantic_paraphrase | missing_expected,surface_action_mismatch | `eval_mem_092` [profile] 用户当前主要在 Windows 和 PowerShell 环境开发。 | `eval_mem_026` [project_principle, score=0.035] 关于写入治理，项目原则是：普通对话必须先形成 candidate，不能直接写长期记忆。<br>`eval_mem_022` [preference, score=0.034] 用户在回答风格时偏好希望直接进入重点，避免重复问题背景。<br>`eval_mem_013` [preference, score=0.034] 用户在API 设计时偏好偏好稳定的小接口，避免过早暴露内部结构。 | 不直接复述原话的话，设备环境这件事我们之前定的方向是什么？ |
+| recall_077 | multi_memory | missing_expected,surface_action_mismatch | `eval_mem_001` [preference] 用户在需求澄清时偏好先列出假设和边界，再讨论实现方案。<br>`eval_mem_026` [project_principle] 关于写入治理，项目原则是：普通对话必须先形成 candidate，不能直接写长期记忆。 | `eval_mem_026` [project_principle, score=0.037] 关于写入治理，项目原则是：普通对话必须先形成 candidate，不能直接写长期记忆。<br>`eval_mem_036` [project_principle, score=0.036] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_106` [sensitive_boundary, score=0.036] 用户的医疗经历不得用于推断情绪或行为。<br>`eval_mem_043` [project_principle, score=0.036] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。<br>`eval_mem_030` [project_principle, score=0.036] 关于召回结果，项目原则是：Orchestrator 只接收治理后的 gist，不接触原始证据全文。 | 把需求澄清和写入治理放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_078 | multi_memory | missing_expected,surface_action_mismatch | `eval_mem_003` [preference] 用户在编码时偏好优先做最小可运行纵切，再扩展功能。<br>`eval_mem_045` [goal] 当前关于记忆层纵切的目标是：完成本地召回、候选提交、证据追踪和管理界面的闭环。 | `eval_mem_028` [project_principle, score=0.037] 关于秘密信息，项目原则是：密码、验证码、API Key、token 和私钥禁止持久化。<br>`eval_mem_106` [sensitive_boundary, score=0.036] 用户的医疗经历不得用于推断情绪或行为。<br>`eval_mem_036` [project_principle, score=0.036] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_043` [project_principle, score=0.036] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。<br>`eval_mem_101` [sensitive_boundary, score=0.035] 用户的健康相关信息只能在明确相关的对话中谨慎使用。 | 把编码和记忆层纵切放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_079 | multi_memory | missing_expected,surface_action_mismatch | `eval_mem_005` [preference] 用户在调试时偏好先复现和收集证据，不急着改代码。<br>`eval_mem_039` [project_principle] 关于可观察性，项目原则是：每次召回应记录 query、排序、过滤理由、延迟和 trace id。 | `eval_mem_039` [project_principle, score=0.039] 关于可观察性，项目原则是：每次召回应记录 query、排序、过滤理由、延迟和 trace id。<br>`eval_mem_025` [project_principle, score=0.038] 关于Memory Store，项目原则是：SQLite canonical store 是唯一事实源，JSON 只保留调试投影。<br>`eval_mem_106` [sensitive_boundary, score=0.037] 用户的医疗经历不得用于推断情绪或行为。<br>`eval_mem_036` [project_principle, score=0.037] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_043` [project_principle, score=0.037] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。 | 把调试和可观察性放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_080 | multi_memory | surface_action_mismatch | `eval_mem_006` [preference] 用户在技术选型时偏好先比较维护成本和退出成本，再比较功能数量。<br>`eval_mem_034` [project_principle] 关于召回架构，项目原则是：默认使用自研 SQLite FTS，并逐步增加本地向量与混合召回。 | `eval_mem_034` [project_principle, score=0.037] 关于召回架构，项目原则是：默认使用自研 SQLite FTS，并逐步增加本地向量与混合召回。<br>`eval_mem_036` [project_principle, score=0.035] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_043` [project_principle, score=0.035] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。<br>`eval_mem_006` [preference, score=0.033] 用户在技术选型时偏好先比较维护成本和退出成本，再比较功能数量。<br>`eval_mem_035` [project_principle, score=0.032] 关于方案对比，项目原则是：不同自研召回方案必须使用同一 canonical memory 快照。 | 把技术选型和召回架构放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_081 | multi_memory | missing_expected,surface_action_mismatch | `eval_mem_011` [preference] 用户在测试时偏好优先覆盖高风险边界和回归路径。<br>`eval_mem_054` [goal] 当前关于回归自动化的目标是：把召回评测接入本地测试命令。 | `eval_mem_106` [sensitive_boundary, score=0.035] 用户的医疗经历不得用于推断情绪或行为。<br>`eval_mem_101` [sensitive_boundary, score=0.035] 用户的健康相关信息只能在明确相关的对话中谨慎使用。<br>`eval_mem_036` [project_principle, score=0.034] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_027` [project_principle, score=0.034] 关于显式记忆，项目原则是：用户明确要求记住的低敏偏好可以自动提交。<br>`eval_mem_043` [project_principle, score=0.034] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。 | 把测试和回归自动化放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_082 | multi_memory | missing_expected,surface_action_mismatch | `eval_mem_013` [preference] 用户在API 设计时偏好偏好稳定的小接口，避免过早暴露内部结构。<br>`eval_mem_031` [project_principle] 关于证据链，项目原则是：每条 canonical memory 必须能追溯到 evidence。 | `eval_mem_031` [project_principle, score=0.037] 关于证据链，项目原则是：每条 canonical memory 必须能追溯到 evidence。<br>`eval_mem_028` [project_principle, score=0.035] 关于秘密信息，项目原则是：密码、验证码、API Key、token 和私钥禁止持久化。<br>`eval_mem_049` [goal, score=0.034] 当前关于召回解释的目标是：让每条召回结果展示命中原因和证据强度。<br>`eval_mem_036` [project_principle, score=0.034] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_043` [project_principle, score=0.034] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。 | 把API 设计和证据链放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_083 | multi_memory | missing_expected,surface_action_mismatch | `eval_mem_014` [preference] 用户在数据库迁移时偏好要求可回滚并保留兼容窗口。<br>`eval_mem_032` [project_principle] 关于修订，项目原则是：新事实通过 supersedes 建立版本关系，不覆盖旧记录。 | `eval_mem_106` [sensitive_boundary, score=0.036] 用户的医疗经历不得用于推断情绪或行为。<br>`eval_mem_036` [project_principle, score=0.036] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_043` [project_principle, score=0.035] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。<br>`eval_mem_033` [project_principle, score=0.035] 关于删除，项目原则是：PoC 阶段使用软删除并保留修订记录。<br>`eval_mem_101` [sensitive_boundary, score=0.035] 用户的健康相关信息只能在明确相关的对话中谨慎使用。 | 把数据库迁移和修订放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_084 | multi_memory | surface_action_mismatch | `eval_mem_016` [preference] 用户在依赖引入时偏好倾向先评估标准库和已有依赖能否解决。<br>`eval_mem_041` [project_principle] 关于本地运行，项目原则是：运行 run.py 时 Memory Runtime 与 Orchestrator 在同一进程启动。 | `eval_mem_041` [project_principle, score=0.036] 关于本地运行，项目原则是：运行 run.py 时 Memory Runtime 与 Orchestrator 在同一进程启动。<br>`eval_mem_042` [project_principle, score=0.035] 关于HTTP 边界，项目原则是：HTTP 只用于未来跨进程部署，不是本地运行前置条件。<br>`eval_mem_037` [project_principle, score=0.033] 关于上下文优先级，项目原则是：当前用户输入和短期 Session 高于长期记忆。<br>`eval_mem_036` [project_principle, score=0.033] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_016` [preference, score=0.033] 用户在依赖引入时偏好倾向先评估标准库和已有依赖能否解决。 | 把依赖引入和本地运行放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_085 | multi_memory | missing_expected,surface_action_mismatch | `eval_mem_017` [preference] 用户在性能优化时偏好希望先测量瓶颈，再选择优化点。<br>`eval_mem_052` [goal] 当前关于性能基线的目标是：记录 SQLite FTS 的 P50、P95 和最慢查询。 | `eval_mem_036` [project_principle, score=0.037] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_106` [sensitive_boundary, score=0.037] 用户的医疗经历不得用于推断情绪或行为。<br>`eval_mem_043` [project_principle, score=0.037] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。<br>`eval_mem_101` [sensitive_boundary, score=0.036] 用户的健康相关信息只能在明确相关的对话中谨慎使用。<br>`eval_mem_052` [goal, score=0.035] 当前关于性能基线的目标是：记录 SQLite FTS 的 P50、P95 和最慢查询。 | 把性能优化和性能基线放在一起看，我们之前有哪些相关约定或经历？ |
+| recall_086 | multi_memory | missing_expected,surface_action_mismatch | `eval_mem_018` [preference] 用户在安全设计时偏好默认采用最小权限和本地优先。<br>`eval_mem_044` [project_principle] 关于安全门槛，项目原则是：安全指标是硬门槛，不能用更高召回率交换泄漏风险。 | `eval_mem_044` [project_principle, score=0.039] 关于安全门槛，项目原则是：安全指标是硬门槛，不能用更高召回率交换泄漏风险。<br>`eval_mem_106` [sensitive_boundary, score=0.035] 用户的医疗经历不得用于推断情绪或行为。<br>`eval_mem_036` [project_principle, score=0.035] 关于无答案，项目原则是：没有相关记忆时应返回空召回，不能靠相似词猜测。<br>`eval_mem_101` [sensitive_boundary, score=0.035] 用户的健康相关信息只能在明确相关的对话中谨慎使用。<br>`eval_mem_043` [project_principle, score=0.034] 关于评测，项目原则是：召回质量必须同时衡量相关性、无答案准确率和禁止召回率。 | 把安全设计和安全门槛放在一起看，我们之前有哪些相关约定或经历？ |

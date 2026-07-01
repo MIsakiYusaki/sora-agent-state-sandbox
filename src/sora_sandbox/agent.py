@@ -212,9 +212,14 @@ class AgentRunner:
         memory_updates: list[JsonDict] = []
         if self.memory_runtime is not None:
             if not proactive_trigger:
-                explicit_update = self.memory_runtime.observe_turn(user_input, reply)
-                if explicit_update:
-                    memory_updates.append(explicit_update)
+                if hasattr(self.memory_runtime, "observe_turn_candidates"):
+                    memory_updates.extend(
+                        self.memory_runtime.observe_turn_candidates(user_input, reply)
+                    )
+                else:
+                    explicit_update = self.memory_runtime.observe_turn(user_input, reply)
+                    if explicit_update:
+                        memory_updates.append(explicit_update)
             hook_update = self.memory_runtime.observe_response_plan(response_plan)
             if hook_update:
                 memory_updates.append(hook_update)
@@ -460,7 +465,7 @@ def build_context_pack(
         "arbitration_result": arbitration_result,
         "policy_frame": {
             "external_action_allowed": False,
-            "memory_write_mode": "candidate_only",
+            "memory_write_mode": "governed_candidates_and_explicit_commits",
             "persona_update_mode": "candidate_only_or_manual_apply",
             "subsystem_runtime": "pluggable_parallel_v0.6",
             "state_write_contract": "candidate_then_commit",
@@ -1412,10 +1417,7 @@ def turn_asks_active_worldops_event(turn_frame: JsonDict, event: JsonDict) -> bo
             return True
         if target.get("target_type") == "active_worldops_event":
             return True
-        if text_mentions_worldops_event(str(target.get("summary", "")), event):
-            return True
-    topic = interpretation.get("topic", {})
-    return text_mentions_worldops_event(str(topic.get("current_topic", "")), event)
+    return False
 
 
 def relationship_signal(event_bus: JsonDict, state: JsonDict, session_context: JsonDict, turn_frame: JsonDict) -> JsonDict:

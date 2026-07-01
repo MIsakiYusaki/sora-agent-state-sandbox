@@ -31,7 +31,7 @@ class SQLiteFTSBackend:
     database: Path
     owner_user_id: str = "eval-user"
     agent_id: str = "sora-memory-eval"
-    name: str = "sqlite_fts"
+    name: str = "hybrid_rrf"
 
     def __post_init__(self) -> None:
         if not self.database.exists():

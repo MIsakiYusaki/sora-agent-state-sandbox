@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -15,13 +16,16 @@ class LLMClient(Protocol):
 @dataclass
 class DeepSeekClient:
     api_key: str
-    model: str = "deepseek-chat"
-    base_url: str = "https://api.deepseek.com/chat/completions"
+    model: str = "deepseek-v4-flash"
+    base_url: str = "https://api.deepseek.com"
     timeout: int = 60
 
     def chat(self, system: str, user: str, **kwargs: Any) -> dict[str, Any]:
+        endpoint = self.base_url.rstrip("/")
+        if not endpoint.endswith("/chat/completions"):
+            endpoint += "/chat/completions"
         body = {
-            "model": kwargs.get("model", self.model),
+            "model": kwargs.get("model") or os.environ.get("OPENAI_MODEL") or self.model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -30,7 +34,7 @@ class DeepSeekClient:
             "max_tokens": kwargs.get("max_tokens", 800),
         }
         req = urllib.request.Request(
-            self.base_url,
+            endpoint,
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",

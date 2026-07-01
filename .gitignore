@@ -18,6 +18,7 @@ dist/
 
 # Local runtime state and credentials
 .sandbox/
+evals/.sandbox/
 .env
 .env.*
 !.env.example

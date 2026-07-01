@@ -16,7 +16,7 @@ python evals/generate_recall_dataset.py
 评测库与日常运行使用的 `.sandbox/memory.db` 分离，避免模拟数据污染真实 PoC
 记忆。数据生成器使用稳定 ID，可重复运行。
 
-## 运行 SQLite FTS 基线
+## 运行 Hybrid RRF 基线
 
 ```powershell
 python evals/run_recall_eval.py
@@ -24,9 +24,9 @@ python evals/run_recall_eval.py
 
 输出位于：
 
-- `reports/sqlite_fts/baseline.json`：完整机器可读报告。
-- `reports/sqlite_fts/baseline_cases.csv`：逐用例结果，适合筛选失败样本。
-- `reports/sqlite_fts/baseline.md`：便于人工阅读的指标与失败摘要。
+- `reports/hybrid_rrf/baseline.json`：完整机器可读报告。
+- `reports/hybrid_rrf/baseline_cases.csv`：逐用例结果，适合筛选失败样本。
+- `reports/hybrid_rrf/baseline.md`：便于人工阅读的指标与失败摘要。
 
 可按类别或数量局部运行：
 

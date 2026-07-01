@@ -122,10 +122,78 @@ def handle_command(
     if command == "/restore-memory":
         require_memory_admin(memory_admin)
         return dump(memory_admin.restore(required_arg(args, "/restore-memory <id>"))), False
+    if command == "/rollback-memory-candidate":
+        require_memory_admin(memory_admin)
+        candidate_id = required_arg(args, "/rollback-memory-candidate <candidate_id> [reason]")
+        reason = arg_value(" ".join(args[1:])) if len(args) > 1 else "manual_rollback"
+        return dump(memory_admin.rollback_committed_candidate(candidate_id, reason=reason)), False
     if command == "/memory-candidates":
         require_memory_admin(memory_admin)
         status = arg_value(args[0]).lower() if args else "pending"
         return dump(memory_admin.list_candidates(None if status == "all" else status)), False
+    if command == "/gate-memory-candidate":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.run_candidate_gate(
+                required_arg(args, "/gate-memory-candidate <candidate_id>")
+            )
+        ), False
+    if command == "/run-batch-memory-gate":
+        require_memory_admin(memory_admin)
+        candidate_ids = _positional_args(args)
+        if not candidate_ids:
+            raise CommandError("用法：/run-batch-memory-gate <candidate_id> [candidate_id...]")
+        return dump(memory_admin.run_batch_gate(candidate_ids)), False
+    if command == "/memory-gate-decisions":
+        require_memory_admin(memory_admin)
+        limit = _int_arg(args, "--limit", default=50)
+        candidate_id = _first_positional(args)
+        return dump(
+            memory_admin.list_gate_decisions(candidate_id=candidate_id, limit=limit)
+        ), False
+    if command in {"/memory-review-items", "/memory-reviews"}:
+        require_memory_admin(memory_admin)
+        limit = _int_arg(args, "--limit", default=50)
+        status = (_first_positional(args) or "open").lower()
+        return dump(
+            memory_admin.list_review_items(
+                status=None if status == "all" else status,
+                limit=limit,
+            )
+        ), False
+    if command == "/approve-memory-review":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.approve_review(
+                required_arg(args, "/approve-memory-review <review_id>")
+            )
+        ), False
+    if command == "/reject-memory-review":
+        require_memory_admin(memory_admin)
+        review_id = required_arg(args, "/reject-memory-review <review_id> [reason]")
+        reason = arg_value(" ".join(args[1:])) if len(args) > 1 else "manual_review_reject"
+        return dump(memory_admin.reject_review(review_id, reason=reason)), False
+    if command == "/defer-memory-review":
+        require_memory_admin(memory_admin)
+        review_id = required_arg(args, "/defer-memory-review <review_id> [--days N]")
+        days = _int_arg(args, "--days", default=30)
+        return dump(memory_admin.defer_review(review_id, days=days)), False
+    if command == "/memory-quarantines":
+        require_memory_admin(memory_admin)
+        limit = _int_arg(args, "--limit", default=50)
+        status = (_first_positional(args) or "active").lower()
+        return dump(
+            memory_admin.list_quarantines(
+                status=None if status == "all" else status,
+                limit=limit,
+            )
+        ), False
+    if command == "/expire-deferred-memory-candidates":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.expire_deferred_candidates()), False
+    if command == "/process-expired-memory-deferrals":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.process_expired_deferrals()), False
     if command == "/commit-memory":
         require_memory_admin(memory_admin)
         return dump(memory_admin.commit([required_arg(args, "/commit-memory <candidate_id>")])), False
@@ -140,6 +208,77 @@ def handle_command(
     if command == "/memory-evidence":
         require_memory_admin(memory_admin)
         return dump(memory_admin.evidence_for_memory(required_arg(args, "/memory-evidence <id>"))), False
+    if command == "/memory-episodes":
+        require_memory_admin(memory_admin)
+        status = arg_value(args[0]).lower() if args else "all"
+        return dump(memory_admin.list_episodes(status=None if status == "all" else status)), False
+    if command == "/memory-events":
+        require_memory_admin(memory_admin)
+        episode_id = arg_value(args[0]) if args else None
+        return dump(memory_admin.list_events(episode_id=episode_id)), False
+    if command == "/memory-extraction-jobs":
+        require_memory_admin(memory_admin)
+        status = arg_value(args[0]).lower() if args else "all"
+        return dump(memory_admin.list_extraction_jobs(status=None if status == "all" else status)), False
+    if command == "/memory-episode-trace":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.get_episode_trace(required_arg(args, "/memory-episode-trace <episode_id>"))), False
+    if command == "/memory-replay-episode":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.replay_episode(required_arg(args, "/memory-replay-episode <episode_id>"))), False
+    if command == "/memory-delete-propagations":
+        require_memory_admin(memory_admin)
+        source_ref = arg_value(args[0]) if args else None
+        return dump(memory_admin.list_delete_propagations(source_ref=source_ref)), False
+    if command == "/seal-memory-episode":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.seal_episode(required_arg(args, "/seal-memory-episode <episode_id>"))), False
+    if command == "/delete-memory-event":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.propagate_event_delete(required_arg(args, "/delete-memory-event <event_id>"))), False
+    if command == "/claim-extraction-job":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.claim_next_extraction_job()), False
+    if command == "/run-extraction-job":
+        require_memory_admin(memory_admin)
+        if "--real" in args:
+            from .memory_extractor_provider import OpenAICompatibleExtractorProvider
+
+            return dump(
+                memory_admin.run_extraction_once(provider=OpenAICompatibleExtractorProvider.from_env())
+            ), False
+        return dump(memory_admin.run_extraction_once()), False
+    if command == "/backfill-extraction-jobs":
+        require_memory_admin(memory_admin)
+        force = "--force" in args
+        limit = _int_arg(args, "--limit", default=50)
+        return dump(memory_admin.backfill_extraction_jobs(limit=limit, force=force)), False
+    if command == "/memory-extraction-observability":
+        require_memory_admin(memory_admin)
+        limit = _int_arg(args, "--limit", default=10)
+        return dump(memory_admin.extraction_observability(limit=limit)), False
+    if command == "/start-extraction-job":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.start_extraction_job(required_arg(args, "/start-extraction-job <job_id>"))), False
+    if command == "/complete-extraction-job":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.complete_extraction_job(required_arg(args, "/complete-extraction-job <job_id>"))), False
+    if command == "/retry-extraction-job":
+        require_memory_admin(memory_admin)
+        if len(args) < 2:
+            raise CommandError("Usage: /retry-extraction-job <job_id> <error>")
+        return dump(
+            memory_admin.fail_extraction_job(
+                arg_value(args[0]),
+                error=arg_value(" ".join(args[1:])),
+                retry=True,
+            )
+        ), False
+    if command == "/fail-extraction-job":
+        require_memory_admin(memory_admin)
+        if len(args) < 2:
+            raise CommandError("用法：/fail-extraction-job <job_id> <error>")
+        return dump(memory_admin.fail_extraction_job(arg_value(args[0]), error=arg_value(" ".join(args[1:])))), False
     if command == "/memory-revisions":
         require_memory_admin(memory_admin)
         return dump(memory_admin.revisions_for_memory(required_arg(args, "/memory-revisions <id>"))), False
@@ -277,6 +416,42 @@ def required_arg(args: list[str], usage: str) -> str:
     return arg_value(args[0])
 
 
+def _int_arg(args: list[str], flag: str, *, default: int) -> int:
+    if flag not in args:
+        return default
+    index = args.index(flag)
+    if index + 1 >= len(args):
+        raise CommandError(f"用法：{flag} <number>")
+    return int(arg_value(args[index + 1]))
+
+
+def _first_positional(args: list[str]) -> str | None:
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg.startswith("--"):
+            skip_next = True
+            continue
+        return arg_value(arg)
+    return None
+
+
+def _positional_args(args: list[str]) -> list[str]:
+    values: list[str] = []
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg.startswith("--"):
+            skip_next = True
+            continue
+        values.append(arg_value(arg))
+    return values
+
+
 def require_memory_admin(memory_admin: Any | None) -> None:
     if memory_admin is None:
         raise CommandError("Memory Runtime 未启用。")
@@ -355,12 +530,38 @@ Memory：
       标记删除一条 memory；当前是软删除，不直接物理移除。
   /restore-memory <id>
       恢复一条 disabled/deleted memory。
+  /rollback-memory-candidate <candidate_id> [reason]
+      回滚已 committed 的候选，并同步 memory 状态、FTS 与 revision。
   /memory-candidates [pending|committed|rejected|all]
       查看 Memory Runtime 写入候选。
+  /gate-memory-candidate <candidate_id>
+      对 pending/deferred 候选运行 Gate Pipeline。
+  /run-batch-memory-gate <candidate_id> [candidate_id...]
+      批量运行 Gate Pipeline。
+  /memory-gate-decisions [candidate_id] [--limit N]
+      查看 GateDecision 审计记录。
+  /memory-review-items [open|resolved|all] [--limit N]
+      查看人工评审队列。
+  /approve-memory-review <review_id> /reject-memory-review <review_id> [reason]
+      处理 Gate 送审候选。
+  /defer-memory-review <review_id> [--days N]
+      手动推迟一个 review 项，默认 30 天后过期。
+  /memory-quarantines [active|all] [--limit N]
+      查看隔离区记录。
+  /expire-deferred-memory-candidates
+      将超过 deferred_until 的候选自动拒绝。
+  /process-expired-memory-deferrals
+      deferred 过期处理别名，用于对齐 Module 03 设计文档。
   /commit-memory <candidate_id> /reject-memory <candidate_id>
       提交或拒绝记忆候选。
   /memory-evidence <id> /memory-revisions <id>
       查看记忆证据与修订历史。
+  /run-extraction-job [--real]
+      领取并执行一个 pending extraction_job；默认使用 golden fake，带 --real 时调用真实 OpenAI-compatible LLM。
+  /backfill-extraction-jobs [--limit N] [--force]
+      为已封口/已抽取 episode 创建补抽取 job；--force 会允许重跑已有 completed job。
+  /memory-extraction-observability [--limit N]
+      查看 extractor job 状态、候选分布、token/cost/latency 和最近 job。
   /recall-traces [数量] /memory-health
       查看召回轨迹和本地 Runtime 健康状态。
   /memory-hooks

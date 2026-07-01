@@ -5,7 +5,7 @@ import threading
 from .agent import AgentRunner
 from .commands import CommandError, handle_command
 from .memory_console import MemoryConsole
-from .memory_runtime import MemoryRuntime
+from .memory_system import MemorySystem
 from .proactive import ProactiveScheduler, ProactiveTrigger
 from .render import render_trace_panel
 from .state import StateStore
@@ -17,7 +17,7 @@ class SoraRepl:
         store: StateStore,
         runner: AgentRunner,
         show_trace_panel: bool = True,
-        memory_runtime: MemoryRuntime | None = None,
+        memory_runtime: MemorySystem | None = None,
     ) -> None:
         self.store = store
         self.runner = runner

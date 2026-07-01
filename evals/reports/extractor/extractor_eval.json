@@ -1,0 +1,179 @@
+{
+  "cases": [
+    {
+      "acceptable_operations": [
+        "ADD"
+      ],
+      "candidate_count": 1,
+      "case_id": "explicit_async_extractor_preference",
+      "category": "explicit",
+      "episode_id": "ep_c70b9f3031254c1a",
+      "error": null,
+      "expected_memory_types": [
+        "project_principle"
+      ],
+      "expected_operations": [
+        "ADD"
+      ],
+      "hallucinated": false,
+      "noop_count": 0,
+      "observed_memory_types": [
+        "project_principle"
+      ],
+      "observed_operations": [
+        "ADD"
+      ],
+      "operation_ok": true,
+      "status": "completed",
+      "target_ok": true,
+      "type_ok": true
+    },
+    {
+      "acceptable_operations": [
+        "NOOP"
+      ],
+      "candidate_count": 0,
+      "case_id": "negative_implicit_joke",
+      "category": "negative_implicit",
+      "episode_id": "ep_05c3e6e9b394436a",
+      "error": null,
+      "expected_memory_types": [
+        "procedural_hint"
+      ],
+      "expected_operations": [
+        "NOOP"
+      ],
+      "hallucinated": false,
+      "noop_count": 1,
+      "observed_memory_types": [
+        "procedural_hint"
+      ],
+      "observed_operations": [
+        "NOOP"
+      ],
+      "operation_ok": true,
+      "status": "completed",
+      "target_ok": true,
+      "type_ok": true
+    },
+    {
+      "acceptable_operations": [
+        "UPDATE"
+      ],
+      "candidate_count": 1,
+      "case_id": "update_from_related_memory",
+      "category": "conflict_update",
+      "episode_id": "ep_199143eee3084e08",
+      "error": null,
+      "expected_memory_types": [
+        "project_principle"
+      ],
+      "expected_operations": [
+        "UPDATE"
+      ],
+      "hallucinated": false,
+      "noop_count": 0,
+      "observed_memory_types": [
+        "project_principle"
+      ],
+      "observed_operations": [
+        "UPDATE"
+      ],
+      "operation_ok": true,
+      "status": "completed",
+      "target_ok": true,
+      "type_ok": true
+    },
+    {
+      "acceptable_operations": [
+        "MERGE"
+      ],
+      "candidate_count": 1,
+      "case_id": "multi_memory_current_best_merge",
+      "category": "multi_memory",
+      "episode_id": "ep_9ee6fff53d494cf3",
+      "error": null,
+      "expected_memory_types": [
+        "project_principle"
+      ],
+      "expected_operations": [
+        "MERGE"
+      ],
+      "hallucinated": false,
+      "noop_count": 0,
+      "observed_memory_types": [
+        "project_principle"
+      ],
+      "observed_operations": [
+        "MERGE"
+      ],
+      "operation_ok": true,
+      "status": "completed",
+      "target_ok": true,
+      "type_ok": true
+    },
+    {
+      "acceptable_operations": [
+        "ADD"
+      ],
+      "candidate_count": 1,
+      "case_id": "relationship_signal_companionship",
+      "category": "relationship_signal",
+      "episode_id": "ep_26d1326d0e0b43af",
+      "error": null,
+      "expected_memory_types": [
+        "relationship_signal"
+      ],
+      "expected_operations": [
+        "ADD"
+      ],
+      "hallucinated": false,
+      "noop_count": 0,
+      "observed_memory_types": [
+        "relationship_signal"
+      ],
+      "observed_operations": [
+        "ADD"
+      ],
+      "operation_ok": true,
+      "status": "completed",
+      "target_ok": true,
+      "type_ok": true
+    },
+    {
+      "acceptable_operations": [
+        "NOOP",
+        "REVIEW"
+      ],
+      "candidate_count": 0,
+      "case_id": "gradual_preference_no_overextract_single_turn",
+      "category": "gradual_preference",
+      "episode_id": "ep_4ed10331fcf24fd4",
+      "error": null,
+      "expected_memory_types": [
+        "procedural_hint"
+      ],
+      "expected_operations": [
+        "NOOP"
+      ],
+      "hallucinated": false,
+      "noop_count": 1,
+      "observed_memory_types": [
+        "procedural_hint"
+      ],
+      "observed_operations": [
+        "NOOP"
+      ],
+      "operation_ok": true,
+      "status": "completed",
+      "target_ok": true,
+      "type_ok": true
+    }
+  ],
+  "failed_cases": [],
+  "hallucination_rate": 0.0,
+  "memory_type_accuracy": 1.0,
+  "operation_accuracy": 1.0,
+  "target_memory_accuracy": 1.0,
+  "total_cases": 6
+}

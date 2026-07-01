@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from .agent import AgentRunner
 from .credentials import CredentialError, CredentialManager
 from .llm import DeepSeekClient, FakeLLMClient
-from .memory_runtime import MemoryRuntime
+from .memory_system import MemorySystem
 from .render import render_trace_panel
 from .repl import SoraRepl
 from .state import StateStore
@@ -16,7 +17,7 @@ from .state import StateStore
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Project Sora Agent State Sandbox")
     parser.add_argument("--provider", choices=["deepseek", "fake"], default="deepseek")
-    parser.add_argument("--model", default="deepseek-chat")
+    parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", "deepseek-v4-flash"))
     parser.add_argument("--once", help="Run one user turn and exit.")
     parser.add_argument("--json", action="store_true", help="Print full JSON result for --once.")
     parser.add_argument("--trace", action="store_true", help="Print readable trace panel for --once.")
@@ -41,7 +42,11 @@ def make_llm(provider: str, model: str, no_prompt_key: bool):
         return FakeLLMClient()
     manager = CredentialManager()
     key = manager.get_api_key(prompt_if_missing=not no_prompt_key)
-    return DeepSeekClient(api_key=key, model=model)
+    return DeepSeekClient(
+        api_key=key,
+        model=model,
+        base_url=os.environ.get("OPENAI_BASE_URL", "https://api.deepseek.com"),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -49,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     store = StateStore.default()
-    memory_runtime = MemoryRuntime.default()
+    memory_runtime = MemorySystem.default()
     if args.reset_state:
         store.reset()
         memory_runtime.reset()
