@@ -35,12 +35,14 @@ class MemorySystem:
         turn_frame: JsonDict | None = None,
         context_use_policy: JsonDict | None = None,
         top_k: int = 3,
+        token_budget: int | None = None,
     ) -> JsonDict:
         return self.runtime.recall(
             query_text,
             turn_frame=turn_frame,
             context_use_policy=context_use_policy,
             top_k=top_k,
+            token_budget=token_budget,
         )
 
     def observe_turn_candidates(self, user_input: str, reply: str) -> list[JsonDict]:

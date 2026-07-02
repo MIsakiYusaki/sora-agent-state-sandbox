@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -19,9 +20,97 @@ from sora_sandbox.extractor_eval import ExtractorEvalConfig, run_extractor_eval
 from sora_sandbox.memory_extractor_provider import OpenAICompatibleExtractorProvider
 from sora_sandbox.memory_extractor_repair import repair_extractor_json
 from sora_sandbox.memory_console import MemoryConsole
+from sora_sandbox.memory_reranker import HTTPCrossEncoderReranker, OpenAICompatibleLLMReranker
 from sora_sandbox.memory_runtime import MemoryRuntime
+from sora_sandbox.memory_schema import JsonDict
 from sora_sandbox.memory_system import MemorySystem
+from sora_sandbox.memory_vector_index import QdrantVectorIndex
 from sora_sandbox.state import seed_state
+
+
+class FakeQdrantClient:
+    def __init__(self) -> None:
+        self.points: dict[str, JsonDict] = {}
+        self.requests: list[tuple[str, str, JsonDict | None]] = []
+        self.fail_search = False
+
+    def request(self, method: str, path: str, payload: JsonDict | None = None) -> JsonDict:
+        self.requests.append((method, path, payload))
+        if method == "GET":
+            return {"result": {"status": "green"}}
+        if method == "PUT" and "/points" not in path:
+            return {"result": True}
+        if method == "PUT" and "/points" in path:
+            for point in (payload or {}).get("points", []):
+                self.points[str(point["id"])] = point
+            return {"result": {"operation_id": 1, "status": "completed"}}
+        if method == "POST" and "/points/search" in path:
+            if self.fail_search:
+                raise RuntimeError("qdrant search unavailable")
+            results = []
+            must = (payload or {}).get("filter", {}).get("must", [])
+            filters = {
+                item.get("key"): item.get("match", {}).get("value")
+                for item in must
+                if isinstance(item, dict)
+            }
+            for point_id, point in self.points.items():
+                point_payload = point.get("payload", {})
+                if any(point_payload.get(key) != value for key, value in filters.items()):
+                    continue
+                results.append({"id": point_id, "score": 0.95, "payload": point_payload})
+            return {"result": results[: int((payload or {}).get("limit") or 10)]}
+        if method == "POST" and "/points/delete" in path:
+            for point_id in (payload or {}).get("points", []):
+                self.points.pop(str(point_id), None)
+            return {"result": {"operation_id": 2, "status": "completed"}}
+        return {"result": True}
+
+
+class FakeCrossEncoderReranker(HTTPCrossEncoderReranker):
+    def __init__(self, scores: list[float] | None = None, preferred_text: str = "") -> None:
+        super().__init__(endpoint="http://reranker.local/rerank", model="fake-cross-encoder")
+        self.scores = scores
+        self.preferred_text = preferred_text
+
+    def _post_json(self, payload: JsonDict) -> JsonDict:
+        if self.scores is None:
+            scores = [
+                0.99 if self.preferred_text and self.preferred_text in document.get("text", "") else 0.05
+                for document in payload.get("documents", [])
+            ]
+        else:
+            scores = self.scores
+        return {
+            "results": [
+                {"index": index, "relevance_score": score}
+                for index, score in enumerate(scores)
+            ],
+            "usage": {"total_tokens": 7},
+        }
+
+
+class FakeLLMReranker(OpenAICompatibleLLMReranker):
+    def __init__(self, preferred_text: str) -> None:
+        super().__init__(
+            api_key="test-key",
+            base_url="http://llm.local/v1",
+            model="fake-llm-reranker",
+        )
+        self.preferred_text = preferred_text
+
+    def _chat_json(self, input_package: JsonDict) -> JsonDict:
+        return {
+            "scores": [
+                {
+                    "memory_id": document["id"],
+                    "score": 0.98 if self.preferred_text in document.get("text", "") else 0.04,
+                    "reason": "test score",
+                }
+                for document in input_package.get("documents", [])
+            ],
+            "usage": {"total_tokens": 11},
+        }
 
 
 class MemoryRuntimeTests(unittest.TestCase):
@@ -245,6 +334,620 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertEqual(len(evidence["content_hash"]), 64)
         self.assertIsNone(evidence["deleted_at"])
         self.assertIsNone(evidence["delete_reason"])
+
+    def test_evidence_persists_source_ref_and_span(self) -> None:
+        evidence_id = self.runtime.add_evidence(
+            source_type="test",
+            content_summary="span aware evidence",
+            raw_content="abcdef",
+            source_ref="evt_source_1",
+            span={"start": 1, "end": 4},
+        )
+
+        evidence = self.runtime.get_evidence(evidence_id)
+
+        self.assertEqual(evidence["source_ref"], "evt_source_1")
+        self.assertEqual(evidence["span"], {"start": 1, "end": 4})
+
+    def test_canonical_store_lists_gets_links_and_unlinks_evidence(self) -> None:
+        memory = self.runtime.add_manual(
+            "用户偏好 canonical store 测试",
+            memory_type="preference",
+        )
+        extra_evidence_id = self.runtime.add_evidence(
+            source_type="test",
+            content_summary="extra canonical evidence",
+            raw_content="raw canonical evidence",
+        )
+
+        evidence = self.runtime.get_evidence(extra_evidence_id)
+        listed = self.runtime.list_evidence(source_type="test")
+        linked = self.runtime.link_evidence(memory["id"], extra_evidence_id, reason="test_link")
+
+        self.assertEqual(evidence["raw_content"], "raw canonical evidence")
+        self.assertTrue(any(item["id"] == extra_evidence_id for item in listed))
+        self.assertIn(extra_evidence_id, linked["memory"]["evidence_ids"])
+        self.assertTrue(
+            any(
+                revision["action"] == "evidence_linked"
+                for revision in self.runtime.revisions_for_memory(memory["id"])
+            )
+        )
+
+        unlinked = self.runtime.unlink_evidence(
+            memory["id"],
+            extra_evidence_id,
+            reason="test_unlink",
+        )
+
+        self.assertEqual(unlinked["status"], "unlinked")
+        self.assertNotIn(
+            extra_evidence_id,
+            self.runtime.get_memory(memory["id"])["evidence_ids"],
+        )
+        self.assertEqual(self.runtime.get_memory(memory["id"])["status"], "active")
+
+    def test_delete_evidence_cascades_to_candidate_memory_and_fts(self) -> None:
+        evidence_id = self.runtime.add_evidence(
+            source_type="test",
+            content_summary="delete evidence should remove recall",
+        )
+        candidate = self.runtime.propose(
+            summary="delete evidence should remove recall",
+            memory_type="preference",
+            evidence_ids=[evidence_id],
+            reason="test_evidence_delete",
+            allow_auto_commit=False,
+        )
+        memory = self.runtime.commit([candidate["candidate_id"]])["committed"][0]
+        pending_evidence_id = self.runtime.add_evidence(
+            source_type="test",
+            content_summary="pending candidate evidence",
+        )
+        pending = self.runtime.propose(
+            summary="pending candidate evidence",
+            memory_type="preference",
+            evidence_ids=[pending_evidence_id],
+            reason="test_pending_evidence_delete",
+            allow_auto_commit=False,
+        )
+
+        deleted = self.runtime.delete_evidence(evidence_id, reason="test_delete_evidence")
+        pending_deleted = self.runtime.delete_evidence(
+            pending_evidence_id,
+            reason="test_delete_pending_evidence",
+        )
+
+        self.assertEqual(deleted["status"], "deleted")
+        self.assertEqual(self.runtime.get_evidence(evidence_id)["delete_reason"], "test_delete_evidence")
+        self.assertEqual(self.runtime.get_memory(memory["id"])["status"], "disabled")
+        self.assertNotIn(
+            memory["id"],
+            self.runtime.recall("delete evidence should remove recall")["retrieved_ids"],
+        )
+        self.assertEqual(
+            self.runtime.get_candidate(pending["candidate_id"])["status"],
+            "rejected",
+        )
+        self.assertEqual(pending_deleted["rejected_candidates"][0]["candidate_id"], pending["candidate_id"])
+
+    def test_delete_evidence_rejects_only_exact_candidate_refs(self) -> None:
+        now = "2026-01-01T00:00:00+00:00"
+        with self.runtime._lock:
+            for evidence_id in ("ev_delete", "ev_delete_suffix"):
+                self.runtime._conn.execute(
+                    """
+                    INSERT INTO evidence (
+                        id, source_type, content_summary, raw_content, raw_pointer,
+                        source_ref, span_json, content_hash, visibility, sensitivity,
+                        retention_policy, metadata_json, created_at
+                    ) VALUES (?, 'test', ?, ?, NULL, NULL, '{}', ?, 'private', 'low',
+                              'persistent', '{}', ?)
+                    """,
+                    (evidence_id, evidence_id, evidence_id, evidence_id * 8, now),
+                )
+            for candidate_id, evidence_ids in (
+                ("mc_exact_ref", ["ev_delete"]),
+                ("mc_suffix_ref", ["ev_delete_suffix"]),
+            ):
+                self.runtime._conn.execute(
+                    """
+                    INSERT INTO memory_candidate (
+                        id, type, summary, tags_json, status, confidence, sensitivity,
+                        reason, evidence_ids_json, explicit_user_request, local_only,
+                        created_at
+                    ) VALUES (?, 'preference', ?, '[]', 'pending', 0.8, 'low',
+                              'exact_match_test', ?, 0, 0, ?)
+                    """,
+                    (candidate_id, candidate_id, json.dumps(evidence_ids), now),
+                )
+            self.runtime._conn.commit()
+
+        deleted = self.runtime.delete_evidence("ev_delete", reason="exact_delete")
+
+        self.assertEqual(deleted["rejected_candidates"][0]["candidate_id"], "mc_exact_ref")
+        self.assertEqual(self.runtime.get_candidate("mc_exact_ref")["status"], "rejected")
+        self.assertEqual(self.runtime.get_candidate("mc_suffix_ref")["status"], "pending")
+
+    def test_link_evidence_rejects_blocked_memory_permission(self) -> None:
+        memory = self.runtime.add_manual(
+            "blocked permission memory",
+            memory_type="preference",
+        )
+        evidence_id = self.runtime.add_evidence(
+            source_type="test",
+            content_summary="should not link to blocked memory",
+        )
+        with self.runtime._lock:
+            self.runtime._conn.execute(
+                "UPDATE memory_record SET retrieval_permission = 'blocked' WHERE id = ?",
+                (memory["id"],),
+            )
+            self.runtime._conn.commit()
+
+        with self.assertRaises(ValueError):
+            self.runtime.link_evidence(memory["id"], evidence_id)
+
+        self.assertNotIn(evidence_id, self.runtime.get_memory(memory["id"])["evidence_ids"])
+
+    def test_store_audit_uses_exact_candidate_evidence_matching(self) -> None:
+        now = "2026-01-01T00:00:00+00:00"
+        with self.runtime._lock:
+            for evidence_id in ("ev_abc", "ev_abcdef"):
+                self.runtime._conn.execute(
+                    """
+                    INSERT INTO evidence (
+                        id, source_type, content_summary, raw_content, raw_pointer,
+                        source_ref, span_json, content_hash, visibility, sensitivity,
+                        retention_policy, metadata_json, created_at
+                    ) VALUES (?, 'test', ?, ?, NULL, NULL, '{}', ?, 'private', 'low',
+                              'persistent', '{}', ?)
+                    """,
+                    (evidence_id, evidence_id, evidence_id, evidence_id * 8, now),
+                )
+            self.runtime._conn.execute(
+                """
+                INSERT INTO memory_candidate (
+                    id, type, summary, tags_json, status, confidence, sensitivity,
+                    reason, evidence_ids_json, explicit_user_request, local_only,
+                    created_at
+                ) VALUES ('mc_refs_longer_evidence', 'preference', 'refs longer evidence',
+                          '[]', 'pending', 0.8, 'low', 'exact_audit_test',
+                          ?, 0, 0, ?)
+                """,
+                (json.dumps(["ev_abcdef"]), now),
+            )
+            self.runtime._conn.commit()
+
+        audit = self.runtime.store_audit()
+        orphan_ids = {item["id"] for item in audit["issues"]["orphan_active_evidence"]}
+
+        self.assertIn("ev_abc", orphan_ids)
+        self.assertNotIn("ev_abcdef", orphan_ids)
+
+    def test_store_audit_detects_and_repairs_fts_drift(self) -> None:
+        memory = self.runtime.add_manual(
+            "用户偏好 store audit 测试",
+            memory_type="preference",
+        )
+
+        with self.runtime._lock:  # Test-only drift injection.
+            self.runtime._conn.execute(
+                "DELETE FROM memory_fts WHERE memory_id = ?",
+                (memory["id"],),
+            )
+            self.runtime._conn.execute(
+                "INSERT INTO memory_fts (memory_id, search_text) VALUES ('mem_orphan_fts', 'orphan')"
+            )
+            self.runtime._conn.commit()
+
+        audit = self.runtime.store_audit()
+        repaired = self.runtime.repair_fts_index(actor="test")
+        audit_after = self.runtime.store_audit()
+
+        self.assertEqual(audit["status"], "issues_found")
+        self.assertIn(
+            memory["id"],
+            [item["id"] for item in audit["issues"]["fts_missing_active_memories"]],
+        )
+        self.assertIn(
+            "mem_orphan_fts",
+            [item["memory_id"] for item in audit["issues"]["fts_orphan_or_inactive_memories"]],
+        )
+        self.assertIn(memory["id"], repaired["memory_ids"])
+        self.assertIn("mem_orphan_fts", repaired["removed_memory_ids"])
+        self.assertEqual(repaired["removed_count"], 1)
+        self.assertEqual(audit_after["issues"]["fts_orphan_or_inactive_memories"], [])
+        self.assertEqual(audit_after["issues"]["fts_missing_active_memories"], [])
+        self.assertEqual(audit_after["issue_breakdown"]["fts_missing_active_memories"], 0)
+
+    def test_index_outbox_and_projectors_process_memory_changes(self) -> None:
+        memory = self.runtime.add_manual(
+            "relationship projector contract memory",
+            memory_type="relationship_signal",
+        )
+
+        index_items = self.runtime.list_index_outbox(limit=20)
+        projector_items = self.runtime.list_projector_outbox(limit=20)
+        checkpoints = self.runtime.list_projector_checkpoints()
+
+        self.assertTrue(memory["index_watermark"])
+        self.assertTrue(all(item["status"] == "processed" for item in index_items))
+        self.assertTrue(any(item["backend"] == "fts" for item in index_items))
+        self.assertTrue(any(item["backend"] == "vector_local" for item in index_items))
+        self.assertTrue(any(item["backend"] == "graph" for item in index_items))
+        self.assertTrue(
+            any(
+                item["projector_name"] == "relationship"
+                and item["action"] == "upsert"
+                and item["status"] == "processed"
+                for item in projector_items
+            )
+        )
+        self.assertTrue(any(item["projector_name"] == "relationship" for item in checkpoints))
+
+    def test_module05_indexes_real_vector_documents_and_trace_items(self) -> None:
+        memory = self.runtime.add_manual(
+            "module five vector recall alpha beta preference",
+            memory_type="preference",
+            tags=["module05", "vector"],
+        )
+
+        document = self.runtime._conn.execute(
+            "SELECT * FROM memory_index_document WHERE memory_id = ?",
+            (memory["id"],),
+        ).fetchone()
+        embedding = self.runtime._conn.execute(
+            "SELECT * FROM memory_embedding WHERE memory_id = ?",
+            (memory["id"],),
+        ).fetchone()
+        vector_row = self.runtime._conn.execute(
+            "SELECT * FROM memory_vector_index WHERE memory_id = ?",
+            (memory["id"],),
+        ).fetchone()
+        graph_edges = self.runtime._conn.execute(
+            "SELECT COUNT(*) FROM memory_graph_edge WHERE memory_id = ?",
+            (memory["id"],),
+        ).fetchone()[0]
+
+        frame = self.runtime.recall("alpha beta module five", top_k=1)
+        trace_item = self.runtime._conn.execute(
+            "SELECT * FROM recall_trace_item WHERE trace_id = ? AND memory_id = ?",
+            (frame["recall_trace_id"], memory["id"]),
+        ).fetchone()
+
+        self.assertEqual(document["schema_version"], "index_doc_v1")
+        self.assertEqual(document["embedding_input_version"], "embedding_input_v1")
+        self.assertGreater(embedding["vector_dim"], 0)
+        self.assertEqual(vector_row["status"], "active")
+        self.assertGreater(graph_edges, 0)
+        self.assertEqual(frame["retrieved_ids"], [memory["id"]])
+        self.assertIn("vector_local", frame["recall_plan"]["backends"])
+        self.assertGreater(frame["packing"]["token_budget"], 0)
+        self.assertIsNotNone(trace_item["backend"])
+        self.assertIsNotNone(trace_item["rrf_score"])
+        self.assertGreater(self.runtime.get_memory(memory["id"])["access_count"], 0)
+
+    def test_module05_outbox_idempotency_skips_duplicate_vector_payload(self) -> None:
+        memory = self.runtime.add_manual(
+            "module five duplicate vector payload",
+            memory_type="preference",
+        )
+
+        first_count = self.runtime._conn.execute(
+            "SELECT COUNT(*) FROM memory_vector_index WHERE memory_id = ?",
+            (memory["id"],),
+        ).fetchone()[0]
+        queued = self.runtime.index_outbox.enqueue_memory(
+            self.runtime.get_memory(memory["id"]),
+            action="upsert",
+            reason="test_duplicate",
+            backends=("vector_local",),
+        )
+        self.runtime.process_index_outbox()
+        processed = self.runtime.index_outbox.get_item(queued[0]["id"])
+        second_count = self.runtime._conn.execute(
+            "SELECT COUNT(*) FROM memory_vector_index WHERE memory_id = ?",
+            (memory["id"],),
+        ).fetchone()[0]
+
+        self.assertEqual(first_count, 1)
+        self.assertEqual(second_count, 1)
+        self.assertEqual(processed["status"], "processed")
+        self.assertTrue(processed["result"]["skipped"])
+
+    def test_module05_dead_letter_requeue_and_rebuild(self) -> None:
+        memory = self.runtime.add_manual(
+            "module five rebuild dead letter memory",
+            memory_type="preference",
+        )
+        with self.runtime._lock:
+            self.runtime._conn.execute(
+                """
+                INSERT INTO memory_index_outbox (
+                    id, backend, memory_id, action, status, attempts, max_attempts,
+                    payload_json, result_json, index_generation, created_at
+                ) VALUES (
+                    'idx_bad_backend', 'unknown_backend', ?, 'upsert', 'pending',
+                    0, 3, '{}', '{}', 'active', '2026-01-01T00:00:00+00:00'
+                )
+                """,
+                (memory["id"],),
+            )
+            self.runtime._conn.commit()
+
+        processed = self.runtime.process_index_outbox(limit=10)
+        dead = self.runtime.list_index_outbox(status="dead_letter", limit=10)
+        requeued = self.runtime.requeue_index_dead_letters(limit=10)
+        rebuild = self.runtime.rebuild_memory_indexes(
+            backends=("fts", "vector_local"),
+            batch_size=1,
+        )
+
+        self.assertEqual(processed["dead_letter_count"], 1)
+        self.assertEqual(dead[0]["id"], "idx_bad_backend")
+        self.assertEqual(requeued["requeued_count"], 1)
+        self.assertIn(rebuild["status"], {"completed", "completed_with_errors"})
+        self.assertGreaterEqual(rebuild["processed_count"], 1)
+
+    def test_module05_context_packing_trace_cleanup_and_recall_eval(self) -> None:
+        first = self.runtime.add_manual(
+            "module five packing topic first long memory detail " * 4,
+            memory_type="preference",
+            tags=["packing_topic"],
+        )
+        second = self.runtime.add_manual(
+            "module five packing topic second long memory detail " * 4,
+            memory_type="preference",
+            tags=["packing_topic"],
+        )
+
+        frame = self.runtime.recall("packing_topic", top_k=3, token_budget=24)
+        eval_run = self.runtime.run_recall_eval(
+            cases=[
+                {
+                    "case_name": "packing_topic",
+                    "query": "packing_topic first",
+                    "expected_memory_ids": [first["id"]],
+                    "forbidden_memory_ids": [],
+                }
+            ]
+        )
+        cleanup = self.runtime.cleanup_recall_traces(older_than_days=0)
+
+        self.assertLessEqual(frame["packing"]["token_used"], 24)
+        self.assertTrue(frame["packing"]["suppressed"])
+        self.assertEqual(eval_run["status"], "passed")
+        self.assertEqual(eval_run["passed_cases"], 1)
+        self.assertGreaterEqual(cleanup["deleted_count"], 1)
+
+    def test_module05_qdrant_vector_backend_indexes_and_recalls(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        client = FakeQdrantClient()
+        runtime = MemoryRuntime(
+            Path(temp_dir.name) / "memory.db",
+            vector_index_factory=lambda conn, provider: QdrantVectorIndex(
+                conn,
+                provider,
+                url="http://qdrant.local",
+                client=client,
+            ),
+        )
+        self.addCleanup(runtime.close)
+
+        memory = runtime.add_manual(
+            "module five qdrant production vector alpha",
+            memory_type="preference",
+            tags=["qdrant_alpha"],
+        )
+        vector_row = runtime._conn.execute(
+            "SELECT * FROM memory_vector_index WHERE memory_id = ?",
+            (memory["id"],),
+        ).fetchone()
+        frame = runtime.recall("qdrant_alpha production vector", top_k=1)
+        index_items = [
+            item
+            for item in runtime.list_index_outbox(limit=20)
+            if item["memory_id"] == memory["id"]
+        ]
+
+        self.assertEqual(vector_row["backend"], "vector_qdrant")
+        self.assertTrue(client.points)
+        self.assertTrue(any(item["backend"] == "vector_qdrant" for item in index_items))
+        self.assertEqual(frame["retrieved_ids"], [memory["id"]])
+        self.assertEqual(frame["recall_plan"]["active_vector_backend"], "vector_qdrant")
+        self.assertIn("vector_qdrant", frame["items"][0]["matched_backends"])
+
+    def test_module05_vector_backend_failure_degrades_to_other_backends(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        client = FakeQdrantClient()
+        runtime = MemoryRuntime(
+            Path(temp_dir.name) / "memory.db",
+            vector_index_factory=lambda conn, provider: QdrantVectorIndex(
+                conn,
+                provider,
+                url="http://qdrant.local",
+                client=client,
+            ),
+        )
+        self.addCleanup(runtime.close)
+        memory = runtime.add_manual(
+            "module five qdrant fallback fts target",
+            memory_type="preference",
+            tags=["qdrant_fallback"],
+        )
+
+        client.fail_search = True
+        frame = runtime.recall("qdrant_fallback target", top_k=1)
+        trace = runtime.list_recall_traces(limit=1)[0]
+
+        self.assertTrue(frame["degraded"])
+        self.assertEqual(frame["retrieved_ids"], [memory["id"]])
+        self.assertTrue(
+            any(reason["backend"] == "vector_qdrant" for reason in frame["degradation_reasons"])
+        )
+        self.assertTrue(trace["degraded"])
+        self.assertEqual(trace["cost"]["vector_backend"], "vector_qdrant")
+        self.assertEqual(trace["cost"]["retrieval_errors"][0]["backend"], "vector_qdrant")
+
+    def test_module05_cross_encoder_reranker_can_override_rrf_order(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        runtime = MemoryRuntime(
+            Path(temp_dir.name) / "memory.db",
+            reranker=FakeCrossEncoderReranker(preferred_text="preferred rerank target"),
+        )
+        self.addCleanup(runtime.close)
+        runtime.add_manual(
+            "module five rerank ordinary candidate shared token",
+            memory_type="preference",
+            tags=["rerank_case"],
+        )
+        preferred = runtime.add_manual(
+            "module five preferred rerank target shared token",
+            memory_type="preference",
+            tags=["rerank_case"],
+        )
+
+        frame = runtime.recall("rerank_case shared token", top_k=1)
+        trace = runtime.list_recall_traces(limit=1)[0]
+
+        self.assertEqual(frame["retrieved_ids"], [preferred["id"]])
+        self.assertEqual(frame["rerank"]["provider"], "http_cross_encoder")
+        self.assertFalse(frame["rerank"]["degraded"])
+        self.assertEqual(trace["cost"]["reranker"]["model"], "fake-cross-encoder")
+
+    def test_module05_llm_reranker_uses_json_scores_and_records_usage(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        runtime = MemoryRuntime(
+            Path(temp_dir.name) / "memory.db",
+            reranker=FakeLLMReranker(preferred_text="llm preferred target"),
+        )
+        self.addCleanup(runtime.close)
+        runtime.add_manual(
+            "module five llm ordinary candidate shared token",
+            memory_type="preference",
+            tags=["llm_rerank_case"],
+        )
+        preferred = runtime.add_manual(
+            "module five llm preferred target shared token",
+            memory_type="preference",
+            tags=["llm_rerank_case"],
+        )
+
+        frame = runtime.recall("llm_rerank_case shared token", top_k=1)
+        trace = runtime.list_recall_traces(limit=1)[0]
+
+        self.assertEqual(frame["retrieved_ids"], [preferred["id"]])
+        self.assertEqual(frame["rerank"]["provider"], "openai_compatible_llm_reranker")
+        self.assertEqual(frame["rerank"]["usage"]["total_tokens"], 11)
+        self.assertEqual(trace["cost"]["reranker"]["model"], "fake-llm-reranker")
+
+    def test_memory_delete_broadcasts_index_and_projector_tombstones(self) -> None:
+        memory = self.runtime.add_manual(
+            "delete propagation tombstone memory",
+            memory_type="worldops_episode",
+        )
+
+        deleted = self.runtime.delete(memory["id"])
+        propagations = self.runtime.list_delete_propagations(target_id=memory["id"], limit=50)
+        target_types = {item["target_type"] for item in propagations}
+        index_items = [
+            item
+            for item in self.runtime.list_index_outbox(limit=50)
+            if item["memory_id"] == memory["id"] and item["action"] == "tombstone"
+        ]
+        projector_items = [
+            item
+            for item in self.runtime.list_projector_outbox(limit=50)
+            if item["memory_id"] == memory["id"] and item["action"] == "tombstone"
+        ]
+
+        self.assertEqual(deleted["status"], "deleted")
+        self.assertTrue({"memory_fts", "memory_vector_index", "memory_graph_index"}.issubset(target_types))
+        self.assertTrue(
+            {"relationship_projector", "worldops_projector", "persona_projector"}.issubset(target_types)
+        )
+        self.assertEqual({item["backend"] for item in index_items}, {"fts", "vector_local", "graph"})
+        self.assertEqual(
+            {item["projector_name"] for item in projector_items},
+            {"relationship", "worldops", "persona"},
+        )
+        self.assertTrue(all(item["status"] == "processed" for item in index_items + projector_items))
+        self.assertNotIn(
+            memory["id"],
+            self.runtime.recall("delete propagation tombstone memory")["retrieved_ids"],
+        )
+
+    def test_retention_worker_expires_evidence_and_disables_memory(self) -> None:
+        evidence_id = self.runtime.add_evidence(
+            source_type="test",
+            content_summary="retention expired evidence",
+            expires_at="2000-01-01T00:00:00+00:00",
+        )
+        candidate = self.runtime.propose(
+            summary="retention expired evidence",
+            memory_type="preference",
+            evidence_ids=[evidence_id],
+            confidence=0.95,
+            reason="retention_test",
+            allow_auto_commit=False,
+        )
+        memory = self.runtime.commit([candidate["candidate_id"]])["committed"][0]
+
+        result = self.runtime.process_retention(now="2000-01-02T00:00:00+00:00")
+
+        self.assertEqual(result["expired_evidence_count"], 1)
+        self.assertEqual(self.runtime.get_evidence(evidence_id)["delete_reason"], "retention_evidence_expired")
+        self.assertEqual(self.runtime.get_memory(memory["id"])["status"], "disabled")
+
+    def test_forget_memory_deletes_memory_and_linked_evidence(self) -> None:
+        memory = self.runtime.add_manual(
+            "forget workflow memory",
+            memory_type="preference",
+        )
+        evidence_id = self.runtime.evidence_for_memory(memory["id"])[0]["id"]
+
+        request = self.runtime.forget_memory(memory["id"], actor="test_user")
+
+        self.assertEqual(request["status"], "completed")
+        self.assertEqual(self.runtime.get_memory(memory["id"])["status"], "deleted")
+        self.assertEqual(self.runtime.get_evidence(evidence_id)["delete_reason"], "user_forget_request")
+        self.assertEqual(len(self.runtime.list_forget_requests()), 1)
+
+    def test_forget_evidence_redacts_raw_payload(self) -> None:
+        evidence_id = self.runtime.add_evidence(
+            source_type="test",
+            content_summary="redaction evidence",
+            raw_content="raw private text",
+        )
+
+        request = self.runtime.forget_evidence(evidence_id, mode="redact", actor="test_user")
+        evidence = self.runtime.get_evidence(evidence_id)
+
+        self.assertEqual(request["status"], "completed")
+        self.assertEqual(evidence["visibility"], "redacted")
+        self.assertIsNone(evidence["raw_content"])
+        self.assertEqual(evidence["delete_reason"], "user_forget_request")
+
+    def test_store_health_and_canonical_eval_cover_module04_invariants(self) -> None:
+        self.runtime.add_manual(
+            "canonical eval healthy memory",
+            memory_type="preference",
+        )
+
+        health = self.runtime.store_health()
+        eval_run = self.runtime.run_canonical_eval()
+
+        self.assertEqual(health["status"], "ok")
+        self.assertEqual(health["index_outbox"]["pending"], 0)
+        self.assertEqual(health["projectors"]["pending"], 0)
+        self.assertEqual(eval_run["status"], "passed")
+        self.assertEqual(eval_run["failed_cases"], 0)
+        self.assertEqual(len(eval_run["cases"]), 4)
 
     def test_prefilter_archives_low_signal_episode_without_extraction_job(self) -> None:
         result = self.runtime.ingest_turn("ok", "ok", session_id="low-signal")
@@ -595,6 +1298,17 @@ class MemoryRuntimeTests(unittest.TestCase):
 
         output, _ = console.execute("observability")
         self.assertIn("jobs_by_status", output)
+
+        memory = self.runtime.add_manual("用户偏好 console evidence 测试")
+        evidence_id = self.runtime.evidence_for_memory(memory["id"])[0]["id"]
+        output, _ = console.execute("evidence-list active --limit 5")
+        self.assertIn(evidence_id, output)
+
+        output, _ = console.execute(f"evidence-show {evidence_id}")
+        self.assertIn("console evidence", output)
+
+        output, _ = console.execute("store-audit")
+        self.assertIn("counts", output)
 
     def test_memory_system_facade_exposes_recall_contract(self) -> None:
         system = MemorySystem(self.runtime)
@@ -978,6 +1692,25 @@ class MemoryRuntimeTests(unittest.TestCase):
         )
         output, _ = handle_command("/memory-quarantines", state, memory_admin=self.runtime)
         self.assertIn(quarantined["quarantine_id"], output)
+
+        evidence_memory = self.runtime.add_manual("用户偏好命令 evidence 测试")
+        evidence_id = self.runtime.evidence_for_memory(evidence_memory["id"])[0]["id"]
+        output, _ = handle_command(
+            "/memory-evidence-items active --limit 5",
+            state,
+            memory_admin=self.runtime,
+        )
+        self.assertIn(evidence_id, output)
+
+        output, _ = handle_command(
+            f"/memory-evidence-detail {evidence_id}",
+            state,
+            memory_admin=self.runtime,
+        )
+        self.assertIn("命令 evidence", output)
+
+        output, _ = handle_command("/memory-store-audit", state, memory_admin=self.runtime)
+        self.assertIn("counts", output)
 
         memory = self.runtime.add_manual("用户偏好命令回滚测试", memory_type="preference")
         rollback_candidate = next(

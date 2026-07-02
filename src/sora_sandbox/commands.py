@@ -208,6 +208,125 @@ def handle_command(
     if command == "/memory-evidence":
         require_memory_admin(memory_admin)
         return dump(memory_admin.evidence_for_memory(required_arg(args, "/memory-evidence <id>"))), False
+    if command == "/memory-evidence-items":
+        require_memory_admin(memory_admin)
+        limit = _int_arg(args, "--limit", default=100)
+        offset = _int_arg(args, "--offset", default=0)
+        status = (_value_after(args, "--status") or _first_positional(args) or "active").lower()
+        source_type = _value_after(args, "--source-type")
+        sensitivity = _value_after(args, "--sensitivity")
+        return dump(
+            memory_admin.list_evidence(
+                status=None if status == "all" else status,
+                source_type=source_type,
+                sensitivity=sensitivity,
+                limit=limit,
+                offset=offset,
+            )
+        ), False
+    if command == "/memory-evidence-detail":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.get_evidence(required_arg(args, "/memory-evidence-detail <evidence_id>"))), False
+    if command == "/link-memory-evidence":
+        require_memory_admin(memory_admin)
+        if len(args) < 2:
+            raise CommandError("用法：/link-memory-evidence <memory_id> <evidence_id>")
+        return dump(memory_admin.link_evidence(arg_value(args[0]), arg_value(args[1]))), False
+    if command == "/unlink-memory-evidence":
+        require_memory_admin(memory_admin)
+        if len(args) < 2:
+            raise CommandError("用法：/unlink-memory-evidence <memory_id> <evidence_id>")
+        return dump(memory_admin.unlink_evidence(arg_value(args[0]), arg_value(args[1]))), False
+    if command == "/delete-memory-evidence":
+        require_memory_admin(memory_admin)
+        evidence_id = required_arg(args, "/delete-memory-evidence <evidence_id> [reason]")
+        reason = arg_value(" ".join(args[1:])) if len(args) > 1 else "manual_evidence_delete"
+        return dump(memory_admin.delete_evidence(evidence_id, reason=reason)), False
+    if command == "/memory-store-audit":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.store_audit()), False
+    if command == "/repair-memory-fts":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.repair_fts_index(actor="manual_repl")), False
+    if command == "/process-memory-index-outbox":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.process_index_outbox(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/memory-index-outbox":
+        require_memory_admin(memory_admin)
+        status = _value_after(args, "--status")
+        return dump(memory_admin.list_index_outbox(status=status, limit=_int_arg(args, "--limit", default=50))), False
+    if command == "/memory-index-health":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.index_health()), False
+    if command == "/rebuild-memory-index":
+        require_memory_admin(memory_admin)
+        backend_value = _value_after(args, "--backend")
+        backends = tuple(backend_value.split(",")) if backend_value else ("fts", "vector", "graph")
+        return dump(
+            memory_admin.rebuild_memory_indexes(
+                backends=backends,
+                batch_size=_int_arg(args, "--batch-size", default=100),
+                process="--no-process" not in args,
+            )
+        ), False
+    if command == "/memory-index-rebuilds":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_index_rebuilds(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/requeue-memory-index-deadletters":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.requeue_index_dead_letters(
+                limit=_int_arg(args, "--limit", default=50),
+                reason=_value_after(args, "--reason") or "manual_requeue",
+            )
+        ), False
+    if command == "/cleanup-recall-traces":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.cleanup_recall_traces(
+                older_than_days=_int_arg(args, "--days", default=30),
+                keep_pinned="--include-pinned" not in args,
+            )
+        ), False
+    if command == "/process-memory-projectors":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.process_projector_outbox(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/memory-projector-outbox":
+        require_memory_admin(memory_admin)
+        status = _value_after(args, "--status")
+        return dump(memory_admin.list_projector_outbox(status=status, limit=_int_arg(args, "--limit", default=50))), False
+    if command == "/memory-projector-checkpoints":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_projector_checkpoints()), False
+    if command == "/process-memory-retention":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.process_retention(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/forget-memory":
+        require_memory_admin(memory_admin)
+        memory_id = required_arg(args, "/forget-memory <memory_id> [--redact]")
+        return dump(memory_admin.forget_memory(memory_id, mode="redact" if "--redact" in args else "delete")), False
+    if command == "/forget-memory-evidence":
+        require_memory_admin(memory_admin)
+        evidence_id = required_arg(args, "/forget-memory-evidence <evidence_id> [--redact]")
+        return dump(memory_admin.forget_evidence(evidence_id, mode="redact" if "--redact" in args else "delete")), False
+    if command == "/memory-forget-requests":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_forget_requests(limit=_int_arg(args, "--limit", default=50))), False
+    if command == "/memory-store-health":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.store_health()), False
+    if command == "/run-canonical-memory-eval":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.run_canonical_eval()), False
+    if command == "/canonical-memory-evals":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_canonical_eval_runs(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/run-recall-memory-eval":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.run_recall_eval()), False
+    if command == "/recall-memory-evals":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_recall_eval_runs(limit=_int_arg(args, "--limit", default=20))), False
     if command == "/memory-episodes":
         require_memory_admin(memory_admin)
         status = arg_value(args[0]).lower() if args else "all"
@@ -438,6 +557,15 @@ def _first_positional(args: list[str]) -> str | None:
     return None
 
 
+def _value_after(args: list[str], flag: str) -> str | None:
+    if flag not in args:
+        return None
+    index = args.index(flag)
+    if index + 1 >= len(args):
+        raise CommandError(f"用法：{flag} <value>")
+    return arg_value(args[index + 1])
+
+
 def _positional_args(args: list[str]) -> list[str]:
     values: list[str] = []
     skip_next = False
@@ -556,6 +684,26 @@ Memory：
       提交或拒绝记忆候选。
   /memory-evidence <id> /memory-revisions <id>
       查看记忆证据与修订历史。
+  /memory-evidence-items [active|deleted|all] [--source-type X] [--sensitivity X] [--limit N] [--offset N]
+      列出 canonical evidence。
+  /memory-evidence-detail <evidence_id>
+      查看单条 evidence。
+  /link-memory-evidence <memory_id> <evidence_id>
+      手动将 evidence 关联到 memory，并记录 revision。
+  /unlink-memory-evidence <memory_id> <evidence_id>
+      手动解绑 evidence；如 memory 无 active evidence 会自动禁用。
+  /delete-memory-evidence <evidence_id> [reason]
+      软删除 evidence，并级联拒绝候选、禁用无证据 memory、移除 FTS。
+  /memory-store-audit /repair-memory-fts
+      检查 canonical store 一致性，或重建 active memory 的 FTS 索引。
+  /process-memory-index-outbox /memory-index-outbox
+      处理或查看 FTS/vector/graph index outbox。
+  /process-memory-projectors /memory-projector-outbox /memory-projector-checkpoints
+      处理或查看 relationship/worldops/persona projector outbox 与 checkpoint。
+  /process-memory-retention /forget-memory <id> [--redact] /forget-memory-evidence <id> [--redact]
+      执行 retention worker 或用户 forget/redaction 流程。
+  /memory-store-health /run-canonical-memory-eval /canonical-memory-evals
+      查看 canonical store 健康状态，运行或查看 canonical eval。
   /run-extraction-job [--real]
       领取并执行一个 pending extraction_job；默认使用 golden fake，带 --real 时调用真实 OpenAI-compatible LLM。
   /backfill-extraction-jobs [--limit N] [--force]

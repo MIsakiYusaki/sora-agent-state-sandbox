@@ -195,7 +195,9 @@ def temporal_search(
         WHERE owner_user_id = ? AND agent_id = ? AND status = 'active'
           AND retrieval_permission = 'allow'
           {id_filter}
-        ORDER BY updated_at DESC, importance DESC
+        ORDER BY COALESCE(last_accessed_at, updated_at) DESC,
+                 access_count DESC,
+                 importance DESC
         LIMIT ?
         """,
         params,

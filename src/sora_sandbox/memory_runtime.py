@@ -5,8 +5,10 @@ import sqlite3
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
+from .memory_canonical_store import MemoryCanonicalStore
+from .memory_canonical_eval import MemoryCanonicalEvalService
 from .memory_episode_ingestion import EpisodeIngestionService
 from .memory_extractor_schema import (
     ExtractorResult,
@@ -22,12 +24,19 @@ from .memory_gate import (
 from .memory_gate_engine import compute_candidate_hash, evaluate_candidate_gate
 from .memory_gate_pipeline import MemoryGatePipeline
 from .memory_gate_schema import GateDecisionAction
-from .memory_index_fts import hybrid_search, index_text as _index_text
-from .memory_index_fts import search_tokens
+from .memory_context_packer import MemoryContextPacker
+from .memory_embedding import EmbeddingProvider, create_embedding_provider_from_env
+from .memory_index_fts import index_text as _index_text
+from .memory_index_outbox import MemoryIndexOutbox
+from .memory_hybrid_retrieval import MemoryRetrievalService
+from .memory_observability import MemoryObservabilityService
+from .memory_projector import MemoryProjectorBus
 from .memory_recall_planner import RecallPlanner, RuleRecallPlanner
+from .memory_recall_eval_service import MemoryRecallEvalService
+from .memory_reranker import MemoryReranker, create_reranker_from_env
+from .memory_retention import MemoryRetentionService
 from .memory_schema import (
     JsonDict,
-    RecallPlan,
     json_dumps,
     json_loads,
     new_id as _new_id,
@@ -39,8 +48,7 @@ from .memory_store import (
     revision_from_row,
     row_value,
 )
-from .memory_surface import build_recollection_items, choose_surface_action, decision_reason
-from .memory_trace import record_recall_trace
+from .memory_vector_index import VectorIndex
 from .paths import SEEDS_DIR, workspace_state_dir
 from .state import load_jsonl
 
@@ -74,18 +82,85 @@ class MemoryRuntime:
     agent_id: str = "sora_default"
     recall_planner: RecallPlanner | None = None
     gate: MemoryGate | None = None
+    embedding_provider: EmbeddingProvider | None = None
+    reranker: MemoryReranker | None = None
+    vector_index_factory: Callable[[sqlite3.Connection, EmbeddingProvider], VectorIndex] | None = None
 
     def __post_init__(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self.gate = self.gate or MemoryGate()
         self.recall_planner = self.recall_planner or RuleRecallPlanner()
+        self.embedding_provider = self.embedding_provider or create_embedding_provider_from_env()
+        self.reranker = self.reranker or create_reranker_from_env()
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.execute("PRAGMA journal_mode = WAL")
         self._init_schema()
         self.ingestion = EpisodeIngestionService(self._conn)
+        self.index_outbox = MemoryIndexOutbox(
+            self._conn,
+            lock=self._lock,
+            get_memory=self.get_memory,
+            evidence_for_memory=self.evidence_for_memory,
+            sync_fts=self._sync_fts,
+            remove_from_fts=self._remove_from_fts,
+            embedding_provider=self.embedding_provider,
+            vector_index_factory=self.vector_index_factory,
+        )
+        self.retrieval = MemoryRetrievalService(
+            self._conn,
+            self._lock,
+            self.owner_user_id,
+            self.agent_id,
+            self.recall_planner,
+            self.index_outbox.vector_index,
+            MemoryContextPacker(),
+            self.reranker,
+        )
+        self.projector_bus = MemoryProjectorBus(self._conn, lock=self._lock)
+        self.canonical_store = MemoryCanonicalStore(
+            self._conn,
+            lock=self._lock,
+            get_memory=self.get_memory,
+            get_candidate=self.get_candidate,
+            append_revision=self._append_revision,
+            sync_fts=self._sync_fts,
+            remove_from_fts=self._remove_from_fts,
+            record_delete_propagation=self.ingestion.record_delete_propagation,
+            publish_memory_change=self._publish_memory_change,
+        )
+        self.retention = MemoryRetentionService(
+            self._conn,
+            lock=self._lock,
+            delete_evidence=self.delete_evidence,
+            set_memory_status=self._set_status,
+        )
+        self.observability = MemoryObservabilityService(
+            self._conn,
+            lock=self._lock,
+            store_audit=self.store_audit,
+            index_pending_count=self.index_outbox.pending_count,
+            index_failed_count=self.index_outbox.failed_count,
+            index_dead_letter_count=self.index_outbox.dead_letter_count,
+            index_health=self.index_outbox.health,
+            projector_pending_count=self.projector_bus.pending_count,
+            projector_failed_count=self.projector_bus.failed_count,
+            retention_backlog_count=self.retention.backlog_count,
+            projector_checkpoints=self.projector_bus.list_checkpoints,
+        )
+        self.canonical_eval = MemoryCanonicalEvalService(
+            self._conn,
+            lock=self._lock,
+            store_health=self.store_health,
+        )
+        self.recall_eval = MemoryRecallEvalService(
+            self._conn,
+            lock=self._lock,
+            recall=lambda query: self.recall(query, top_k=3),
+            list_memories=self.list_memories,
+        )
         self.gate_pipeline = MemoryGatePipeline(
             self._conn,
             lock=self._lock,
@@ -122,6 +197,20 @@ class MemoryRuntime:
                 DELETE FROM recall_trace_item;
                 DELETE FROM recall_trace;
                 DELETE FROM memory_revision;
+                DELETE FROM memory_recall_eval_case;
+                DELETE FROM memory_recall_eval_run;
+                DELETE FROM memory_canonical_eval_case;
+                DELETE FROM memory_canonical_eval_run;
+                DELETE FROM memory_forget_request;
+                DELETE FROM memory_projector_checkpoint;
+                DELETE FROM memory_projector_outbox;
+                DELETE FROM memory_index_rebuild_run;
+                DELETE FROM memory_index_outbox;
+                DELETE FROM memory_access_signal;
+                DELETE FROM memory_graph_edge;
+                DELETE FROM memory_vector_index;
+                DELETE FROM memory_embedding;
+                DELETE FROM memory_index_document;
                 DELETE FROM memory_review_item;
                 DELETE FROM memory_quarantine;
                 DELETE FROM memory_gate_decision;
@@ -221,6 +310,9 @@ class MemoryRuntime:
         content_summary: str,
         raw_content: str | None = None,
         raw_pointer: str | None = None,
+        source_ref: str | None = None,
+        span: JsonDict | None = None,
+        expires_at: str | None = None,
         sensitivity: str = "low",
         retention_policy: str = "persistent",
         visibility: str = "private",
@@ -235,9 +327,10 @@ class MemoryRuntime:
             self._conn.execute(
                 """
                 INSERT INTO evidence (
-                    id, source_type, content_summary, raw_content, raw_pointer, content_hash,
-                    visibility, sensitivity, retention_policy, metadata_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, source_type, content_summary, raw_content, raw_pointer, source_ref,
+                    span_json, content_hash, visibility, sensitivity, retention_policy,
+                    expires_at, metadata_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     evidence_id,
@@ -245,10 +338,13 @@ class MemoryRuntime:
                     content_summary,
                     stored_raw_content,
                     raw_pointer,
+                    source_ref,
+                    _json(span or {}),
                     content_hash,
                     visibility,
                     sensitivity,
                     retention_policy,
+                    expires_at,
                     _json(metadata or {}),
                     _utc_now(),
                 ),
@@ -387,6 +483,7 @@ class MemoryRuntime:
                 source_type="chat",
                 content_summary=extraction.content,
                 raw_content=user_input,
+                source_ref=event_ids[0] if event_ids else episode["episode_id"],
                 sensitivity=sensitivity,
                 retention_policy=self.gate.retention_policy(sensitivity),
                 metadata={
@@ -447,6 +544,7 @@ class MemoryRuntime:
         evidence_id = self.add_evidence(
             source_type=str(hook.get("source", "response_plan")),
             content_summary=summary,
+            source_ref=str(hook.get("event_id")) if hook.get("event_id") else None,
             sensitivity="low",
             metadata={"hook_id": hook.get("candidate_id"), "event_id": hook.get("event_id")},
         )
@@ -652,32 +750,7 @@ class MemoryRuntime:
             }
 
     def related_memories_for_extraction(self, query_text: str, *, top_k: int = 8) -> list[JsonDict]:
-        plan = RecallPlan(
-            query_text=query_text,
-            top_k=top_k,
-            tokens=search_tokens(query_text),
-            salient_terms=[],
-            explicit_recall=False,
-            backends=("fts", "vector_local", "temporal"),
-            service_budget_ms=500,
-            planner_mode="extractor_related_memory",
-        )
-        if not plan.tokens:
-            return []
-        with self._lock:
-            hits = hybrid_search(
-                self._conn,
-                owner_user_id=self.owner_user_id,
-                agent_id=self.agent_id,
-                plan=plan,
-            )
-            related: list[JsonDict] = []
-            for hit in hits[:top_k]:
-                memory = self._memory_from_row(hit.row)
-                memory["related_score"] = hit.score
-                memory["matched_backends"] = list(hit.matched_backends)
-                related.append(memory)
-            return related
+        return self.retrieval.related_memories(query_text, top_k=top_k)
 
     def materialize_extractor_result(
         self,
@@ -706,6 +779,8 @@ class MemoryRuntime:
                 source_type="llm_extractor",
                 content_summary=draft.summary,
                 raw_content=raw_content,
+                source_ref=self._source_ref_for_refs(draft) or result.episode_id,
+                span=self._span_for_refs(draft),
                 sensitivity=sensitivity,
                 retention_policy=self.gate.retention_policy(sensitivity),
                 visibility="private",
@@ -947,6 +1022,26 @@ class MemoryRuntime:
             parts.append(text)
         return "\n".join(part for part in parts if part) or draft.summary
 
+    @staticmethod
+    def _source_ref_for_refs(draft: Any) -> str | None:
+        for ref in draft.evidence_refs:
+            if ref.event_id:
+                return ref.event_id
+        return None
+
+    @staticmethod
+    def _span_for_refs(draft: Any) -> JsonDict:
+        refs = [
+            {
+                "event_id": ref.event_id,
+                "episode_id": ref.episode_id,
+                "speaker": ref.speaker,
+                "span": list(ref.span) if ref.span else None,
+            }
+            for ref in draft.evidence_refs
+        ]
+        return {"refs": refs} if refs else {}
+
     def _cascade_delete_from_event(self, event: JsonDict, *, reason: str) -> JsonDict:
         event_id = event["event_id"]
         episode_id = event.get("episode_id")
@@ -959,7 +1054,12 @@ class MemoryRuntime:
             metadata = evidence.get("metadata") or {}
             event_ids = set(str(item) for item in metadata.get("event_ids", []))
             metadata_episode_id = metadata.get("episode_id")
-            if event_id not in event_ids and episode_id != metadata_episode_id:
+            source_ref = evidence.get("source_ref")
+            if (
+                event_id not in event_ids
+                and episode_id != metadata_episode_id
+                and source_ref not in {event_id, episode_id}
+            ):
                 continue
             self._conn.execute(
                 "UPDATE evidence SET deleted_at = ?, delete_reason = ? WHERE id = ?",
@@ -1059,6 +1159,12 @@ class MemoryRuntime:
                         reason=reason,
                         actor="delete_propagation",
                     )
+                    self._publish_memory_change(
+                        self.get_memory(memory["id"]),
+                        action="upsert",
+                        reason=reason,
+                        source_ref=event_id,
+                    )
                     self.ingestion.record_delete_propagation(
                         source_ref=event_id,
                         source_type="memory_event",
@@ -1143,6 +1249,12 @@ class MemoryRuntime:
                         actor=actor,
                     )
                     memory = self.get_memory(idempotent_memory["id"])
+                    self._publish_memory_change(
+                        memory,
+                        action="upsert",
+                        reason=f"idempotent_candidate:{candidate_id}",
+                        source_ref=candidate_id,
+                    )
                 elif operation == "DELETE":
                     memory = self._set_status(
                         target_memory_id,
@@ -1166,6 +1278,12 @@ class MemoryRuntime:
                         actor=actor,
                     )
                     memory = self.get_memory(target_memory_id)
+                    self._publish_memory_change(
+                        memory,
+                        action="upsert",
+                        reason=candidate["reason"],
+                        source_ref=candidate_id,
+                    )
                 else:
                     duplicate = self._find_exact_active(candidate["type"], candidate["summary"])
                     if duplicate and not candidate.get("supersedes_id"):
@@ -1182,7 +1300,13 @@ class MemoryRuntime:
                             reason=candidate["reason"],
                             actor=actor,
                         )
-                        memory = duplicate
+                        memory = self.get_memory(duplicate["id"])
+                        self._publish_memory_change(
+                            memory,
+                            action="upsert",
+                            reason=candidate["reason"],
+                            source_ref=candidate_id,
+                        )
                     else:
                         if candidate.get("supersedes_id"):
                             previous = self.get_memory(candidate["supersedes_id"])
@@ -1328,6 +1452,12 @@ class MemoryRuntime:
                     reason=f"{reason}:{candidate_id}",
                     actor=actor,
                 )
+                self._publish_memory_change(
+                    after_new,
+                    action="tombstone",
+                    reason=f"{reason}:{candidate_id}",
+                    source_ref=candidate_id,
+                )
                 affected.append(after_new)
                 superseded_id = memory.get("supersedes_id") or candidate.get("supersedes_id")
                 if superseded_id:
@@ -1353,6 +1483,12 @@ class MemoryRuntime:
                     after=after,
                     reason=f"{reason}:{candidate_id}",
                     actor=actor,
+                )
+                self._publish_memory_change(
+                    after,
+                    action="tombstone",
+                    reason=f"{reason}:{candidate_id}",
+                    source_ref=candidate_id,
                 )
                 affected.append(after)
             else:
@@ -1488,7 +1624,6 @@ class MemoryRuntime:
                 "INSERT OR IGNORE INTO memory_evidence (memory_id, evidence_id) VALUES (?, ?)",
                 (memory_id, evidence_id),
             )
-        self._sync_fts(memory_id, summary, memory_type, tags)
         memory = self.get_memory(memory_id)
         self._append_revision(
             memory_id,
@@ -1498,8 +1633,14 @@ class MemoryRuntime:
             reason=reason,
             actor=actor,
         )
+        self._publish_memory_change(
+            memory,
+            action="upsert",
+            reason=reason,
+            source_ref=memory_id,
+        )
         self._conn.commit()
-        return memory
+        return self.get_memory(memory_id)
 
     def _append_revision(
         self,
@@ -1539,6 +1680,49 @@ class MemoryRuntime:
     def _remove_from_fts(self, memory_id: str) -> None:
         self._conn.execute("DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,))
 
+    def _publish_memory_change(
+        self,
+        memory: JsonDict,
+        *,
+        action: str,
+        reason: str,
+        source_ref: str | None = None,
+        drain: bool = True,
+    ) -> None:
+        self.index_outbox.enqueue_memory(
+            memory,
+            action="upsert" if action == "upsert" else "tombstone",
+            reason=reason,
+            source_ref=source_ref,
+        )
+        self.projector_bus.enqueue_memory_change(
+            memory,
+            action=action,
+            reason=reason,
+            source_ref=source_ref,
+        )
+        if action != "upsert":
+            for target_type in (
+                "memory_fts",
+                "memory_vector_index",
+                "memory_graph_index",
+                "relationship_projector",
+                "worldops_projector",
+                "persona_projector",
+            ):
+                self.ingestion.record_delete_propagation(
+                    source_ref=source_ref or memory["id"],
+                    source_type="memory_record",
+                    target_type=target_type,
+                    target_id=memory["id"],
+                    action="tombstone",
+                    reason=reason,
+                    metadata={"memory_status": memory.get("status")},
+                )
+        if drain:
+            self.index_outbox.process_pending(commit=False)
+            self.projector_bus.process_pending(commit=False)
+
     def _restore_memory_for_rollback(self, memory_id: str, *, reason: str, actor: str) -> JsonDict:
         before = self.get_memory(memory_id)
         self._conn.execute(
@@ -1546,7 +1730,6 @@ class MemoryRuntime:
             (_utc_now(), memory_id),
         )
         after = self.get_memory(memory_id)
-        self._sync_fts(after["id"], after["summary"], after["type"], after["tags"])
         self._append_revision(
             memory_id,
             action="rollback_restore",
@@ -1555,6 +1738,7 @@ class MemoryRuntime:
             reason=reason,
             actor=actor,
         )
+        self._publish_memory_change(after, action="upsert", reason=reason, source_ref=memory_id)
         return after
 
     def _remove_candidate_evidence_for_rollback(
@@ -1585,6 +1769,12 @@ class MemoryRuntime:
             after=after,
             reason=f"{reason}:{candidate['candidate_id']}",
             actor=actor,
+        )
+        self._publish_memory_change(
+            after,
+            action="upsert",
+            reason=f"{reason}:{candidate['candidate_id']}",
+            source_ref=candidate["candidate_id"],
         )
         return after
 
@@ -1655,6 +1845,12 @@ class MemoryRuntime:
                 reason=reason,
                 actor=actor,
             )
+            self._publish_memory_change(
+                after,
+                action="upsert" if status == "active" else "tombstone",
+                reason=reason,
+                source_ref=memory_id,
+            )
             self._conn.commit()
         return after
 
@@ -1672,7 +1868,6 @@ class MemoryRuntime:
                 (_utc_now(), memory_id),
             )
             after = self.get_memory(memory_id)
-            self._sync_fts(after["id"], after["summary"], after["type"], after["tags"])
             self._append_revision(
                 memory_id,
                 action="restored",
@@ -1680,6 +1875,12 @@ class MemoryRuntime:
                 after=after,
                 reason="manual_restore",
                 actor="manual_repl",
+            )
+            self._publish_memory_change(
+                after,
+                action="upsert",
+                reason="manual_restore",
+                source_ref=memory_id,
             )
             self._conn.commit()
         return after
@@ -1691,114 +1892,15 @@ class MemoryRuntime:
         turn_frame: JsonDict | None = None,
         context_use_policy: JsonDict | None = None,
         top_k: int = 3,
+        token_budget: int | None = None,
     ) -> JsonDict:
-        import time
-
-        started = time.perf_counter()
-        plan = self.recall_planner.plan(
+        return self.retrieval.recall(
             query_text,
             turn_frame=turn_frame,
             context_use_policy=context_use_policy,
             top_k=top_k,
+            token_budget=token_budget,
         )
-        if plan.skipped_reason:
-            return self._empty_recollection(
-                query_text,
-                plan.skipped_reason,
-                latency_ms=(time.perf_counter() - started) * 1000,
-            )
-        with self._lock:
-            fused_hits = hybrid_search(
-                self._conn,
-                owner_user_id=self.owner_user_id,
-                agent_id=self.agent_id,
-                plan=plan,
-            )
-            selected: list[tuple[float, JsonDict, tuple[str, ...]]] = [
-                (hit.score, self._memory_from_row(hit.row), hit.matched_backends)
-                for hit in fused_hits[:top_k]
-            ]
-
-        surface_action = choose_surface_action(plan, selected)
-        items = build_recollection_items(selected)
-        latency_ms = round((time.perf_counter() - started) * 1000, 2)
-        reason = decision_reason(surface_action, bool(items))
-        trace_id = self._record_recall_trace(
-            query_text,
-            surface_action=surface_action,
-            reason=reason,
-            selected=[(score, memory) for score, memory, _ in selected],
-            latency_ms=latency_ms,
-        )
-        return {
-            "surface_action": surface_action,
-            "items": items,
-            "retrieved_ids": [item["memory_id"] for item in items],
-            "memory_summaries": [item["gist"] for item in items],
-            "evidence_level": "strong" if items else "none",
-            "forbidden_disclosures": ["raw_evidence"],
-            "decision_reason": reason,
-            "recall_trace_id": trace_id,
-            "backend": "hybrid_rrf",
-            "recall_plan": {
-                "mode": plan.planner_mode,
-                "backends": list(plan.backends),
-                "salient_terms": list(plan.salient_terms),
-                "explicit_recall": plan.explicit_recall,
-                "service_budget_ms": plan.service_budget_ms,
-            },
-            "degraded": False,
-            "latency_ms": latency_ms,
-        }
-
-    def _empty_recollection(self, query_text: str, reason: str, *, latency_ms: float) -> JsonDict:
-        trace_id = self._record_recall_trace(
-            query_text,
-            surface_action="none",
-            reason=reason,
-            selected=[],
-            latency_ms=round(latency_ms, 2),
-        )
-        return {
-            "surface_action": "none",
-            "items": [],
-            "retrieved_ids": [],
-            "memory_summaries": [],
-            "evidence_level": "none",
-            "forbidden_disclosures": [],
-            "decision_reason": reason,
-            "recall_trace_id": trace_id,
-            "backend": "hybrid_rrf",
-            "recall_plan": {
-                "mode": "rules",
-                "backends": [],
-                "salient_terms": [],
-                "explicit_recall": False,
-                "service_budget_ms": 500,
-            },
-            "degraded": False,
-            "latency_ms": round(latency_ms, 2),
-        }
-
-    def _record_recall_trace(
-        self,
-        query_text: str,
-        *,
-        surface_action: str,
-        reason: str,
-        selected: list[tuple[float, JsonDict]],
-        latency_ms: float,
-    ) -> str:
-        with self._lock:
-            return record_recall_trace(
-                self._conn,
-                query_text,
-                backend="hybrid_rrf",
-                surface_action=surface_action,
-                reason=reason,
-                selected=selected,
-                latency_ms=latency_ms,
-            )
 
     def search(self, query_text: str, *, top_k: int = 10) -> list[JsonDict]:
         frame = self.recall(query_text, top_k=top_k)
@@ -1849,18 +1951,186 @@ class MemoryRuntime:
         return [self._candidate_from_row(row) for row in rows]
 
     def evidence_for_memory(self, memory_id: str) -> list[JsonDict]:
-        with self._lock:
-            rows = self._conn.execute(
-                """
-                SELECT e.*
-                FROM evidence e
-                JOIN memory_evidence me ON me.evidence_id = e.id
-                WHERE me.memory_id = ?
-                ORDER BY e.created_at DESC
-                """,
-                (memory_id,),
-            ).fetchall()
-        return [evidence_from_row(row) for row in rows]
+        return self.canonical_store.evidence_for_memory(memory_id)
+
+    def get_evidence(self, evidence_id: str) -> JsonDict:
+        return self.canonical_store.get_evidence(evidence_id)
+
+    def list_evidence(
+        self,
+        *,
+        status: str | None = "active",
+        source_type: str | None = None,
+        sensitivity: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[JsonDict]:
+        return self.canonical_store.list_evidence(
+            status=status,
+            source_type=source_type,
+            sensitivity=sensitivity,
+            limit=limit,
+            offset=offset,
+        )
+
+    def link_evidence(
+        self,
+        memory_id: str,
+        evidence_id: str,
+        *,
+        reason: str = "manual_link_evidence",
+        actor: str = "manual_repl",
+    ) -> JsonDict:
+        return self.canonical_store.link_evidence(
+            memory_id,
+            evidence_id,
+            reason=reason,
+            actor=actor,
+        )
+
+    def unlink_evidence(
+        self,
+        memory_id: str,
+        evidence_id: str,
+        *,
+        reason: str = "manual_unlink_evidence",
+        actor: str = "manual_repl",
+        disable_if_empty: bool = True,
+    ) -> JsonDict:
+        return self.canonical_store.unlink_evidence(
+            memory_id,
+            evidence_id,
+            reason=reason,
+            actor=actor,
+            disable_if_empty=disable_if_empty,
+        )
+
+    def delete_evidence(
+        self,
+        evidence_id: str,
+        *,
+        reason: str = "manual_evidence_delete",
+        actor: str = "manual_repl",
+    ) -> JsonDict:
+        return self.canonical_store.soft_delete_evidence(
+            evidence_id,
+            reason=reason,
+            actor=actor,
+        )
+
+    def store_audit(self) -> JsonDict:
+        return self.canonical_store.store_audit()
+
+    def repair_fts_index(self, *, actor: str = "store_audit") -> JsonDict:
+        return self.canonical_store.repair_fts_index(actor=actor)
+
+    def process_index_outbox(self, *, limit: int = 100) -> JsonDict:
+        return self.index_outbox.process_pending(limit=limit)
+
+    def list_index_outbox(self, *, status: str | None = None, limit: int = 50) -> list[JsonDict]:
+        return self.index_outbox.list_items(status=status, limit=limit)
+
+    def index_health(self) -> JsonDict:
+        return self.index_outbox.health()
+
+    def rebuild_memory_indexes(
+        self,
+        *,
+        backends: tuple[str, ...] = ("fts", "vector", "graph"),
+        index_generation: str = "active",
+        batch_size: int = 100,
+        process: bool = True,
+    ) -> JsonDict:
+        return self.index_outbox.rebuild_indexes(
+            backends=backends,
+            index_generation=index_generation,
+            batch_size=batch_size,
+            process=process,
+        )
+
+    def list_index_rebuilds(self, *, limit: int = 20) -> list[JsonDict]:
+        return self.index_outbox.list_rebuild_runs(limit=limit)
+
+    def requeue_index_dead_letters(
+        self,
+        *,
+        limit: int = 50,
+        reason: str = "manual_requeue",
+    ) -> JsonDict:
+        return self.index_outbox.requeue_dead_letters(limit=limit, reason=reason)
+
+    def cleanup_recall_traces(
+        self,
+        *,
+        older_than_days: int = 30,
+        keep_pinned: bool = True,
+    ) -> JsonDict:
+        return self.retrieval.cleanup_traces(
+            older_than_days=older_than_days,
+            keep_pinned=keep_pinned,
+        )
+
+    def process_projector_outbox(self, *, limit: int = 100) -> JsonDict:
+        return self.projector_bus.process_pending(limit=limit)
+
+    def list_projector_outbox(self, *, status: str | None = None, limit: int = 50) -> list[JsonDict]:
+        return self.projector_bus.list_items(status=status, limit=limit)
+
+    def list_projector_checkpoints(self) -> list[JsonDict]:
+        return self.projector_bus.list_checkpoints()
+
+    def process_retention(self, *, now: str | None = None, limit: int = 100) -> JsonDict:
+        return self.retention.process_expired(now=now, limit=limit)
+
+    def forget_memory(
+        self,
+        memory_id: str,
+        *,
+        mode: str = "delete",
+        reason: str = "user_forget_request",
+        actor: str = "user",
+    ) -> JsonDict:
+        return self.retention.request_forget(
+            target_type="memory",
+            target_id=memory_id,
+            mode=mode,
+            reason=reason,
+            actor=actor,
+        )
+
+    def forget_evidence(
+        self,
+        evidence_id: str,
+        *,
+        mode: str = "delete",
+        reason: str = "user_forget_request",
+        actor: str = "user",
+    ) -> JsonDict:
+        return self.retention.request_forget(
+            target_type="evidence",
+            target_id=evidence_id,
+            mode=mode,
+            reason=reason,
+            actor=actor,
+        )
+
+    def list_forget_requests(self, *, limit: int = 50) -> list[JsonDict]:
+        return self.retention.list_forget_requests(limit=limit)
+
+    def store_health(self) -> JsonDict:
+        return self.observability.store_health()
+
+    def run_canonical_eval(self) -> JsonDict:
+        return self.canonical_eval.run()
+
+    def list_canonical_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
+        return self.canonical_eval.list_runs(limit=limit)
+
+    def run_recall_eval(self, cases: list[JsonDict] | None = None) -> JsonDict:
+        return self.recall_eval.run(cases=cases)
+
+    def list_recall_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
+        return self.recall_eval.list_runs(limit=limit)
 
     def revisions_for_memory(self, memory_id: str) -> list[JsonDict]:
         with self._lock:
@@ -1885,6 +2155,14 @@ class MemoryRuntime:
                 "decision_reason": row["decision_reason"],
                 "degraded": bool(row["degraded"]),
                 "latency_ms": row["latency_ms"],
+                "plan": json_loads(row_value(row, "plan_json", "{}"), {}),
+                "token_budget": row_value(row, "token_budget", 0),
+                "token_used": row_value(row, "token_used", 0),
+                "final_count": row_value(row, "final_count", 0),
+                "item_count": row_value(row, "item_count", 0),
+                "cost": json_loads(row_value(row, "cost_json", "{}"), {}),
+                "pinned": bool(row_value(row, "pinned", 0)),
+                "expires_at": row_value(row, "expires_at"),
                 "created_at": row["created_at"],
             }
             for row in rows
@@ -1976,8 +2254,9 @@ class MemoryRuntime:
             pending_job_count = self._conn.execute(
                 "SELECT COUNT(*) FROM extraction_job WHERE status = 'pending'"
             ).fetchone()[0]
+        canonical_store = self.store_health()
         return {
-            "status": "ok",
+            "status": "ok" if canonical_store["status"] in {"ok", "warn"} else "error",
             "mode": "in_process",
             "backend": "hybrid_rrf",
             "database": str(self.path),
@@ -1993,6 +2272,7 @@ class MemoryRuntime:
             "gate_decisions": gate_decision_count,
             "episodes": episode_count,
             "pending_extraction_jobs": pending_job_count,
+            "canonical_store": canonical_store,
         }
 
     def sync_state_cache(self, state: JsonDict) -> None:
@@ -2039,6 +2319,9 @@ class MemoryRuntime:
             "use_permission": row["use_permission"],
             "disclosure_permission": row["disclosure_permission"],
             "schema_version": row["schema_version"],
+            "index_watermark": row_value(row, "index_watermark"),
+            "access_count": row_value(row, "access_count", 0) or 0,
+            "last_accessed_at": row_value(row, "last_accessed_at"),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
