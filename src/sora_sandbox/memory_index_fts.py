@@ -71,13 +71,21 @@ def hybrid_search(
     agent_id: str,
     plan: RecallPlan,
 ) -> list[FusedMemoryHit]:
+    """Deprecated compatibility path.
+
+    Module 05 production recall uses MemoryRetrievalService, which performs
+    FTS/vector/temporal/graph candidate generation, RRF fusion, rerank,
+    governance, packing, and trace recording. Keep this helper only for old
+    tests or callers that still need the pre-Module-05 FTS/token-overlap path.
+    """
+
     groups: list[list[RetrievalHit]] = []
     candidate_ids: set[str] = set()
     if "fts" in plan.backends and plan.tokens:
         hits = fts_search(conn, owner_user_id, agent_id, plan.tokens, max(plan.top_k * 4, 12))
         groups.append(hits)
         candidate_ids.update(hit.memory_id for hit in hits)
-    if "vector_local" in plan.backends and plan.tokens:
+    if ("vector" in plan.backends or "vector_local" in plan.backends) and plan.tokens:
         hits = token_overlap_search(conn, owner_user_id, agent_id, plan.tokens, max(plan.top_k * 4, 12))
         groups.append(hits)
         candidate_ids.update(hit.memory_id for hit in hits)

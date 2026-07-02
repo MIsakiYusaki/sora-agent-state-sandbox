@@ -139,7 +139,7 @@ class MemoryRetrievalService:
             tokens=planned.tokens,
             salient_terms=planned.salient_terms,
             explicit_recall=False,
-            backends=("fts", "vector_local", "temporal"),
+            backends=("fts", "vector", "temporal", "graph"),
             service_budget_ms=500,
             planner_mode="extractor_related_memory",
         )

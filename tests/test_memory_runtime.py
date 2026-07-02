@@ -136,7 +136,8 @@ class MemoryRuntimeTests(unittest.TestCase):
 
         self.assertEqual(frame["backend"], "hybrid_rrf")
         self.assertIn("fts", frame["recall_plan"]["backends"])
-        self.assertIn("vector_local", frame["recall_plan"]["backends"])
+        self.assertIn("vector", frame["recall_plan"]["backends"])
+        self.assertIn("graph", frame["recall_plan"]["backends"])
         self.assertEqual(frame["retrieved_ids"], ["mem_test_workflow"])
         self.assertEqual(frame["items"][0]["gist"], "用户喜欢先讨论设计方案，再进入实现。")
         self.assertIn("fts", frame["items"][0]["matched_backends"])
@@ -622,11 +623,29 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertEqual(vector_row["status"], "active")
         self.assertGreater(graph_edges, 0)
         self.assertEqual(frame["retrieved_ids"], [memory["id"]])
-        self.assertIn("vector_local", frame["recall_plan"]["backends"])
+        self.assertIn("vector", frame["recall_plan"]["backends"])
+        self.assertIn("graph", frame["recall_plan"]["backends"])
         self.assertGreater(frame["packing"]["token_budget"], 0)
         self.assertIsNotNone(trace_item["backend"])
         self.assertIsNotNone(trace_item["rrf_score"])
         self.assertGreater(self.runtime.get_memory(memory["id"])["access_count"], 0)
+
+    def test_module05_index_document_preserves_lifecycle_metadata(self) -> None:
+        memory = self.runtime.add_manual(
+            "module five metadata stability expires fields",
+            memory_type="preference",
+        )
+
+        document = self.runtime._conn.execute(
+            "SELECT * FROM memory_index_document WHERE memory_id = ?",
+            (memory["id"],),
+        ).fetchone()
+        metadata = json.loads(document["metadata_json"])
+
+        self.assertIn("stability", metadata)
+        self.assertIn("expires_at", metadata)
+        self.assertIn("valid_from", metadata)
+        self.assertIn("valid_until", metadata)
 
     def test_module05_outbox_idempotency_skips_duplicate_vector_payload(self) -> None:
         memory = self.runtime.add_manual(
@@ -720,6 +739,17 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertEqual(eval_run["status"], "passed")
         self.assertEqual(eval_run["passed_cases"], 1)
         self.assertGreaterEqual(cleanup["deleted_count"], 1)
+
+    def test_module05_default_recall_eval_covers_multi_memory_golden_set(self) -> None:
+        eval_run = self.runtime.run_recall_eval()
+        case_names = {case["case_name"] for case in eval_run["cases"]}
+
+        self.assertIn("golden_gradual_preference_multi_memory", case_names)
+        self.assertIn("golden_shared_episode", case_names)
+        self.assertIn("golden_conflict_prefers_current_memory", case_names)
+        self.assertIn("golden_graph_entity_related_memory", case_names)
+        self.assertIn("golden_negative_empty_or_proactive_no_memory", case_names)
+        self.assertEqual(eval_run["status"], "passed")
 
     def test_module05_qdrant_vector_backend_indexes_and_recalls(self) -> None:
         temp_dir = tempfile.TemporaryDirectory()

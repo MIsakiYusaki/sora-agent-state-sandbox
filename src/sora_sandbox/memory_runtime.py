@@ -158,7 +158,7 @@ class MemoryRuntime:
         self.recall_eval = MemoryRecallEvalService(
             self._conn,
             lock=self._lock,
-            recall=lambda query: self.recall(query, top_k=3),
+            recall=lambda query: self.recall(query, top_k=5),
             list_memories=self.list_memories,
         )
         self.gate_pipeline = MemoryGatePipeline(
