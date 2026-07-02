@@ -13,10 +13,13 @@ CREATE TABLE IF NOT EXISTS evidence (
     content_summary TEXT NOT NULL,
     raw_content TEXT,
     raw_pointer TEXT,
+    source_ref TEXT,
+    span_json TEXT,
     content_hash TEXT NOT NULL,
     visibility TEXT NOT NULL,
     sensitivity TEXT NOT NULL,
     retention_policy TEXT NOT NULL,
+    expires_at TEXT,
     metadata_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
     deleted_at TEXT,
@@ -127,6 +130,9 @@ CREATE TABLE IF NOT EXISTS memory_record (
     use_permission TEXT NOT NULL,
     disclosure_permission TEXT NOT NULL,
     schema_version INTEGER NOT NULL,
+    index_watermark TEXT,
+    access_count INTEGER NOT NULL DEFAULT 0,
+    last_accessed_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (supersedes_id) REFERENCES memory_record(id)
@@ -251,6 +257,232 @@ CREATE TABLE IF NOT EXISTS memory_revision (
     FOREIGN KEY (memory_id) REFERENCES memory_record(id)
 );
 
+CREATE TABLE IF NOT EXISTS memory_index_outbox (
+    id TEXT PRIMARY KEY,
+    backend TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    status TEXT NOT NULL,
+    attempts INTEGER NOT NULL,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    payload_json TEXT NOT NULL,
+    payload_hash TEXT,
+    result_json TEXT NOT NULL DEFAULT '{}',
+    error TEXT,
+    error_type TEXT,
+    last_attempt_at TEXT,
+    next_attempt_at TEXT,
+    index_generation TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL,
+    processed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_index_outbox_status
+ON memory_index_outbox(status, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_memory_index_outbox_memory
+ON memory_index_outbox(memory_id, backend, status);
+
+CREATE INDEX IF NOT EXISTS idx_memory_index_outbox_generation
+ON memory_index_outbox(backend, index_generation, status);
+
+CREATE TABLE IF NOT EXISTS memory_index_document (
+    memory_id TEXT NOT NULL,
+    schema_version TEXT NOT NULL,
+    embedding_input_version TEXT NOT NULL,
+    policy_snapshot_version TEXT NOT NULL,
+    index_generation TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    text_for_fts TEXT NOT NULL,
+    text_for_embedding TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    policy_snapshot_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (memory_id, index_generation, schema_version),
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_index_document_hash
+ON memory_index_document(payload_hash);
+
+CREATE TABLE IF NOT EXISTS memory_embedding (
+    memory_id TEXT NOT NULL,
+    embedding_model TEXT NOT NULL,
+    vector_dim INTEGER NOT NULL,
+    vector_json TEXT NOT NULL,
+    vector_hash TEXT NOT NULL,
+    input_hash TEXT NOT NULL,
+    index_generation TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (memory_id, embedding_model, index_generation),
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE TABLE IF NOT EXISTS memory_vector_index (
+    memory_id TEXT NOT NULL,
+    backend TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    external_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    vector_hash TEXT NOT NULL,
+    index_generation TEXT NOT NULL,
+    index_watermark TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (memory_id, backend, index_generation),
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_vector_index_status
+ON memory_vector_index(backend, index_generation, status);
+
+CREATE TABLE IF NOT EXISTS memory_graph_edge (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL,
+    src_type TEXT NOT NULL,
+    src_id TEXT NOT NULL,
+    edge_type TEXT NOT NULL,
+    dst_type TEXT NOT NULL,
+    dst_id TEXT NOT NULL,
+    weight REAL NOT NULL,
+    evidence_ids_json TEXT NOT NULL,
+    index_generation TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_graph_edge_src
+ON memory_graph_edge(src_type, src_id, edge_type);
+
+CREATE INDEX IF NOT EXISTS idx_memory_graph_edge_dst
+ON memory_graph_edge(dst_type, dst_id, edge_type);
+
+CREATE INDEX IF NOT EXISTS idx_memory_graph_edge_memory
+ON memory_graph_edge(memory_id, index_generation);
+
+CREATE TABLE IF NOT EXISTS memory_access_signal (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL,
+    trace_id TEXT,
+    action TEXT NOT NULL,
+    accessed_at TEXT NOT NULL,
+    usefulness REAL,
+    surface_action TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_access_signal_memory
+ON memory_access_signal(memory_id, accessed_at);
+
+CREATE TABLE IF NOT EXISTS memory_index_rebuild_run (
+    id TEXT PRIMARY KEY,
+    backend TEXT NOT NULL,
+    index_generation TEXT NOT NULL,
+    status TEXT NOT NULL,
+    total_count INTEGER NOT NULL,
+    processed_count INTEGER NOT NULL,
+    failed_count INTEGER NOT NULL,
+    watermark_memory_id TEXT,
+    payload_json TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_index_rebuild_status
+ON memory_index_rebuild_run(status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_projector_outbox (
+    id TEXT PRIMARY KEY,
+    projector_name TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    status TEXT NOT NULL,
+    attempts INTEGER NOT NULL,
+    payload_json TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    processed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_projector_outbox_status
+ON memory_projector_outbox(status, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_memory_projector_outbox_memory
+ON memory_projector_outbox(memory_id, projector_name, status);
+
+CREATE TABLE IF NOT EXISTS memory_projector_checkpoint (
+    projector_name TEXT PRIMARY KEY,
+    last_event_id TEXT,
+    last_memory_id TEXT,
+    status TEXT NOT NULL,
+    processed_count INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    metadata_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_forget_request (
+    id TEXT PRIMARY KEY,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    result_json TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_forget_request_target
+ON memory_forget_request(target_type, target_id, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_canonical_eval_run (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    total_cases INTEGER NOT NULL,
+    passed_cases INTEGER NOT NULL,
+    failed_cases INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    summary_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_canonical_eval_case (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    case_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    details_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES memory_canonical_eval_run(id)
+);
+
+CREATE TABLE IF NOT EXISTS memory_recall_eval_run (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    total_cases INTEGER NOT NULL,
+    passed_cases INTEGER NOT NULL,
+    failed_cases INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    summary_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_recall_eval_case (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    case_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    details_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES memory_recall_eval_run(id)
+);
+
 CREATE TABLE IF NOT EXISTS recall_trace (
     id TEXT PRIMARY KEY,
     query_text TEXT NOT NULL,
@@ -259,6 +491,14 @@ CREATE TABLE IF NOT EXISTS recall_trace (
     decision_reason TEXT NOT NULL,
     degraded INTEGER NOT NULL,
     latency_ms REAL NOT NULL,
+    plan_json TEXT NOT NULL DEFAULT '{}',
+    token_budget INTEGER NOT NULL DEFAULT 0,
+    token_used INTEGER NOT NULL DEFAULT 0,
+    final_count INTEGER NOT NULL DEFAULT 0,
+    item_count INTEGER NOT NULL DEFAULT 0,
+    cost_json TEXT NOT NULL DEFAULT '{}',
+    pinned INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -268,6 +508,12 @@ CREATE TABLE IF NOT EXISTS recall_trace_item (
     rank INTEGER NOT NULL,
     score REAL NOT NULL,
     selected INTEGER NOT NULL,
+    backend TEXT,
+    backend_rank INTEGER,
+    backend_score REAL,
+    rrf_score REAL,
+    rerank_score REAL,
+    matched_backends_json TEXT NOT NULL DEFAULT '[]',
     filter_reason TEXT,
     PRIMARY KEY (trace_id, memory_id),
     FOREIGN KEY (trace_id) REFERENCES recall_trace(id),
@@ -284,8 +530,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
 def init_memory_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(MEMORY_SCHEMA_SQL)
     ensure_column(conn, "evidence", "raw_content", "TEXT")
+    ensure_column(conn, "evidence", "source_ref", "TEXT")
+    ensure_column(conn, "evidence", "span_json", "TEXT")
     ensure_column(conn, "evidence", "content_hash", "TEXT")
     ensure_column(conn, "evidence", "visibility", "TEXT")
+    ensure_column(conn, "evidence", "expires_at", "TEXT")
     ensure_column(conn, "evidence", "deleted_at", "TEXT")
     ensure_column(conn, "evidence", "delete_reason", "TEXT")
     ensure_column(conn, "memory_event", "raw_ref", "TEXT")
@@ -314,6 +563,30 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "memory_candidate", "quarantine_id", "TEXT")
     ensure_column(conn, "memory_candidate", "deferred_until", "TEXT")
     ensure_column(conn, "memory_candidate", "trace_json", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column(conn, "memory_record", "index_watermark", "TEXT")
+    ensure_column(conn, "memory_record", "access_count", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "memory_record", "last_accessed_at", "TEXT")
+    ensure_column(conn, "memory_index_outbox", "max_attempts", "INTEGER NOT NULL DEFAULT 3")
+    ensure_column(conn, "memory_index_outbox", "payload_hash", "TEXT")
+    ensure_column(conn, "memory_index_outbox", "result_json", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column(conn, "memory_index_outbox", "error_type", "TEXT")
+    ensure_column(conn, "memory_index_outbox", "last_attempt_at", "TEXT")
+    ensure_column(conn, "memory_index_outbox", "next_attempt_at", "TEXT")
+    ensure_column(conn, "memory_index_outbox", "index_generation", "TEXT NOT NULL DEFAULT 'active'")
+    ensure_column(conn, "recall_trace", "plan_json", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column(conn, "recall_trace", "token_budget", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "recall_trace", "token_used", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "recall_trace", "final_count", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "recall_trace", "item_count", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "recall_trace", "cost_json", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column(conn, "recall_trace", "pinned", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "recall_trace", "expires_at", "TEXT")
+    ensure_column(conn, "recall_trace_item", "backend", "TEXT")
+    ensure_column(conn, "recall_trace_item", "backend_rank", "INTEGER")
+    ensure_column(conn, "recall_trace_item", "backend_score", "REAL")
+    ensure_column(conn, "recall_trace_item", "rrf_score", "REAL")
+    ensure_column(conn, "recall_trace_item", "rerank_score", "REAL")
+    ensure_column(conn, "recall_trace_item", "matched_backends_json", "TEXT NOT NULL DEFAULT '[]'")
     conn.commit()
 
 
@@ -336,10 +609,13 @@ def evidence_from_row(row: sqlite3.Row) -> JsonDict:
         "content_summary": row["content_summary"],
         "raw_content": row["raw_content"],
         "raw_pointer": row["raw_pointer"],
+        "source_ref": row_value(row, "source_ref"),
+        "span": json_loads(row_value(row, "span_json", "{}") or "{}", {}),
         "content_hash": row_value(row, "content_hash"),
         "visibility": row_value(row, "visibility", "private") or "private",
         "sensitivity": row["sensitivity"],
         "retention_policy": row["retention_policy"],
+        "expires_at": row_value(row, "expires_at"),
         "metadata": json_loads(row["metadata_json"], {}),
         "created_at": row["created_at"],
         "deleted_at": row_value(row, "deleted_at"),

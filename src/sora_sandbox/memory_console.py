@@ -64,6 +64,25 @@ class MemoryConsole:
   delete <memory_id>
   restore <memory_id>
   evidence <memory_id>
+  evidence-list [active|deleted|all] [--source-type X] [--sensitivity X] [--limit N] [--offset N]
+  evidence-show <evidence_id>
+  evidence-delete <evidence_id> [reason]
+  evidence-link <memory_id> <evidence_id>
+  evidence-unlink <memory_id> <evidence_id>
+  store-audit
+  repair-fts
+  index-outbox [--status X] [--limit N]
+  process-index-outbox [--limit N]
+  projector-outbox [--status X] [--limit N]
+  process-projectors [--limit N]
+  projector-checkpoints
+  process-retention [--limit N]
+  forget-memory <memory_id> [--redact]
+  forget-evidence <evidence_id> [--redact]
+  forget-requests [--limit N]
+  store-health
+  canonical-eval
+  canonical-evals [--limit N]
   episodes [open|sealed|extracted|archived|deleted|all]
   events [episode_id]
   jobs [pending|running|completed|failed|cancelled|all]
@@ -183,6 +202,106 @@ class MemoryConsole:
         if command == "evidence":
             memory_id = self._required(args, "evidence <memory_id>")
             return _dump(self.runtime.evidence_for_memory(memory_id)), False
+        if command == "evidence-list":
+            limit = _flag_int(args, "--limit", default=100)
+            offset = _flag_int(args, "--offset", default=0)
+            status = (self._value_after(args, "--status") or self._first_positional(args) or "active").lower()
+            return _dump(
+                self.runtime.list_evidence(
+                    status=None if status == "all" else status,
+                    source_type=self._value_after(args, "--source-type"),
+                    sensitivity=self._value_after(args, "--sensitivity"),
+                    limit=limit,
+                    offset=offset,
+                )
+            ), False
+        if command == "evidence-show":
+            evidence_id = self._required(args, "evidence-show <evidence_id>")
+            return _dump(self.runtime.get_evidence(evidence_id)), False
+        if command == "evidence-delete":
+            evidence_id = self._required(args, "evidence-delete <evidence_id> [reason]")
+            reason = _clean(" ".join(args[1:])) if len(args) > 1 else "manual_evidence_delete"
+            return _dump(self.runtime.delete_evidence(evidence_id, reason=reason)), False
+        if command == "evidence-link":
+            if len(args) < 2:
+                raise ValueError("用法：evidence-link <memory_id> <evidence_id>")
+            return _dump(self.runtime.link_evidence(_clean(args[0]), _clean(args[1]))), False
+        if command == "evidence-unlink":
+            if len(args) < 2:
+                raise ValueError("用法：evidence-unlink <memory_id> <evidence_id>")
+            return _dump(self.runtime.unlink_evidence(_clean(args[0]), _clean(args[1]))), False
+        if command == "store-audit":
+            return _dump(self.runtime.store_audit()), False
+        if command == "repair-fts":
+            return _dump(self.runtime.repair_fts_index(actor="memory_console")), False
+        if command == "index-outbox":
+            return _dump(
+                self.runtime.list_index_outbox(
+                    status=self._value_after(args, "--status"),
+                    limit=_flag_int(args, "--limit", default=50),
+                )
+            ), False
+        if command == "process-index-outbox":
+            return _dump(self.runtime.process_index_outbox(limit=_flag_int(args, "--limit", default=100))), False
+        if command == "index-health":
+            return _dump(self.runtime.index_health()), False
+        if command == "rebuild-index":
+            backend_value = self._value_after(args, "--backend")
+            backends = tuple(backend_value.split(",")) if backend_value else ("fts", "vector", "graph")
+            return _dump(
+                self.runtime.rebuild_memory_indexes(
+                    backends=backends,
+                    batch_size=_flag_int(args, "--batch-size", default=100),
+                    process="--no-process" not in args,
+                )
+            ), False
+        if command == "index-rebuilds":
+            return _dump(self.runtime.list_index_rebuilds(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "requeue-index-deadletters":
+            return _dump(
+                self.runtime.requeue_index_dead_letters(
+                    limit=_flag_int(args, "--limit", default=50),
+                    reason=self._value_after(args, "--reason") or "manual_requeue",
+                )
+            ), False
+        if command == "cleanup-traces":
+            return _dump(
+                self.runtime.cleanup_recall_traces(
+                    older_than_days=_flag_int(args, "--days", default=30),
+                    keep_pinned="--include-pinned" not in args,
+                )
+            ), False
+        if command == "projector-outbox":
+            return _dump(
+                self.runtime.list_projector_outbox(
+                    status=self._value_after(args, "--status"),
+                    limit=_flag_int(args, "--limit", default=50),
+                )
+            ), False
+        if command == "process-projectors":
+            return _dump(self.runtime.process_projector_outbox(limit=_flag_int(args, "--limit", default=100))), False
+        if command == "projector-checkpoints":
+            return _dump(self.runtime.list_projector_checkpoints()), False
+        if command == "process-retention":
+            return _dump(self.runtime.process_retention(limit=_flag_int(args, "--limit", default=100))), False
+        if command == "forget-memory":
+            memory_id = self._required(args, "forget-memory <memory_id> [--redact]")
+            return _dump(self.runtime.forget_memory(memory_id, mode="redact" if "--redact" in args else "delete")), False
+        if command == "forget-evidence":
+            evidence_id = self._required(args, "forget-evidence <evidence_id> [--redact]")
+            return _dump(self.runtime.forget_evidence(evidence_id, mode="redact" if "--redact" in args else "delete")), False
+        if command == "forget-requests":
+            return _dump(self.runtime.list_forget_requests(limit=_flag_int(args, "--limit", default=50))), False
+        if command == "store-health":
+            return _dump(self.runtime.store_health()), False
+        if command == "canonical-eval":
+            return _dump(self.runtime.run_canonical_eval()), False
+        if command == "canonical-evals":
+            return _dump(self.runtime.list_canonical_eval_runs(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "recall-eval":
+            return _dump(self.runtime.run_recall_eval()), False
+        if command == "recall-evals":
+            return _dump(self.runtime.list_recall_eval_runs(limit=_flag_int(args, "--limit", default=20))), False
         if command == "episodes":
             status = _clean(args[0]).lower() if args else "all"
             return _dump(self.runtime.list_episodes(status=None if status == "all" else status)), False
@@ -299,6 +418,15 @@ class MemoryConsole:
                 continue
             return _clean(arg)
         return None
+
+    @staticmethod
+    def _value_after(args: list[str], flag: str) -> str | None:
+        if flag not in args:
+            return None
+        index = args.index(flag)
+        if index + 1 >= len(args):
+            raise ValueError(f"用法：{flag} <value>")
+        return _clean(args[index + 1])
 
     @staticmethod
     def _positional_args(args: list[str]) -> list[str]:

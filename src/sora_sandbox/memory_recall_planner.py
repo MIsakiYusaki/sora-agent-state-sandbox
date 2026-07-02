@@ -7,14 +7,43 @@ from .memory_index_fts import search_tokens
 from .memory_schema import JsonDict, RecallPlan
 
 
-EXPLICIT_RECALL_TERMS = ("记得", "之前", "上次", "回忆", "remember")
-QUOTED_TERM_RE = re.compile(r"[“\"'](?P<term>[^”\"']{1,40})[”\"']")
+EXPLICIT_RECALL_TERMS = (
+    "remember",
+    "recall",
+    "previous",
+    "last time",
+    "before",
+    "记得",
+    "之前",
+    "上次",
+    "回忆",
+    "记忆",
+)
+GRAPH_QUERY_TERMS = (
+    "relationship",
+    "relation",
+    "who",
+    "name",
+    "entity",
+    "together",
+    "shared",
+    "episode",
+    "world",
+    "person",
+    "关系",
+    "名字",
+    "谁",
+    "一起",
+    "共同",
+)
+QUOTED_TERM_RE = re.compile(r"[\"'“”‘’](?P<term>[^\"'“”‘’]{1,40})[\"'“”‘’]")
 TOPIC_PATTERNS = (
-    re.compile(r"关于(?P<term>[^，。！？!?]{1,40}?)(?:的记忆|这件事|时|，|,|应该|$)"),
-    re.compile(r"遇到(?P<term>[^，。！？!?]{1,24}?)(?:应该|怎么|时|，|,|$)"),
-    re.compile(r"推进(?P<term>[^，。！？!?]{1,24}?)(?:时|，|,|$)"),
-    re.compile(r"我的(?P<term>[^，。！？!?]{1,16}?)(?:是|叫|有|多少|哪|什么|$)"),
-    re.compile(r"我(?:是否会|最近读完了|最常使用|常喝|养过|上次去|最喜欢)(?P<term>[^，。！？!?]{1,24})"),
+    re.compile(r"about\s+(?P<term>[A-Za-z0-9_. -]{1,40})", re.IGNORECASE),
+    re.compile(r"regarding\s+(?P<term>[A-Za-z0-9_. -]{1,40})", re.IGNORECASE),
+    re.compile(r"关于(?P<term>[^，。！？?]{1,40})"),
+    re.compile(r"遇到(?P<term>[^，。！？?]{1,24})"),
+    re.compile(r"推进(?P<term>[^，。！？?]{1,24})"),
+    re.compile(r"我的(?P<term>[^，。！？?]{1,16})"),
 )
 
 
@@ -65,10 +94,24 @@ class RuleRecallPlanner:
             tokens=search_tokens(token_source),
             salient_terms=salient_terms,
             explicit_recall=explicit,
-            backends=("fts", "vector_local", "temporal"),
+            backends=choose_backends(query_text, explicit_recall=explicit),
             service_budget_ms=budget,
             planner_mode="rules",
         )
+
+
+def choose_backends(query_text: str, *, explicit_recall: bool) -> tuple[str, ...]:
+    """Select logical retrieval backends for the current query.
+
+    The vector backend is intentionally logical ("vector") so the runtime can
+    route it to either local vectors or a production external vector DB.
+    """
+
+    lowered = query_text.lower()
+    backends: list[str] = ["fts", "vector", "temporal", "graph"]
+    if explicit_recall or any(term in lowered for term in GRAPH_QUERY_TERMS):
+        return tuple(backends)
+    return tuple(backends)
 
 
 def extract_salient_terms(query_text: str) -> list[str]:
@@ -86,17 +129,16 @@ def extract_salient_terms(query_text: str) -> list[str]:
 
 
 def _clean_term(value: str) -> str:
-    cleaned = value.strip(" ：:，,。.!！?？\"'“”")
-    cleanup_prefixes = ("哪一种", "哪一支", "哪支", "哪个", "哪本", "一本", "哪一", "几只", "几点")
-    cleanup_suffixes = ("是什么", "是谁", "多少", "哪一天", "哪一种", "哪个", "品牌")
+    cleaned = value.strip(" ，,。.!！？?\"'“”‘’")
+    cleanup_prefixes = ("which ", "what ", "the ", "哪个", "哪一个", "哪种", "几")
+    cleanup_suffixes = ("是什么", "是谁", "多少", "哪个", "哪种", "品牌")
     for prefix in cleanup_prefixes:
-        if cleaned.startswith(prefix):
+        if cleaned.lower().startswith(prefix):
             cleaned = cleaned[len(prefix) :]
     for suffix in cleanup_suffixes:
         if cleaned.endswith(suffix):
             cleaned = cleaned[: -len(suffix)]
-    cleaned = cleaned.lstrip("的")
-    return cleaned.strip(" ：:，,。.!！?？\"'“”")
+    return cleaned.strip(" ，,。.!！？?\"'“”‘’")
 
 
 def _dedupe_terms(values) -> list[str]:
