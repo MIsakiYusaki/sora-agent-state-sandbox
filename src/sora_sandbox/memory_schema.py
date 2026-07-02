@@ -137,6 +137,31 @@ class ExtractionJobRecord:
 
 
 @dataclass(frozen=True)
+class RecallSubquery:
+    query_id: str
+    text: str
+    tokens: list[str] = field(default_factory=list)
+    salient_terms: list[str] = field(default_factory=list)
+    memory_types: list[str] = field(default_factory=list)
+    entities: list[str] = field(default_factory=list)
+    time_range: str = "any"
+    backends: tuple[str, ...] = ("fts", "vector", "temporal", "graph")
+    filters: JsonDict = field(default_factory=dict)
+    top_k: int = 5
+    min_confidence: float = 0.0
+    weight: float = 1.0
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class RecallBudget:
+    token_budget: int = 420
+    service_budget_ms: int = 500
+    rerank_budget_ms: int = 150
+    llm_planner_budget_tokens: int = 0
+
+
+@dataclass(frozen=True)
 class RecallPlan:
     query_text: str
     top_k: int
@@ -144,9 +169,23 @@ class RecallPlan:
     salient_terms: list[str] = field(default_factory=list)
     explicit_recall: bool = False
     skipped_reason: str | None = None
-    backends: tuple[str, ...] = ("fts", "vector_local", "temporal")
+    backends: tuple[str, ...] = ("fts", "vector", "temporal", "graph")
     service_budget_ms: int = 500
     planner_mode: str = "rules"
+    plan_id: str = field(default_factory=lambda: new_id("recall_plan"))
+    planner_version: str = "recall_planner_v2"
+    decision: str = "light_recall"
+    query_intent: str = "open_chat"
+    scene: str = "unknown"
+    subqueries: list[RecallSubquery] = field(default_factory=list)
+    budget: RecallBudget = field(default_factory=RecallBudget)
+    surface_hint: str = "allow_implicit"
+    fallbacks: list[str] = field(default_factory=lambda: ["rules_fast_path", "fts_vector_only", "skip_with_trace"])
+    decision_reasons: list[str] = field(default_factory=list)
+    llm_usage: JsonDict = field(default_factory=dict)
+    planner_trace: JsonDict = field(default_factory=dict)
+    prefetch: JsonDict = field(default_factory=dict)
+    trace: bool = True
 
 
 @dataclass(frozen=True)

@@ -4,6 +4,7 @@ import hashlib
 import sqlite3
 import threading
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -31,7 +32,8 @@ from .memory_index_outbox import MemoryIndexOutbox
 from .memory_hybrid_retrieval import MemoryRetrievalService
 from .memory_observability import MemoryObservabilityService
 from .memory_projector import MemoryProjectorBus
-from .memory_recall_planner import RecallPlanner, RuleRecallPlanner
+from .memory_recall_planner import RecallPlanner, create_recall_planner_from_env, plan_to_json
+from .memory_recall_planner_eval import MemoryRecallPlannerEvalService
 from .memory_recall_eval_service import MemoryRecallEvalService
 from .memory_reranker import MemoryReranker, create_reranker_from_env
 from .memory_retention import MemoryRetentionService
@@ -90,7 +92,7 @@ class MemoryRuntime:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self.gate = self.gate or MemoryGate()
-        self.recall_planner = self.recall_planner or RuleRecallPlanner()
+        self.recall_planner = self.recall_planner or create_recall_planner_from_env()
         self.embedding_provider = self.embedding_provider or create_embedding_provider_from_env()
         self.reranker = self.reranker or create_reranker_from_env()
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
@@ -161,6 +163,11 @@ class MemoryRuntime:
             recall=lambda query: self.recall(query, top_k=5),
             list_memories=self.list_memories,
         )
+        self.planner_eval = MemoryRecallPlannerEvalService(
+            self._conn,
+            lock=self._lock,
+            plan_recall=self.plan_recall,
+        )
         self.gate_pipeline = MemoryGatePipeline(
             self._conn,
             lock=self._lock,
@@ -199,6 +206,10 @@ class MemoryRuntime:
                 DELETE FROM memory_revision;
                 DELETE FROM memory_recall_eval_case;
                 DELETE FROM memory_recall_eval_run;
+                DELETE FROM memory_planner_eval_case;
+                DELETE FROM memory_planner_eval_run;
+                DELETE FROM recall_plan_cache;
+                DELETE FROM recall_plan_trace;
                 DELETE FROM memory_canonical_eval_case;
                 DELETE FROM memory_canonical_eval_run;
                 DELETE FROM memory_forget_request;
@@ -272,6 +283,21 @@ class MemoryRuntime:
             sensitivity = str(item.get("sensitivity") or _detect_sensitivity(summary))
             if not summary or sensitivity == "forbidden":
                 continue
+            memory_type = str(item.get("type") or "preference")
+            with self._lock:
+                duplicate = self._conn.execute(
+                    """
+                    SELECT 1 FROM memory_record
+                    WHERE owner_user_id = ?
+                      AND agent_id = ?
+                      AND type = ?
+                      AND summary = ?
+                      AND status = 'active'
+                    """,
+                    (self.owner_user_id, self.agent_id, memory_type, summary),
+                ).fetchone()
+            if duplicate:
+                continue
             evidence_id = self.add_evidence(
                 source_type="legacy_state_import",
                 content_summary=summary,
@@ -281,7 +307,7 @@ class MemoryRuntime:
             )
             self._create_memory(
                 memory_id=memory_id,
-                memory_type=str(item.get("type") or "preference"),
+                memory_type=memory_type,
                 summary=summary,
                 tags=list(item.get("tags") or []),
                 evidence_ids=[evidence_id],
@@ -1902,6 +1928,126 @@ class MemoryRuntime:
             token_budget=token_budget,
         )
 
+    def plan_recall(
+        self,
+        query_text: str,
+        *,
+        turn_frame: JsonDict | None = None,
+        context_use_policy: JsonDict | None = None,
+        top_k: int = 5,
+        planner_context: JsonDict | None = None,
+    ) -> JsonDict:
+        plan = self.recall_planner.plan(
+            query_text,
+            turn_frame=turn_frame,
+            context_use_policy=context_use_policy,
+            top_k=top_k,
+            planner_context=planner_context,
+        )
+        return plan_to_json(plan)
+
+    def prefetch_recall(
+        self,
+        query_text: str,
+        *,
+        turn_frame: JsonDict | None = None,
+        context_use_policy: JsonDict | None = None,
+        top_k: int = 5,
+        ttl_seconds: int = 600,
+    ) -> JsonDict:
+        plan = self.recall_planner.plan(
+            query_text,
+            turn_frame=turn_frame,
+            context_use_policy=context_use_policy,
+            top_k=top_k,
+            planner_context={"mode": "prefetch", "top_k": top_k},
+        )
+        plan_json = plan_to_json(plan)
+        now = datetime.now(timezone.utc)
+        expires_at = (now + timedelta(seconds=max(ttl_seconds, 1))).isoformat()
+        cache_key = _content_hash(
+            query_text,
+            plan.scene,
+            json_dumps(turn_frame or {}),
+            json_dumps(context_use_policy or {}),
+            plan.planner_version,
+        )
+        with self._lock:
+            existing = self._conn.execute(
+                """
+                SELECT * FROM recall_plan_cache
+                WHERE cache_key = ?
+                  AND status = ?
+                  AND expires_at > ?
+                """,
+                (cache_key, "cached", now.isoformat()),
+            ).fetchone()
+            if existing is not None:
+                return {
+                    "status": "cache_hit",
+                    "cache_key": existing["cache_key"],
+                    "expires_at": existing["expires_at"],
+                    "plan": json_loads(existing["plan_json"], {}),
+                    "cached": True,
+                }
+            self._conn.execute(
+                """
+                INSERT INTO recall_plan_cache (
+                    cache_key, plan_id, status, query_text, scene, plan_json,
+                    created_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(cache_key) DO UPDATE SET
+                    plan_id = excluded.plan_id,
+                    status = excluded.status,
+                    query_text = excluded.query_text,
+                    scene = excluded.scene,
+                    plan_json = excluded.plan_json,
+                    created_at = excluded.created_at,
+                    expires_at = excluded.expires_at
+                """,
+                (
+                    cache_key,
+                    plan.plan_id,
+                    "cached" if plan.decision == "prefetch_only" else "skipped",
+                    query_text,
+                    plan.scene,
+                    json_dumps(plan_json),
+                    now.isoformat(),
+                    expires_at,
+                ),
+            )
+            self._conn.commit()
+        return {
+            "status": "cached" if plan.decision == "prefetch_only" else "skipped",
+            "cache_key": cache_key,
+            "expires_at": expires_at,
+            "plan": plan_json,
+        }
+
+    def list_recall_plan_cache(self, *, limit: int = 20) -> list[JsonDict]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM recall_plan_cache
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "cache_key": row["cache_key"],
+                "plan_id": row["plan_id"],
+                "status": row["status"],
+                "query_text": row["query_text"],
+                "scene": row["scene"],
+                "plan": json_loads(row["plan_json"], {}),
+                "created_at": row["created_at"],
+                "expires_at": row["expires_at"],
+            }
+            for row in rows
+        ]
+
     def search(self, query_text: str, *, top_k: int = 10) -> list[JsonDict]:
         frame = self.recall(query_text, top_k=top_k)
         return [self.get_memory(memory_id) for memory_id in frame["retrieved_ids"]]
@@ -2132,6 +2278,12 @@ class MemoryRuntime:
     def list_recall_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
         return self.recall_eval.list_runs(limit=limit)
 
+    def run_planner_eval(self, cases: list[JsonDict] | None = None) -> JsonDict:
+        return self.planner_eval.run(cases=cases)
+
+    def list_planner_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
+        return self.planner_eval.list_runs(limit=limit)
+
     def revisions_for_memory(self, memory_id: str) -> list[JsonDict]:
         with self._lock:
             rows = self._conn.execute(
@@ -2163,6 +2315,39 @@ class MemoryRuntime:
                 "cost": json_loads(row_value(row, "cost_json", "{}"), {}),
                 "pinned": bool(row_value(row, "pinned", 0)),
                 "expires_at": row_value(row, "expires_at"),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+    def list_recall_plan_traces(self, limit: int = 20) -> list[JsonDict]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM recall_plan_trace
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "plan_id": row["plan_id"],
+                "recall_trace_id": row["recall_trace_id"],
+                "turn_id": row["turn_id"],
+                "session_id": row["session_id"],
+                "planner_version": row["planner_version"],
+                "planner_mode": row["planner_mode"],
+                "decision": row["decision"],
+                "query_intent": row["query_intent"],
+                "scene": row["scene"],
+                "explicit_recall": bool(row["explicit_recall"]),
+                "skipped_reason": row["skipped_reason"],
+                "subqueries": json_loads(row["subqueries_json"], []),
+                "budget": json_loads(row["budget_json"], {}),
+                "decision_reasons": json_loads(row["decision_reasons_json"], []),
+                "llm_usage": json_loads(row["llm_usage_json"], {}),
+                "planner_trace": json_loads(row["planner_trace_json"], {}),
                 "created_at": row["created_at"],
             }
             for row in rows

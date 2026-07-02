@@ -102,6 +102,27 @@ class RecallEvalTests(unittest.TestCase):
         self.assertFalse(noisy["case_pass"])
         self.assertIn("unexpected_recall_on_no_answer", noisy["failure_reasons"])
 
+    def test_surface_action_alias_accepts_strict_gist_for_gist(self) -> None:
+        case = {
+            "case_id": "case_surface_alias",
+            "category": "surface",
+            "difficulty": "easy",
+            "query": "known",
+            "top_k": 1,
+            "expected_memory_ids": ["mem_known"],
+            "expected_surface_action": "gist",
+        }
+        result = {
+            "retrieved_ids": ["mem_known"],
+            "surface_action": "strict_gist",
+            "latency_ms": 1,
+        }
+
+        row = evaluate_case(case, result)
+
+        self.assertTrue(row["surface_pass"])
+        self.assertTrue(row["case_pass"])
+
     def test_summary_uses_answerable_cases_for_recall(self) -> None:
         rows = [
             {

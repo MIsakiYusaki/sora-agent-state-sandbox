@@ -98,6 +98,64 @@ def record_recall_trace(
     return trace_id
 
 
+def record_recall_plan_trace(
+    conn: sqlite3.Connection,
+    plan: JsonDict,
+    *,
+    recall_trace_id: str | None = None,
+    turn_id: str | None = None,
+    session_id: str | None = None,
+) -> None:
+    plan_id = str(plan.get("plan_id") or new_id("recall_plan"))
+    created_at = utc_now()
+    conn.execute(
+        """
+        INSERT INTO recall_plan_trace (
+            plan_id, recall_trace_id, turn_id, session_id, planner_version,
+            planner_mode, decision, query_intent, scene, explicit_recall,
+            skipped_reason, subqueries_json, budget_json, decision_reasons_json,
+            llm_usage_json, planner_trace_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(plan_id) DO UPDATE SET
+            recall_trace_id = excluded.recall_trace_id,
+            turn_id = excluded.turn_id,
+            session_id = excluded.session_id,
+            planner_version = excluded.planner_version,
+            planner_mode = excluded.planner_mode,
+            decision = excluded.decision,
+            query_intent = excluded.query_intent,
+            scene = excluded.scene,
+            explicit_recall = excluded.explicit_recall,
+            skipped_reason = excluded.skipped_reason,
+            subqueries_json = excluded.subqueries_json,
+            budget_json = excluded.budget_json,
+            decision_reasons_json = excluded.decision_reasons_json,
+            llm_usage_json = excluded.llm_usage_json,
+            planner_trace_json = excluded.planner_trace_json
+        """,
+        (
+            plan_id,
+            recall_trace_id,
+            turn_id,
+            session_id,
+            str(plan.get("planner_version") or "unknown"),
+            str(plan.get("mode") or plan.get("planner_mode") or "unknown"),
+            str(plan.get("decision") or "unknown"),
+            str(plan.get("query_intent") or "unknown"),
+            str(plan.get("scene") or "unknown"),
+            int(bool(plan.get("explicit_recall"))),
+            plan.get("skip_reason") or plan.get("skipped_reason"),
+            json_dumps(plan.get("subqueries", [])),
+            json_dumps(plan.get("budget", {})),
+            json_dumps(plan.get("decision_reasons", [])),
+            json_dumps(plan.get("llm_usage", {})),
+            json_dumps(plan.get("planner_trace", {})),
+            created_at,
+        ),
+    )
+    conn.commit()
+
+
 def cleanup_recall_traces(
     conn: sqlite3.Connection,
     *,

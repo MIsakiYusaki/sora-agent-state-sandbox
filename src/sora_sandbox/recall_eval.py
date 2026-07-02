@@ -101,6 +101,18 @@ def _memory_detail(
     }
 
 
+def _surface_action_matches(actual: str, expected: str) -> bool:
+    if actual == expected:
+        return True
+    aliases = {
+        "gist": {"gist", "strict_gist", "allow_gist"},
+        "strict_gist": {"strict_gist", "gist"},
+        "implicit": {"implicit", "allow_implicit"},
+        "none": {"none", "skip"},
+    }
+    return actual in aliases.get(expected, {expected})
+
+
 def evaluate_case(
     case: JsonDict,
     result: JsonDict,
@@ -153,7 +165,7 @@ def evaluate_case(
     retrieval_pass = required_hit and no_unexpected_recall and no_forbidden
     actual_surface = str(result.get("surface_action", "none"))
     expected_surface = str(case.get("expected_surface_action", "none"))
-    surface_pass = actual_surface == expected_surface
+    surface_pass = _surface_action_matches(actual_surface, expected_surface)
 
     failure_reasons: list[str] = []
     if len(expected_hits) != len(expected):

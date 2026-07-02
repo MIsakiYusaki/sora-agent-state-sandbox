@@ -1772,6 +1772,65 @@ class MemoryRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(state["memory"]["runtime"]["mode"], "in_process")
 
+    def test_recall_planner_v2_schema_and_subqueries(self) -> None:
+        plan = self.runtime.plan_recall(
+            "Do you remember what we said last time about Module 06 Recall Planner?",
+            turn_frame={"scene": "planning", "recent_topics": ["Module 06", "Recall Planner"]},
+            top_k=5,
+        )
+
+        self.assertEqual(plan["planner_version"], "recall_planner_v2")
+        self.assertEqual(plan["decision"], "deep_recall")
+        self.assertEqual(plan["query_intent"], "explicit_memory_lookup")
+        self.assertTrue(plan["explicit_recall"])
+        self.assertIn("fts", plan["backends"])
+        self.assertIn("vector", plan["backends"])
+        self.assertTrue(plan["subqueries"])
+        self.assertIn("budget", plan)
+        self.assertTrue(plan["decision_reasons"])
+
+    def test_prefetch_recall_writes_plan_cache_without_prompt_items(self) -> None:
+        result = self.runtime.prefetch_recall(
+            "Module 06 Recall Planner next implementation",
+            turn_frame={"scene": "planning", "recent_topics": ["Module 06"]},
+        )
+
+        self.assertEqual(result["status"], "cached")
+        self.assertEqual(result["plan"]["decision"], "prefetch_only")
+        self.assertEqual(result["plan"]["budget"]["token_budget"], 0)
+        cached = self.runtime.list_recall_plan_cache()
+        self.assertEqual(cached[0]["cache_key"], result["cache_key"])
+        self.assertEqual(cached[0]["plan"]["decision"], "prefetch_only")
+
+        cache_hit = self.runtime.prefetch_recall(
+            "Module 06 Recall Planner next implementation",
+            turn_frame={"scene": "planning", "recent_topics": ["Module 06"]},
+        )
+        refreshed = self.runtime.list_recall_plan_cache()
+        self.assertEqual(cache_hit["status"], "cache_hit")
+        self.assertEqual(cache_hit["cache_key"], result["cache_key"])
+        self.assertEqual(len(refreshed), 1)
+        self.assertEqual(refreshed[0]["created_at"], cached[0]["created_at"])
+
+    def test_recall_records_planner_trace(self) -> None:
+        frame = self.runtime.recall("Do you remember our design workflow?", top_k=3)
+
+        self.assertTrue(frame["recall_trace_id"])
+        self.assertEqual(frame["recall_plan"]["planner_version"], "recall_planner_v2")
+        traces = self.runtime.list_recall_plan_traces()
+        self.assertEqual(traces[0]["recall_trace_id"], frame["recall_trace_id"])
+        self.assertEqual(traces[0]["decision"], frame["recall_plan"]["decision"])
+        self.assertTrue(traces[0]["subqueries"])
+
+    def test_planner_eval_harness_runs_default_golden_set(self) -> None:
+        result = self.runtime.run_planner_eval()
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["summary"]["case_count"], 8)
+        self.assertEqual(result["summary"]["decision_accuracy"], 1.0)
+        self.assertEqual(result["summary"]["intent_accuracy"], 1.0)
+        self.assertEqual(result["summary"]["trace_completeness"], 1.0)
+
     def test_legacy_memory_hook_command_commits_to_canonical_runtime(self) -> None:
         state = seed_state()
         self.runtime.import_legacy_memories(state["memory"]["items"])

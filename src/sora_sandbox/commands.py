@@ -327,6 +327,25 @@ def handle_command(
     if command == "/recall-memory-evals":
         require_memory_admin(memory_admin)
         return dump(memory_admin.list_recall_eval_runs(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/run-planner-memory-eval":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.run_planner_eval()), False
+    if command == "/planner-memory-evals":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_planner_eval_runs(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/plan-recall":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.plan_recall(joined_arg(args, "/plan-recall <query>"))), False
+    if command == "/prefetch-recall":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.prefetch_recall(joined_arg(args, "/prefetch-recall <query>"))), False
+    if command == "/recall-plan-cache":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_recall_plan_cache(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/recall-plan-traces":
+        require_memory_admin(memory_admin)
+        limit = int(arg_value(args[0])) if args else 20
+        return dump(memory_admin.list_recall_plan_traces(limit)), False
     if command == "/memory-episodes":
         require_memory_admin(memory_admin)
         status = arg_value(args[0]).lower() if args else "all"
@@ -535,6 +554,12 @@ def required_arg(args: list[str], usage: str) -> str:
     return arg_value(args[0])
 
 
+def joined_arg(args: list[str], usage: str) -> str:
+    if not args:
+        raise CommandError(f"用法：{usage}")
+    return arg_value(" ".join(args))
+
+
 def _int_arg(args: list[str], flag: str, *, default: int) -> int:
     if flag not in args:
         return default
@@ -704,6 +729,10 @@ Memory：
       执行 retention worker 或用户 forget/redaction 流程。
   /memory-store-health /run-canonical-memory-eval /canonical-memory-evals
       查看 canonical store 健康状态，运行或查看 canonical eval。
+  /plan-recall <query> /prefetch-recall <query> /run-planner-memory-eval
+      调试 Recall Planner、写入预取计划，或运行 planner eval。
+  /recall-plan-cache /recall-plan-traces /planner-memory-evals
+      查看 planner cache、planner trace 和 planner eval 历史。
   /run-extraction-job [--real]
       领取并执行一个 pending extraction_job；默认使用 golden fake，带 --real 时调用真实 OpenAI-compatible LLM。
   /backfill-extraction-jobs [--limit N] [--force]

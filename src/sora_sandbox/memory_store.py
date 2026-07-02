@@ -483,6 +483,67 @@ CREATE TABLE IF NOT EXISTS memory_recall_eval_case (
     FOREIGN KEY (run_id) REFERENCES memory_recall_eval_run(id)
 );
 
+CREATE TABLE IF NOT EXISTS memory_planner_eval_run (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    total_cases INTEGER NOT NULL,
+    passed_cases INTEGER NOT NULL,
+    failed_cases INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    summary_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_planner_eval_case (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    case_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    details_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES memory_planner_eval_run(id)
+);
+
+CREATE TABLE IF NOT EXISTS recall_plan_trace (
+    plan_id TEXT PRIMARY KEY,
+    recall_trace_id TEXT,
+    turn_id TEXT,
+    session_id TEXT,
+    planner_version TEXT NOT NULL,
+    planner_mode TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    query_intent TEXT NOT NULL,
+    scene TEXT NOT NULL,
+    explicit_recall INTEGER NOT NULL,
+    skipped_reason TEXT,
+    subqueries_json TEXT NOT NULL,
+    budget_json TEXT NOT NULL,
+    decision_reasons_json TEXT NOT NULL,
+    llm_usage_json TEXT NOT NULL,
+    planner_trace_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_recall_plan_trace_recall
+ON recall_plan_trace(recall_trace_id);
+
+CREATE INDEX IF NOT EXISTS idx_recall_plan_trace_decision
+ON recall_plan_trace(decision, query_intent, created_at);
+
+CREATE TABLE IF NOT EXISTS recall_plan_cache (
+    cache_key TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    query_text TEXT NOT NULL,
+    scene TEXT NOT NULL,
+    plan_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_recall_plan_cache_status
+ON recall_plan_cache(status, expires_at);
+
 CREATE TABLE IF NOT EXISTS recall_trace (
     id TEXT PRIMARY KEY,
     query_text TEXT NOT NULL,
@@ -581,6 +642,11 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "recall_trace", "cost_json", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column(conn, "recall_trace", "pinned", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "recall_trace", "expires_at", "TEXT")
+    ensure_column(conn, "recall_plan_trace", "recall_trace_id", "TEXT")
+    ensure_column(conn, "recall_plan_trace", "turn_id", "TEXT")
+    ensure_column(conn, "recall_plan_trace", "session_id", "TEXT")
+    ensure_column(conn, "recall_plan_trace", "llm_usage_json", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column(conn, "recall_plan_trace", "planner_trace_json", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column(conn, "recall_trace_item", "backend", "TEXT")
     ensure_column(conn, "recall_trace_item", "backend_rank", "INTEGER")
     ensure_column(conn, "recall_trace_item", "backend_score", "REAL")

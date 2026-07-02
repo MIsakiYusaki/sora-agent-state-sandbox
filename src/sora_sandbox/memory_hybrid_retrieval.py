@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .memory_context_packer import MemoryContextPacker, PackedMemory
 from .memory_graph_lite import graph_search
 from .memory_index_fts import fts_search, temporal_search
-from .memory_recall_planner import RecallPlanner
+from .memory_index_fts import search_tokens
+from .memory_recall_planner import RecallPlanner, plan_to_json
 from .memory_reranker import FeatureMemoryReranker, MemoryReranker
-from .memory_schema import FusedMemoryHit, JsonDict, RecallPlan, RetrievalHit, json_dumps, new_id, utc_now
+from .memory_schema import FusedMemoryHit, JsonDict, RecallPlan, RecallSubquery, RetrievalHit, json_dumps, new_id, utc_now
 from .memory_surface import choose_surface_action, decision_reason
-from .memory_trace import cleanup_recall_traces, record_recall_trace
+from .memory_trace import cleanup_recall_traces, record_recall_plan_trace, record_recall_trace
 from .memory_vector_index import VectorIndex
 
 
@@ -42,8 +43,9 @@ class MemoryRetrievalService:
             turn_frame=turn_frame,
             context_use_policy=context_use_policy,
             top_k=top_k,
+            planner_context={"mode": "response_generation", "top_k": top_k, "token_budget": token_budget or 0},
         )
-        budget = token_budget if token_budget is not None else (900 if plan.explicit_recall else 420)
+        budget = token_budget if token_budget is not None else plan.budget.token_budget
         if plan.skipped_reason:
             return self._empty_recollection(
                 query_text,
@@ -132,6 +134,7 @@ class MemoryRetrievalService:
             turn_frame=None,
             context_use_policy=None,
             top_k=top_k,
+            planner_context={"mode": "write_related_memory", "top_k": top_k},
         )
         plan = RecallPlan(
             query_text=query_text,
@@ -139,9 +142,17 @@ class MemoryRetrievalService:
             tokens=planned.tokens,
             salient_terms=planned.salient_terms,
             explicit_recall=False,
-            backends=("fts", "vector", "temporal", "graph"),
-            service_budget_ms=500,
+            backends=planned.backends or ("fts", "vector", "temporal", "graph"),
+            service_budget_ms=planned.service_budget_ms,
             planner_mode="extractor_related_memory",
+            decision=planned.decision,
+            query_intent="write_related_memory",
+            scene=planned.scene,
+            subqueries=planned.subqueries,
+            budget=planned.budget,
+            surface_hint="none",
+            decision_reasons=list(planned.decision_reasons) + ["related-memory lookup for extractor write decision"],
+            planner_trace=planned.planner_trace,
         )
         if not plan.tokens:
             return []
@@ -165,6 +176,25 @@ class MemoryRetrievalService:
             )
 
     def _candidate_groups(self, plan: RecallPlan) -> tuple[list[list[RetrievalHit]], list[JsonDict]]:
+        if plan.subqueries:
+            groups: list[list[RetrievalHit]] = []
+            errors: list[JsonDict] = []
+            for subquery in plan.subqueries:
+                subplan = _plan_for_subquery(plan, subquery)
+                subgroups, suberrors = self._candidate_groups_for_single_plan(subplan)
+                groups.extend(subgroups)
+                errors.extend(
+                    {
+                        **error,
+                        "query_id": subquery.query_id,
+                        "subquery_text": subquery.text,
+                    }
+                    for error in suberrors
+                )
+            return [group for group in groups if group], errors
+        return self._candidate_groups_for_single_plan(plan)
+
+    def _candidate_groups_for_single_plan(self, plan: RecallPlan) -> tuple[list[list[RetrievalHit]], list[JsonDict]]:
         groups: list[list[RetrievalHit]] = []
         errors: list[JsonDict] = []
         limit = max(plan.top_k * 6, 18)
@@ -357,7 +387,8 @@ class MemoryRetrievalService:
         rerank_metadata: JsonDict | None = None,
     ) -> str:
         with self.lock:
-            return record_recall_trace(
+            plan_json = self._plan_json(plan)
+            trace_id = record_recall_trace(
                 self.conn,
                 query_text,
                 backend="hybrid_rrf",
@@ -367,7 +398,7 @@ class MemoryRetrievalService:
                 trace_items=trace_items,
                 latency_ms=latency_ms,
                 degraded=degraded,
-                plan=self._plan_json(plan),
+                plan=plan_json,
                 token_budget=token_budget,
                 token_used=token_used,
                 cost={
@@ -377,6 +408,14 @@ class MemoryRetrievalService:
                     "reranker": _public_rerank_metadata(rerank_metadata or {}),
                 },
             )
+            record_recall_plan_trace(
+                self.conn,
+                plan_json,
+                recall_trace_id=trace_id,
+                turn_id=plan.planner_trace.get("turn_id"),
+                session_id=plan.planner_trace.get("session_id"),
+            )
+            return trace_id
 
     def _record_access(self, items: list[JsonDict], *, trace_id: str, surface_action: str) -> None:
         if not items:
@@ -494,18 +533,18 @@ class MemoryRetrievalService:
         return f"current turn matched via {backends}"
 
     def _plan_json(self, plan: RecallPlan) -> JsonDict:
-        return {
-            "mode": plan.planner_mode,
-            "backends": list(plan.backends),
-            "salient_terms": list(plan.salient_terms),
-            "explicit_recall": plan.explicit_recall,
-            "service_budget_ms": plan.service_budget_ms,
-            "tokens": list(plan.tokens),
-            "active_vector_backend": self.vector_index.backend_name,
-        }
+        payload = plan_to_json(plan)
+        payload["active_vector_backend"] = self.vector_index.backend_name
+        return payload
 
 
 def _weights_for_plan(plan: RecallPlan) -> dict[str, float]:
+    if plan.query_intent == "relationship_context":
+        return {"fts": 0.7, "vector": 1.1, "vector_local": 1.1, "temporal": 0.8, "graph": 1.0}
+    if plan.query_intent == "project_continuity":
+        return {"fts": 1.1, "vector": 1.0, "vector_local": 1.0, "temporal": 0.85, "graph": 0.65}
+    if plan.query_intent == "write_related_memory":
+        return {"fts": 1.0, "vector": 1.15, "vector_local": 1.15, "temporal": 0.75, "graph": 0.85}
     query = plan.query_text.lower()
     if any(term in query for term in ("last time", "recent", "together", "episode")):
         return {"fts": 0.7, "vector": 0.9, "vector_local": 0.9, "temporal": 1.3, "graph": 0.5}
@@ -522,6 +561,17 @@ def _plan_uses_vector(plan: RecallPlan) -> bool:
 
 def _backend_error(backend: str, exc: Exception) -> JsonDict:
     return {"backend": backend, "error": str(exc), "error_type": exc.__class__.__name__}
+
+
+def _plan_for_subquery(plan: RecallPlan, subquery: RecallSubquery) -> RecallPlan:
+    return replace(
+        plan,
+        query_text=subquery.text,
+        top_k=subquery.top_k or plan.top_k,
+        tokens=subquery.tokens or search_tokens(subquery.text),
+        salient_terms=subquery.salient_terms or plan.salient_terms,
+        backends=subquery.backends or plan.backends,
+    )
 
 
 def _public_rerank_metadata(metadata: JsonDict) -> JsonDict:

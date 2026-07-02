@@ -83,6 +83,12 @@ class MemoryConsole:
   store-health
   canonical-eval
   canonical-evals [--limit N]
+  planner-eval
+  planner-evals [--limit N]
+  plan <query>
+  prefetch <query>
+  plan-cache [--limit N]
+  plan-traces [limit]
   episodes [open|sealed|extracted|archived|deleted|all]
   events [episode_id]
   jobs [pending|running|completed|failed|cancelled|all]
@@ -302,6 +308,19 @@ class MemoryConsole:
             return _dump(self.runtime.run_recall_eval()), False
         if command == "recall-evals":
             return _dump(self.runtime.list_recall_eval_runs(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "planner-eval":
+            return _dump(self.runtime.run_planner_eval()), False
+        if command == "planner-evals":
+            return _dump(self.runtime.list_planner_eval_runs(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "plan":
+            return _dump(self.runtime.plan_recall(self._joined(args, "plan <query>"))), False
+        if command == "prefetch":
+            return _dump(self.runtime.prefetch_recall(self._joined(args, "prefetch <query>"))), False
+        if command == "plan-cache":
+            return _dump(self.runtime.list_recall_plan_cache(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "plan-traces":
+            limit = int(_clean(args[0])) if args else 20
+            return _dump(self.runtime.list_recall_plan_traces(limit)), False
         if command == "episodes":
             status = _clean(args[0]).lower() if args else "all"
             return _dump(self.runtime.list_episodes(status=None if status == "all" else status)), False
