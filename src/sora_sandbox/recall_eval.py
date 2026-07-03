@@ -105,10 +105,10 @@ def _surface_action_matches(actual: str, expected: str) -> bool:
     if actual == expected:
         return True
     aliases = {
-        "gist": {"gist", "strict_gist", "allow_gist"},
-        "strict_gist": {"strict_gist", "gist"},
-        "implicit": {"implicit", "allow_implicit"},
-        "none": {"none", "skip"},
+        "gist": {"gist", "strict_gist", "allow_gist", "answer_memory_question", "quote_memory", "redacted_gist"},
+        "strict_gist": {"strict_gist", "gist", "answer_memory_question"},
+        "implicit": {"implicit", "allow_implicit", "implicit_continuity", "silent_use", "relationship_context"},
+        "none": {"none", "skip", "suppress", "ask_consent"},
     }
     return actual in aliases.get(expected, {expected})
 

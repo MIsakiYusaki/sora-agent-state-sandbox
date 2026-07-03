@@ -129,10 +129,15 @@ CREATE TABLE IF NOT EXISTS memory_record (
     retrieval_permission TEXT NOT NULL,
     use_permission TEXT NOT NULL,
     disclosure_permission TEXT NOT NULL,
+    surface_permission TEXT NOT NULL DEFAULT 'auto',
+    surface_cooldown_until TEXT,
+    relationship_impact REAL NOT NULL DEFAULT 0.0,
     schema_version INTEGER NOT NULL,
     index_watermark TEXT,
     access_count INTEGER NOT NULL DEFAULT 0,
     last_accessed_at TEXT,
+    surface_count INTEGER NOT NULL DEFAULT 0,
+    last_surfaced_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (supersedes_id) REFERENCES memory_record(id)
@@ -504,6 +509,27 @@ CREATE TABLE IF NOT EXISTS memory_planner_eval_case (
     FOREIGN KEY (run_id) REFERENCES memory_planner_eval_run(id)
 );
 
+CREATE TABLE IF NOT EXISTS memory_surface_eval_run (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    total_cases INTEGER NOT NULL,
+    passed_cases INTEGER NOT NULL,
+    failed_cases INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    summary_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_surface_eval_case (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    case_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    details_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES memory_surface_eval_run(id)
+);
+
 CREATE TABLE IF NOT EXISTS recall_plan_trace (
     plan_id TEXT PRIMARY KEY,
     recall_trace_id TEXT,
@@ -562,6 +588,102 @@ CREATE TABLE IF NOT EXISTS recall_trace (
     expires_at TEXT,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memory_surface_policy_trace (
+    id TEXT PRIMARY KEY,
+    recall_trace_id TEXT,
+    turn_id TEXT,
+    session_id TEXT,
+    policy_version TEXT NOT NULL,
+    policy_profile TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    surface_action TEXT NOT NULL,
+    legacy_surface_action TEXT NOT NULL,
+    decision_reason TEXT NOT NULL,
+    forbidden_disclosures_json TEXT NOT NULL,
+    consent_request_json TEXT NOT NULL,
+    provider_usage_json TEXT NOT NULL DEFAULT '[]',
+    token_budget INTEGER NOT NULL DEFAULT 0,
+    token_used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_surface_policy_trace_recall
+ON memory_surface_policy_trace(recall_trace_id);
+
+CREATE INDEX IF NOT EXISTS idx_memory_surface_policy_trace_action
+ON memory_surface_policy_trace(surface_action, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_surface_policy_item (
+    trace_id TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    rank INTEGER NOT NULL,
+    score REAL NOT NULL,
+    priority REAL NOT NULL,
+    action TEXT NOT NULL,
+    legacy_action TEXT NOT NULL,
+    selected INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    suppression_reason TEXT,
+    policy_json TEXT NOT NULL,
+    PRIMARY KEY (trace_id, memory_id, rank),
+    FOREIGN KEY (trace_id) REFERENCES memory_surface_policy_trace(id),
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_surface_policy_item_memory
+ON memory_surface_policy_item(memory_id, action);
+
+CREATE TABLE IF NOT EXISTS memory_surface_feedback (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL,
+    recall_trace_id TEXT,
+    feedback_type TEXT NOT NULL,
+    value REAL,
+    actor TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_surface_feedback_memory
+ON memory_surface_feedback(memory_id, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_surface_override (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL,
+    override_type TEXT NOT NULL,
+    surface_permission TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    status TEXT NOT NULL,
+    expires_at TEXT,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    revoked_at TEXT,
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_surface_override_memory
+ON memory_surface_override(memory_id, status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_surface_consent (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL,
+    recall_trace_id TEXT,
+    request_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    granted_at TEXT,
+    expires_at TEXT,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_surface_consent_memory
+ON memory_surface_consent(memory_id, status, created_at);
 
 CREATE TABLE IF NOT EXISTS recall_trace_item (
     trace_id TEXT NOT NULL,
@@ -627,6 +749,11 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "memory_record", "index_watermark", "TEXT")
     ensure_column(conn, "memory_record", "access_count", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "memory_record", "last_accessed_at", "TEXT")
+    ensure_column(conn, "memory_record", "surface_permission", "TEXT NOT NULL DEFAULT 'auto'")
+    ensure_column(conn, "memory_record", "surface_cooldown_until", "TEXT")
+    ensure_column(conn, "memory_record", "relationship_impact", "REAL NOT NULL DEFAULT 0.0")
+    ensure_column(conn, "memory_record", "surface_count", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "memory_record", "last_surfaced_at", "TEXT")
     ensure_column(conn, "memory_index_outbox", "max_attempts", "INTEGER NOT NULL DEFAULT 3")
     ensure_column(conn, "memory_index_outbox", "payload_hash", "TEXT")
     ensure_column(conn, "memory_index_outbox", "result_json", "TEXT NOT NULL DEFAULT '{}'")
@@ -653,6 +780,11 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "recall_trace_item", "rrf_score", "REAL")
     ensure_column(conn, "recall_trace_item", "rerank_score", "REAL")
     ensure_column(conn, "recall_trace_item", "matched_backends_json", "TEXT NOT NULL DEFAULT '[]'")
+    ensure_column(conn, "memory_surface_policy_trace", "provider", "TEXT NOT NULL DEFAULT 'deterministic_surface_policy'")
+    ensure_column(conn, "memory_surface_policy_trace", "provider_usage_json", "TEXT NOT NULL DEFAULT '[]'")
+    ensure_column(conn, "memory_surface_policy_trace", "token_budget", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "memory_surface_policy_trace", "token_used", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "memory_surface_override", "metadata_json", "TEXT NOT NULL DEFAULT '{}'")
     conn.commit()
 
 

@@ -156,6 +156,81 @@ def record_recall_plan_trace(
     conn.commit()
 
 
+def record_surface_policy_trace(
+    conn: sqlite3.Connection,
+    *,
+    recall_trace_id: str | None,
+    policy_version: str,
+    policy_profile: str,
+    provider: str,
+    surface_action: str,
+    legacy_surface_action: str,
+    decision_reason: str,
+    forbidden_disclosures: list[str],
+    consent_request: JsonDict | None,
+    items: list[JsonDict],
+    token_budget: int,
+    token_used: int,
+    provider_usage: list[JsonDict] | None = None,
+    turn_id: str | None = None,
+    session_id: str | None = None,
+) -> str:
+    trace_id = new_id("surface")
+    created_at = utc_now()
+    conn.execute(
+        """
+        INSERT INTO memory_surface_policy_trace (
+            id, recall_trace_id, turn_id, session_id, policy_version,
+            policy_profile, provider, surface_action, legacy_surface_action,
+            decision_reason, forbidden_disclosures_json, consent_request_json,
+            provider_usage_json, token_budget, token_used, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            trace_id,
+            recall_trace_id,
+            turn_id,
+            session_id,
+            policy_version,
+            policy_profile,
+            provider,
+            surface_action,
+            legacy_surface_action,
+            decision_reason,
+            json_dumps(forbidden_disclosures),
+            json_dumps(consent_request or {}),
+            json_dumps(provider_usage or []),
+            int(token_budget),
+            int(token_used),
+            created_at,
+        ),
+    )
+    for item in items:
+        conn.execute(
+            """
+            INSERT INTO memory_surface_policy_item (
+                trace_id, memory_id, rank, score, priority, action,
+                legacy_action, selected, reason, suppression_reason, policy_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                trace_id,
+                item["memory_id"],
+                int(item.get("rank") or 0),
+                float(item.get("score") or 0.0),
+                float(item.get("priority") or 0.0),
+                str(item.get("action") or "none"),
+                str(item.get("legacy_action") or "none"),
+                int(bool(item.get("selected"))),
+                str(item.get("reason") or ""),
+                item.get("suppression_reason"),
+                json_dumps(item.get("policy") or {}),
+            ),
+        )
+    conn.commit()
+    return trace_id
+
+
 def cleanup_recall_traces(
     conn: sqlite3.Connection,
     *,
@@ -176,6 +251,21 @@ def cleanup_recall_traces(
     if not ids:
         return {"status": "ok", "deleted_count": 0, "deleted_ids": []}
     placeholders = ",".join("?" for _ in ids)
+    surface_rows = conn.execute(
+        f"SELECT id FROM memory_surface_policy_trace WHERE recall_trace_id IN ({placeholders})",
+        ids,
+    ).fetchall()
+    surface_ids = [row["id"] for row in surface_rows]
+    if surface_ids:
+        surface_placeholders = ",".join("?" for _ in surface_ids)
+        conn.execute(
+            f"DELETE FROM memory_surface_policy_item WHERE trace_id IN ({surface_placeholders})",
+            surface_ids,
+        )
+        conn.execute(
+            f"DELETE FROM memory_surface_policy_trace WHERE id IN ({surface_placeholders})",
+            surface_ids,
+        )
     conn.execute(f"DELETE FROM recall_trace_item WHERE trace_id IN ({placeholders})", ids)
     conn.execute(f"DELETE FROM recall_trace WHERE id IN ({placeholders})", ids)
     conn.commit()

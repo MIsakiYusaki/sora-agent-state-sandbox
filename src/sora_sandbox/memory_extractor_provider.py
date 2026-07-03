@@ -30,8 +30,8 @@ class GoldenExtractorCase:
 class GoldenSetExtractorProvider:
     """Deterministic provider backed by extractor golden cases.
 
-    The fake provider intentionally reads expected output from a golden set so
-    the async worker can be tested before a real LLM adapter exists.
+    The fixture provider intentionally reads expected output from a golden set
+    so unit tests can stay deterministic while production uses a real LLM.
     """
 
     def __init__(self, cases: list[GoldenExtractorCase] | None = None) -> None:
@@ -342,7 +342,7 @@ def bind_expected_result(expected: JsonDict, input_package: JsonDict, case_id: s
     result["schema_version"] = EXTRACTOR_RESULT_SCHEMA_VERSION
     result["job_id"] = job["job_id"]
     result["episode_id"] = episode["episode_id"]
-    result.setdefault("model", {"provider": "golden_fake", "model": "golden-set", "prompt_version": "fake.v1"})
+    result.setdefault("model", {"provider": "golden_fixture", "model": "golden-set", "prompt_version": "fixture.v1"})
     result.setdefault("trace", {})["golden_case_id"] = case_id
 
     for candidate in result.get("candidates", []):
@@ -379,7 +379,7 @@ def noop_result(input_package: JsonDict, *, reason: str) -> JsonDict:
         "schema_version": EXTRACTOR_RESULT_SCHEMA_VERSION,
         "job_id": job["job_id"],
         "episode_id": episode["episode_id"],
-        "model": {"provider": "golden_fake", "model": "golden-set", "prompt_version": "fake.v1"},
+        "model": {"provider": "golden_fixture", "model": "golden-set", "prompt_version": "fixture.v1"},
         "candidates": [
             {
                 "candidate_id": new_id("draft"),

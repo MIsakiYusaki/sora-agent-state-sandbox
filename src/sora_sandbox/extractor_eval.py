@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .memory_extractor_provider import GoldenSetExtractorProvider, MemoryExtractorProvider
+from .memory_extractor_provider import MemoryExtractorProvider, OpenAICompatibleExtractorProvider
 from .memory_runtime import MemoryRuntime
 from .memory_schema import JsonDict
 
@@ -25,7 +25,7 @@ def run_extractor_eval(config: ExtractorEvalConfig) -> JsonDict:
     with tempfile.TemporaryDirectory() as temp_dir:
         runtime = MemoryRuntime(Path(temp_dir) / "extractor_eval.db")
         try:
-            provider = config.provider or GoldenSetExtractorProvider()
+            provider = config.provider or OpenAICompatibleExtractorProvider.from_env()
             for case in cases:
                 case_results.append(_run_case(runtime, provider, case, auto_commit=config.auto_commit))
         finally:

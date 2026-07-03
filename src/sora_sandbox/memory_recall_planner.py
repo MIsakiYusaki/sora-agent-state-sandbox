@@ -333,34 +333,6 @@ class HybridRecallPlanner:
             )
 
 
-class FakeRecallPlannerProvider:
-    def plan(self, input_package: JsonDict) -> JsonDict:
-        query = str(input_package.get("query_text") or "")
-        rule = input_package.get("rule_plan", {})
-        intent = rule.get("query_intent") or classify_query_intent(query)
-        return {
-            "decision": rule.get("decision", "deep_recall"),
-            "query_intent": intent,
-            "subqueries": [
-                {
-                    "query_id": "llm_q1",
-                    "text": query,
-                    "memory_types": memory_types_for_intent(intent),
-                    "entities": extract_entities(query, input_package.get("turn_frame") or {}),
-                    "time_range": "any",
-                    "backends": list(rule.get("backends") or ["fts", "vector", "temporal", "graph"]),
-                    "top_k": int(rule.get("top_k") or 5),
-                    "weight": 1.0,
-                    "reason": "fake llm planner mirrors rule plan",
-                }
-            ],
-            "surface_hint": rule.get("surface_hint", "allow_gist"),
-            "decision_reasons": ["fake llm planner output"],
-            "model": {"provider": "fake", "model": "fake-recall-planner"},
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        }
-
-
 class OpenAICompatibleRecallPlannerProvider:
     def __init__(
         self,
@@ -449,8 +421,6 @@ def create_recall_planner_from_env() -> RecallPlanner:
     mode = os.environ.get("SORA_RECALL_PLANNER_PROVIDER", "hybrid_rules").lower()
     if mode in {"rules", "rule"}:
         return RuleRecallPlanner()
-    if mode in {"fake", "fake_llm"}:
-        return HybridRecallPlanner(llm_provider=FakeRecallPlannerProvider(), enable_llm=True)
     if mode in {"llm", "hybrid_llm", "openai", "deepseek"}:
         return HybridRecallPlanner(llm_provider=OpenAICompatibleRecallPlannerProvider.from_env(), enable_llm=True)
     return HybridRecallPlanner(enable_llm=False)

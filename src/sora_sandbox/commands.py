@@ -379,12 +379,6 @@ def handle_command(
         return dump(memory_admin.claim_next_extraction_job()), False
     if command == "/run-extraction-job":
         require_memory_admin(memory_admin)
-        if "--real" in args:
-            from .memory_extractor_provider import OpenAICompatibleExtractorProvider
-
-            return dump(
-                memory_admin.run_extraction_once(provider=OpenAICompatibleExtractorProvider.from_env())
-            ), False
         return dump(memory_admin.run_extraction_once()), False
     if command == "/backfill-extraction-jobs":
         require_memory_admin(memory_admin)
@@ -424,6 +418,13 @@ def handle_command(
         require_memory_admin(memory_admin)
         limit = int(arg_value(args[0])) if args else 20
         return dump(memory_admin.list_recall_traces(limit)), False
+    if command == "/surface-traces":
+        require_memory_admin(memory_admin)
+        limit = int(arg_value(args[0])) if args else 20
+        return dump(memory_admin.list_surface_policy_traces(limit)), False
+    if command == "/surface-eval":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.run_surface_eval()), False
     if command == "/memory-health":
         require_memory_admin(memory_admin)
         return dump(memory_admin.health()), False
@@ -733,8 +734,8 @@ Memory：
       调试 Recall Planner、写入预取计划，或运行 planner eval。
   /recall-plan-cache /recall-plan-traces /planner-memory-evals
       查看 planner cache、planner trace 和 planner eval 历史。
-  /run-extraction-job [--real]
-      领取并执行一个 pending extraction_job；默认使用 golden fake，带 --real 时调用真实 OpenAI-compatible LLM。
+  /run-extraction-job
+      领取并执行一个 pending extraction_job；默认调用真实 OpenAI-compatible LLM。
   /backfill-extraction-jobs [--limit N] [--force]
       为已封口/已抽取 episode 创建补抽取 job；--force 会允许重跑已有 completed job。
   /memory-extraction-observability [--limit N]

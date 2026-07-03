@@ -7,7 +7,7 @@ import sys
 
 from .agent import AgentRunner
 from .credentials import CredentialError, CredentialManager
-from .llm import DeepSeekClient, FakeLLMClient
+from .llm import DeepSeekClient
 from .memory_system import MemorySystem
 from .render import render_trace_panel
 from .repl import SoraRepl
@@ -16,7 +16,7 @@ from .state import StateStore
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Project Sora Agent State Sandbox")
-    parser.add_argument("--provider", choices=["deepseek", "fake"], default="deepseek")
+    parser.add_argument("--provider", choices=["deepseek"], default="deepseek")
     parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", "deepseek-v4-flash"))
     parser.add_argument("--once", help="Run one user turn and exit.")
     parser.add_argument("--json", action="store_true", help="Print full JSON result for --once.")
@@ -38,8 +38,6 @@ def configure_stdio() -> None:
 
 
 def make_llm(provider: str, model: str, no_prompt_key: bool):
-    if provider == "fake":
-        return FakeLLMClient()
     manager = CredentialManager()
     key = manager.get_api_key(prompt_if_missing=not no_prompt_key)
     return DeepSeekClient(

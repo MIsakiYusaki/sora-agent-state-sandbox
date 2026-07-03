@@ -50,6 +50,8 @@ from .memory_store import (
     revision_from_row,
     row_value,
 )
+from .memory_surface_eval import MemorySurfaceEvalService
+from .memory_surface_policy import SurfacePolicyEngine, create_surface_policy_from_env
 from .memory_vector_index import VectorIndex
 from .paths import SEEDS_DIR, workspace_state_dir
 from .state import load_jsonl
@@ -71,6 +73,15 @@ def _content_hash(*parts: str | None) -> str:
     return digest.hexdigest()
 
 
+def _feedback_default_value(feedback_type: str) -> float:
+    normalized = feedback_type.lower().strip()
+    if normalized in {"helpful", "useful", "use_more", "good_surface", "relevant"}:
+        return 1.0
+    if normalized in {"too_much", "not_relevant", "bad_surface", "annoying", "wrong_context"}:
+        return -1.0
+    return 0.0
+
+
 @dataclass
 class MemoryRuntime:
     """Local canonical memory runtime used by the PoC.
@@ -86,6 +97,7 @@ class MemoryRuntime:
     gate: MemoryGate | None = None
     embedding_provider: EmbeddingProvider | None = None
     reranker: MemoryReranker | None = None
+    surface_policy: SurfacePolicyEngine | None = None
     vector_index_factory: Callable[[sqlite3.Connection, EmbeddingProvider], VectorIndex] | None = None
 
     def __post_init__(self) -> None:
@@ -95,6 +107,7 @@ class MemoryRuntime:
         self.recall_planner = self.recall_planner or create_recall_planner_from_env()
         self.embedding_provider = self.embedding_provider or create_embedding_provider_from_env()
         self.reranker = self.reranker or create_reranker_from_env()
+        self.surface_policy = self.surface_policy or create_surface_policy_from_env()
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
@@ -118,8 +131,9 @@ class MemoryRuntime:
             self.agent_id,
             self.recall_planner,
             self.index_outbox.vector_index,
-            MemoryContextPacker(),
+            MemoryContextPacker(self.surface_policy.provider),
             self.reranker,
+            self.surface_policy,
         )
         self.projector_bus = MemoryProjectorBus(self._conn, lock=self._lock)
         self.canonical_store = MemoryCanonicalStore(
@@ -168,6 +182,11 @@ class MemoryRuntime:
             lock=self._lock,
             plan_recall=self.plan_recall,
         )
+        self.surface_eval = MemorySurfaceEvalService(
+            self._conn,
+            lock=self._lock,
+            surface_policy=self.surface_policy,
+        )
         self.gate_pipeline = MemoryGatePipeline(
             self._conn,
             lock=self._lock,
@@ -202,12 +221,19 @@ class MemoryRuntime:
             self._conn.executescript(
                 """
                 DELETE FROM recall_trace_item;
+                DELETE FROM memory_surface_policy_item;
+                DELETE FROM memory_surface_policy_trace;
+                DELETE FROM memory_surface_feedback;
+                DELETE FROM memory_surface_consent;
+                DELETE FROM memory_surface_override;
                 DELETE FROM recall_trace;
                 DELETE FROM memory_revision;
                 DELETE FROM memory_recall_eval_case;
                 DELETE FROM memory_recall_eval_run;
                 DELETE FROM memory_planner_eval_case;
                 DELETE FROM memory_planner_eval_run;
+                DELETE FROM memory_surface_eval_case;
+                DELETE FROM memory_surface_eval_run;
                 DELETE FROM recall_plan_cache;
                 DELETE FROM recall_plan_trace;
                 DELETE FROM memory_canonical_eval_case;
@@ -2263,6 +2289,308 @@ class MemoryRuntime:
     def list_forget_requests(self, *, limit: int = 50) -> list[JsonDict]:
         return self.retention.list_forget_requests(limit=limit)
 
+    def set_surface_override(
+        self,
+        memory_id: str,
+        *,
+        surface_permission: str,
+        override_type: str = "user_control",
+        reason: str = "user_surface_override",
+        actor: str = "user",
+        expires_at: str | None = None,
+        cooldown_until: str | None = None,
+        metadata: JsonDict | None = None,
+    ) -> JsonDict:
+        allowed = {"auto", "allow", "silent_only", "ask", "always_ask", "none", "hidden", "deny"}
+        if surface_permission not in allowed:
+            raise ValueError(f"invalid surface_permission: {surface_permission}")
+        before = self.get_memory(memory_id)
+        override_id = _new_id("surface_override")
+        now = _utc_now()
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO memory_surface_override (
+                    id, memory_id, override_type, surface_permission, reason,
+                    actor, status, expires_at, metadata_json, created_at, revoked_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, NULL)
+                """,
+                (
+                    override_id,
+                    memory_id,
+                    override_type,
+                    surface_permission,
+                    reason,
+                    actor,
+                    expires_at,
+                    _json(metadata or {}),
+                    now,
+                ),
+            )
+            if cooldown_until is None:
+                self._conn.execute(
+                    """
+                    UPDATE memory_record
+                    SET surface_permission = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (surface_permission, now, memory_id),
+                )
+            else:
+                self._conn.execute(
+                    """
+                    UPDATE memory_record
+                    SET surface_permission = ?, surface_cooldown_until = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (surface_permission, cooldown_until, now, memory_id),
+                )
+            self._conn.commit()
+        after = self.get_memory(memory_id)
+        self._append_revision(
+            memory_id,
+            action="surface_override",
+            before=before,
+            after=after,
+            reason=reason,
+            actor=actor,
+        )
+        return {
+            "id": override_id,
+            "memory_id": memory_id,
+            "surface_permission": surface_permission,
+            "override_type": override_type,
+            "status": "active",
+            "expires_at": expires_at,
+            "memory": after,
+        }
+
+    def hide_memory(
+        self,
+        memory_id: str,
+        *,
+        reason: str = "user_hide_memory",
+        actor: str = "user",
+    ) -> JsonDict:
+        return self.set_surface_override(
+            memory_id,
+            surface_permission="none",
+            override_type="hide",
+            reason=reason,
+            actor=actor,
+        )
+
+    def clear_surface_override(
+        self,
+        memory_id: str,
+        *,
+        reason: str = "user_clear_surface_override",
+        actor: str = "user",
+    ) -> JsonDict:
+        before = self.get_memory(memory_id)
+        now = _utc_now()
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE memory_surface_override
+                SET status = 'revoked', revoked_at = ?
+                WHERE memory_id = ? AND status = 'active'
+                """,
+                (now, memory_id),
+            )
+            self._conn.execute(
+                """
+                UPDATE memory_record
+                SET surface_permission = 'auto',
+                    surface_cooldown_until = NULL,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (now, memory_id),
+            )
+            self._conn.commit()
+        after = self.get_memory(memory_id)
+        self._append_revision(
+            memory_id,
+            action="surface_override_cleared",
+            before=before,
+            after=after,
+            reason=reason,
+            actor=actor,
+        )
+        return {"memory_id": memory_id, "status": "cleared", "memory": after}
+
+    def record_surface_feedback(
+        self,
+        memory_id: str,
+        *,
+        feedback_type: str,
+        value: float | None = None,
+        recall_trace_id: str | None = None,
+        actor: str = "user",
+        metadata: JsonDict | None = None,
+    ) -> JsonDict:
+        self.get_memory(memory_id)
+        feedback_id = _new_id("surface_feedback")
+        now = _utc_now()
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO memory_surface_feedback (
+                    id, memory_id, recall_trace_id, feedback_type, value,
+                    actor, metadata_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    feedback_id,
+                    memory_id,
+                    recall_trace_id,
+                    feedback_type,
+                    value,
+                    actor,
+                    _json(metadata or {}),
+                    now,
+                ),
+            )
+            self._conn.commit()
+        return {
+            "id": feedback_id,
+            "memory_id": memory_id,
+            "recall_trace_id": recall_trace_id,
+            "feedback_type": feedback_type,
+            "value": value,
+            "actor": actor,
+            "created_at": now,
+        }
+
+    def record_surface_consent(
+        self,
+        memory_id: str,
+        *,
+        status: str,
+        request_type: str = "memory_disclosure",
+        prompt: str = "",
+        recall_trace_id: str | None = None,
+        actor: str = "user",
+        expires_at: str | None = None,
+        metadata: JsonDict | None = None,
+    ) -> JsonDict:
+        allowed = {"requested", "granted", "denied", "expired", "revoked"}
+        if status not in allowed:
+            raise ValueError(f"invalid consent status: {status}")
+        self.get_memory(memory_id)
+        consent_id = _new_id("surface_consent")
+        now = _utc_now()
+        granted_at = now if status == "granted" else None
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO memory_surface_consent (
+                    id, memory_id, recall_trace_id, request_type, status,
+                    prompt, actor, granted_at, expires_at, metadata_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    consent_id,
+                    memory_id,
+                    recall_trace_id,
+                    request_type,
+                    status,
+                    prompt,
+                    actor,
+                    granted_at,
+                    expires_at,
+                    _json(metadata or {}),
+                    now,
+                ),
+            )
+            self._conn.commit()
+        return {
+            "id": consent_id,
+            "memory_id": memory_id,
+            "recall_trace_id": recall_trace_id,
+            "request_type": request_type,
+            "status": status,
+            "granted_at": granted_at,
+            "expires_at": expires_at,
+            "created_at": now,
+        }
+
+    def list_surface_overrides(
+        self,
+        *,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[JsonDict]:
+        sql = "SELECT * FROM memory_surface_override"
+        params: list[Any] = []
+        if status:
+            sql += " WHERE status = ?"
+            params.append(status)
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._lock:
+            rows = self._conn.execute(sql, params).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "memory_id": row["memory_id"],
+                "override_type": row["override_type"],
+                "surface_permission": row["surface_permission"],
+                "reason": row["reason"],
+                "actor": row["actor"],
+                "status": row["status"],
+                "expires_at": row["expires_at"],
+                "metadata": _loads(row_value(row, "metadata_json", "{}"), {}),
+                "created_at": row["created_at"],
+                "revoked_at": row["revoked_at"],
+            }
+            for row in rows
+        ]
+
+    def list_surface_feedback(self, *, limit: int = 50) -> list[JsonDict]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM memory_surface_feedback ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "memory_id": row["memory_id"],
+                "recall_trace_id": row["recall_trace_id"],
+                "feedback_type": row["feedback_type"],
+                "value": row["value"],
+                "actor": row["actor"],
+                "metadata": _loads(row["metadata_json"], {}),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+    def list_surface_consents(self, *, limit: int = 50) -> list[JsonDict]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM memory_surface_consent ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "memory_id": row["memory_id"],
+                "recall_trace_id": row["recall_trace_id"],
+                "request_type": row["request_type"],
+                "status": row["status"],
+                "prompt": row["prompt"],
+                "actor": row["actor"],
+                "granted_at": row["granted_at"],
+                "expires_at": row["expires_at"],
+                "metadata": _loads(row["metadata_json"], {}),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
     def store_health(self) -> JsonDict:
         return self.observability.store_health()
 
@@ -2283,6 +2611,12 @@ class MemoryRuntime:
 
     def list_planner_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
         return self.planner_eval.list_runs(limit=limit)
+
+    def run_surface_eval(self, cases: list[JsonDict] | None = None) -> JsonDict:
+        return self.surface_eval.run(cases=cases)
+
+    def list_surface_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
+        return self.surface_eval.list_runs(limit=limit)
 
     def revisions_for_memory(self, memory_id: str) -> list[JsonDict]:
         with self._lock:
@@ -2315,6 +2649,67 @@ class MemoryRuntime:
                 "cost": json_loads(row_value(row, "cost_json", "{}"), {}),
                 "pinned": bool(row_value(row, "pinned", 0)),
                 "expires_at": row_value(row, "expires_at"),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+    def list_surface_policy_traces(self, limit: int = 20) -> list[JsonDict]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM memory_surface_policy_trace
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            trace_ids = [row["id"] for row in rows]
+            item_rows: list[sqlite3.Row] = []
+            if trace_ids:
+                placeholders = ",".join("?" for _ in trace_ids)
+                item_rows = self._conn.execute(
+                    f"""
+                    SELECT * FROM memory_surface_policy_item
+                    WHERE trace_id IN ({placeholders})
+                    ORDER BY trace_id, rank
+                    """,
+                    trace_ids,
+                ).fetchall()
+        grouped: dict[str, list[JsonDict]] = {}
+        for item in item_rows:
+            grouped.setdefault(item["trace_id"], []).append(
+                {
+                    "memory_id": item["memory_id"],
+                    "rank": item["rank"],
+                    "score": item["score"],
+                    "priority": item["priority"],
+                    "action": item["action"],
+                    "legacy_action": item["legacy_action"],
+                    "selected": bool(item["selected"]),
+                    "reason": item["reason"],
+                    "suppression_reason": item["suppression_reason"],
+                    "policy": _loads(item["policy_json"], {}),
+                }
+            )
+        return [
+            {
+                "id": row["id"],
+                "recall_trace_id": row["recall_trace_id"],
+                "turn_id": row["turn_id"],
+                "session_id": row["session_id"],
+                "policy_version": row["policy_version"],
+                "policy_profile": row["policy_profile"],
+                "provider": row["provider"],
+                "surface_action": row["surface_action"],
+                "legacy_surface_action": row["legacy_surface_action"],
+                "decision_reason": row["decision_reason"],
+                "forbidden_disclosures": _loads(row["forbidden_disclosures_json"], []),
+                "consent_request": _loads(row["consent_request_json"], {}),
+                "provider_usage": _loads(row_value(row, "provider_usage_json", "[]"), []),
+                "token_budget": row_value(row, "token_budget", 0),
+                "token_used": row_value(row, "token_used", 0),
+                "items": grouped.get(row["id"], []),
                 "created_at": row["created_at"],
             }
             for row in rows
@@ -2483,6 +2878,8 @@ class MemoryRuntime:
                 "SELECT evidence_id FROM memory_evidence WHERE memory_id = ? ORDER BY evidence_id",
                 (row["id"],),
             ).fetchall()
+            surface_feedback = self._surface_feedback_for_memory(row["id"])
+            surface_consent = self._surface_consent_for_memory(row["id"])
         return {
             "id": row["id"],
             "owner_user_id": row["owner_user_id"],
@@ -2503,12 +2900,72 @@ class MemoryRuntime:
             "retrieval_permission": row["retrieval_permission"],
             "use_permission": row["use_permission"],
             "disclosure_permission": row["disclosure_permission"],
+            "surface_permission": row_value(row, "surface_permission", "auto") or "auto",
+            "surface_cooldown_until": row_value(row, "surface_cooldown_until"),
+            "relationship_impact": row_value(row, "relationship_impact", 0.0) or 0.0,
             "schema_version": row["schema_version"],
             "index_watermark": row_value(row, "index_watermark"),
             "access_count": row_value(row, "access_count", 0) or 0,
             "last_accessed_at": row_value(row, "last_accessed_at"),
+            "surface_count": row_value(row, "surface_count", 0) or 0,
+            "last_surfaced_at": row_value(row, "last_surfaced_at"),
+            "surface_feedback": surface_feedback,
+            "surface_consent": surface_consent,
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+        }
+
+    def _surface_feedback_for_memory(self, memory_id: str) -> JsonDict:
+        rows = self._conn.execute(
+            """
+            SELECT * FROM memory_surface_feedback
+            WHERE memory_id = ?
+            ORDER BY created_at DESC
+            LIMIT 20
+            """,
+            (memory_id,),
+        ).fetchall()
+        if not rows:
+            return {"score": 0.0, "positive_count": 0, "negative_count": 0, "last_feedback_at": None}
+        score = 0.0
+        positive = 0
+        negative = 0
+        for row in rows:
+            value = row_value(row, "value")
+            if value is None:
+                value = _feedback_default_value(str(row["feedback_type"]))
+            value = float(value)
+            score += value
+            if value > 0:
+                positive += 1
+            elif value < 0:
+                negative += 1
+        normalized = max(-1.0, min(1.0, score / max(len(rows), 1)))
+        return {
+            "score": round(normalized, 4),
+            "positive_count": positive,
+            "negative_count": negative,
+            "last_feedback_at": rows[0]["created_at"],
+        }
+
+    def _surface_consent_for_memory(self, memory_id: str) -> JsonDict:
+        rows = self._conn.execute(
+            """
+            SELECT * FROM memory_surface_consent
+            WHERE memory_id = ?
+              AND (expires_at IS NULL OR expires_at > ?)
+            ORDER BY created_at DESC
+            LIMIT 10
+            """,
+            (memory_id, _utc_now()),
+        ).fetchall()
+        granted = next((row for row in rows if row["status"] == "granted"), None)
+        denied = next((row for row in rows if row["status"] in {"denied", "revoked"}), None)
+        return {
+            "granted": granted is not None and denied is None,
+            "granted_at": row_value(granted, "granted_at") if granted is not None else None,
+            "denied": denied is not None and granted is None,
+            "denied_at": row_value(denied, "created_at") if denied is not None else None,
         }
 
     @staticmethod
