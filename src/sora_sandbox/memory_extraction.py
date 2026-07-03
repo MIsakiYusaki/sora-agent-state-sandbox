@@ -19,9 +19,9 @@ GOAL_PATTERNS = (
     re.compile(r"我们的(?:目标|计划|下一步)是?(?P<content>[^。！？!?]+)"),
 )
 
-PROJECT_PATTERNS = (
-    re.compile(r"这个项目(?:应该|要|需要)(?P<content>[^。！？!?]+)"),
-    re.compile(r"我们(?:应该|要|需要)(?P<content>[^。！？!?]*(?:架构|设计|实现|治理|召回|记忆)[^。！？!?]*)"),
+DOMAIN_PRINCIPLE_PATTERNS = (
+    re.compile(r"这个(?:项目|计划|工作|创作)(?:应该|要|需要)(?P<content>[^。！？!?]+)"),
+    re.compile(r"我们(?:应该|要|需要)(?P<content>[^。！？!?]*(?:架构|设计|实现|治理|流程|原则|策略|记忆)[^。！？!?]*)"),
 )
 
 
@@ -84,11 +84,11 @@ def extract_memory_candidates(user_input: str, reply: str = "") -> list[MemoryEx
     candidates.extend(
         _extract_by_patterns(
             text,
-            PROJECT_PATTERNS,
-            memory_type="project_principle",
-            tags=("project_sora", "implicit_user_statement"),
+            DOMAIN_PRINCIPLE_PATTERNS,
+            memory_type="domain_principle",
+            tags=("domain_principle", "implicit_user_statement"),
             confidence=0.86,
-            reason="implicit_project_principle_statement",
+            reason="implicit_domain_principle_statement",
         )
     )
     return _dedupe_extractions(candidates)

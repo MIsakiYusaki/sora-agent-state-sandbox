@@ -52,7 +52,7 @@ def _run_case(
     for memory in case.get("setup_memories", []):
         runtime.add_manual(
             str(memory["summary"]),
-            memory_type=str(memory.get("type") or "project_principle"),
+            memory_type=str(memory.get("type") or "domain_principle"),
             tags=[str(tag) for tag in memory.get("tags", [])],
         )
     turn = runtime.ingest_turn(str(case["user"]), str(case.get("assistant") or "Understood."))

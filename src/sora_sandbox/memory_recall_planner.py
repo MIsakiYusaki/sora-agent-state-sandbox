@@ -30,23 +30,34 @@ EXPLICIT_RECALL_TERMS = (
     "说过",
     "提过",
 )
-PROJECT_TERMS = (
-    "module",
-    "phase",
+DOMAIN_CONTINUITY_TERMS = (
+    "project",
+    "plan",
+    "workflow",
     "architecture",
     "design",
-    "eval",
-    "audit",
-    "github",
-    "feishu",
-    "project sora",
-    "模块",
-    "文档",
+    "implementation",
+    "principle",
+    "strategy",
+    "research",
+    "writing",
+    "study",
+    "creative",
+    "business",
+    "next step",
+    "项目",
+    "计划",
+    "工作",
+    "学习",
+    "研究",
+    "创作",
     "方案",
     "架构",
-    "审计",
-    "开发",
-    "实现",
+    "设计",
+    "原则",
+    "流程",
+    "策略",
+    "下一步",
 )
 RELATIONSHIP_TERMS = (
     "relationship",
@@ -119,7 +130,7 @@ TOPIC_PATTERNS = (
     re.compile(r"关于(?P<term>[^，。！？?]{1,60})"),
     re.compile(r"推进(?P<term>[^，。！？?]{1,40})"),
     re.compile(r"设计(?P<term>[^，。！？?]{1,40})"),
-    re.compile(r"我的(?P<term>(?:偏好|习惯|风格|目标|项目|方案|记忆|设置|名字|关系)[^，。！？?]{0,20})"),
+    re.compile(r"我的(?P<term>[^，。！？?]{1,40})"),
 )
 
 
@@ -278,7 +289,7 @@ class HybridRecallPlanner:
         try:
             payload = self.llm_provider.plan(
                 {
-                    "task": "plan_project_sora_memory_recall",
+                    "task": "plan_domain_neutral_memory_recall",
                     "schema_version": RECALL_PLANNER_VERSION,
                     "query_text": query_text,
                     "turn_frame": turn_frame or {},
@@ -490,7 +501,7 @@ QUERY_INTENTS = (
     "explicit_memory_lookup",
     "preference_lookup",
     "shared_episode_lookup",
-    "project_continuity",
+    "domain_continuity",
     "relationship_context",
     "world_ops_lookup",
     "write_related_memory",
@@ -508,7 +519,7 @@ def classify_query_intent(
     if mode == "write_related_memory":
         return "write_related_memory"
     if mode == "prefetch":
-        return "project_continuity" if _contains_any(lowered, PROJECT_TERMS) else "open_chat"
+        return "domain_continuity" if _contains_any(lowered, DOMAIN_CONTINUITY_TERMS) else "open_chat"
     if not query_text.strip():
         return "negative_or_no_recall"
     if _contains_any(lowered, RELATIONSHIP_TERMS):
@@ -521,8 +532,8 @@ def classify_query_intent(
         return "preference_lookup"
     if _contains_any(lowered, WORLD_TERMS):
         return "world_ops_lookup"
-    if _contains_any(lowered, PROJECT_TERMS) or _turn_frame_has_project_context(turn_frame):
-        return "project_continuity"
+    if _contains_any(lowered, DOMAIN_CONTINUITY_TERMS) or _turn_frame_has_domain_context(turn_frame):
+        return "domain_continuity"
     return "open_chat"
 
 
@@ -544,7 +555,7 @@ def decide_recall_depth(
         return "light_recall"
     if explicit or intent in {"explicit_memory_lookup", "shared_episode_lookup", "write_related_memory"}:
         return "deep_recall"
-    if intent in {"project_continuity", "preference_lookup", "relationship_context", "world_ops_lookup"}:
+    if intent in {"domain_continuity", "preference_lookup", "relationship_context", "world_ops_lookup"}:
         return "light_recall"
     if _contains_any(query_text.lower(), DEICTIC_TERMS) and _turn_frame_has_recent_context(turn_frame):
         return "light_recall"
@@ -603,7 +614,7 @@ def build_subqueries(
             reason=f"{intent} primary query",
         )
     ]
-    if intent == "project_continuity" and entities:
+    if intent == "domain_continuity" and entities:
         text = " ".join(entities + salient_terms) or query_text
         subqueries.append(
             RecallSubquery(
@@ -611,11 +622,11 @@ def build_subqueries(
                 text=text,
                 tokens=search_tokens(text),
                 salient_terms=_dedupe_terms(entities + salient_terms),
-                memory_types=["project_principle", "shared_episode", "procedural_hint"],
+                memory_types=["domain_principle", "project_principle", "shared_episode", "procedural_hint"],
                 entities=entities,
                 time_range="recent_or_any",
                 backends=("fts", "vector", "temporal", "graph"),
-                filters={"project_context": True},
+                filters={"domain_context": True},
                 top_k=max(top_k, 5),
                 min_confidence=0.5,
                 weight=0.8,
@@ -656,18 +667,18 @@ def build_subqueries(
 def memory_types_for_intent(intent: str) -> list[str]:
     return {
         "explicit_memory_lookup": [],
-        "preference_lookup": ["preference", "persona_delta", "project_principle"],
+        "preference_lookup": ["preference", "persona_delta", "domain_principle", "project_principle"],
         "shared_episode_lookup": ["shared_episode", "episode", "worldops_episode"],
-        "project_continuity": ["project_principle", "procedural_hint", "shared_episode"],
+        "domain_continuity": ["domain_principle", "project_principle", "procedural_hint", "shared_episode"],
         "relationship_context": ["relationship_signal", "shared_episode", "preference"],
         "world_ops_lookup": ["world_ops", "world_state", "worldops_episode"],
         "write_related_memory": [],
-        "open_chat": ["preference", "shared_episode", "project_principle"],
+        "open_chat": ["preference", "shared_episode", "domain_principle", "project_principle"],
     }.get(intent, [])
 
 
 def time_range_for_intent(intent: str, *, explicit: bool) -> str:
-    if intent in {"shared_episode_lookup", "project_continuity"}:
+    if intent in {"shared_episode_lookup", "domain_continuity"}:
         return "recent_or_any"
     if explicit:
         return "any"
@@ -677,7 +688,7 @@ def time_range_for_intent(intent: str, *, explicit: bool) -> str:
 def top_k_for_intent(intent: str, *, top_k: int, explicit: bool) -> int:
     if intent == "write_related_memory":
         return max(top_k, 8)
-    if explicit or intent in {"shared_episode_lookup", "project_continuity"}:
+    if explicit or intent in {"shared_episode_lookup", "domain_continuity"}:
         return max(top_k, 5)
     return top_k
 
@@ -697,7 +708,7 @@ def choose_backends(query_text: str, *, intent: str = "open_chat", explicit_reca
         return ("fts", "vector", "temporal")
     if intent == "shared_episode_lookup":
         return ("fts", "vector", "temporal", "graph")
-    if intent == "project_continuity":
+    if intent == "domain_continuity":
         return ("fts", "vector", "temporal", "graph")
     return ("fts", "vector")
 
@@ -725,10 +736,6 @@ def extract_entities(query_text: str, turn_frame: JsonDict | None = None) -> lis
         if isinstance(value, list):
             entities.extend(str(item) for item in value if str(item).strip())
     for match in re.finditer(r"\b[A-Z][A-Za-z0-9_/-]{2,}\b", query_text):
-        entities.append(match.group(0))
-    for match in re.finditer(r"(Module\s*\d+|Phase\s*\d+)", query_text, flags=re.IGNORECASE):
-        entities.append(match.group(0))
-    for match in re.finditer(r"(模块\s*\d+|第[一二三四五六七八九十0-9]+部分)", query_text):
         entities.append(match.group(0))
     return _dedupe_terms(entities)
 
@@ -771,7 +778,7 @@ def rule_features(query_text: str, *, turn_frame: JsonDict | None = None) -> Jso
     lowered = query_text.lower()
     return {
         "explicit_recall": is_explicit_recall(query_text),
-        "has_project_terms": _contains_any(lowered, PROJECT_TERMS),
+        "has_domain_continuity_terms": _contains_any(lowered, DOMAIN_CONTINUITY_TERMS),
         "has_relationship_terms": _contains_any(lowered, RELATIONSHIP_TERMS),
         "has_preference_terms": _contains_any(lowered, PREFERENCE_TERMS),
         "has_episode_terms": _contains_any(lowered, EPISODE_TERMS),
@@ -931,10 +938,10 @@ def _needs_llm_planner(plan: RecallPlan, query_text: str, turn_frame: JsonDict |
     return _contains_any(lowered, DEICTIC_TERMS) and _turn_frame_has_recent_context(turn_frame)
 
 
-def _turn_frame_has_project_context(turn_frame: JsonDict | None) -> bool:
+def _turn_frame_has_domain_context(turn_frame: JsonDict | None) -> bool:
     frame = turn_frame or {}
     text = " ".join(str(item) for key in ("recent_topics", "local_entities", "entities") for item in frame.get(key, []) if isinstance(frame.get(key), list))
-    return _contains_any(text.lower(), PROJECT_TERMS)
+    return _contains_any(text.lower(), DOMAIN_CONTINUITY_TERMS)
 
 
 def _turn_frame_has_recent_context(turn_frame: JsonDict | None) -> bool:
@@ -1032,7 +1039,7 @@ def _repair_json_text(text: str) -> str:
 
 def _llm_system_prompt() -> str:
     return (
-        "You are Project Sora's Recall Planner. Return one valid JSON object only. "
+        "You are a domain-neutral memory Recall Planner. Return one valid JSON object only. "
         "You plan memory retrieval; you never claim facts are true and never answer the user. "
         "Use fields: decision, query_intent, explicit_recall, scene, subqueries[], budget, "
         "surface_hint, fallbacks[], decision_reasons[]. A subquery has query_id, text, "
@@ -1040,6 +1047,6 @@ def _llm_system_prompt() -> str:
         "Allowed decisions: skip, light_recall, deep_recall, prefetch_only. "
         "Allowed backends: fts, vector, temporal, graph. Prefer at most three subqueries. "
         "For relationship or companionship context, plan low-risk gist retrieval and leave final "
-        "surface decisions to Module 07. For write_related_memory mode, optimize precision for "
+        "surface decisions to the surface policy layer. For write_related_memory mode, optimize precision for "
         "UPDATE/MERGE target matching."
     )

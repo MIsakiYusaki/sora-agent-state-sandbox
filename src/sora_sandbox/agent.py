@@ -301,7 +301,7 @@ class AgentRunner:
             "growth_event_candidate": growth_candidate,
             "memory_hook_candidate": memory_hook_candidate,
             "session_update": {
-                "active_topic": "Sora Agent State Sandbox 工程验证",
+                "active_topic": "当前对话",
                 "last_user_input": user_input,
             },
             "audit_reason": "Agent Runtime 只生成回应计划和候选事件，不直接写长期记忆或 Persona。",
@@ -2257,7 +2257,7 @@ def route_expression(response_plan: JsonDict, context_pack: JsonDict, step) -> J
 def update_session(state: JsonDict, user_input: str, reply: str) -> None:
     session = state["session"]
     session["dialogue_state"]["active_topic"] = infer_active_topic(user_input)
-    session["dialogue_state"]["user_goal"] = "推进 Sora Agent State Sandbox 工程验证"
+    session["dialogue_state"]["user_goal"] = infer_user_goal(user_input)
     session["working_memory"]["last_reply_summary"] = reply[:120]
 
 
@@ -2400,16 +2400,30 @@ def infer_intent(user_input: str) -> str:
 
 def infer_active_topic(user_input: str) -> str:
     if "WorldOps" in user_input or "世界" in user_input:
-        return "WorldOps 工程验证"
+        return "Sora 的生活与世界"
     if "Persona" in user_input or "人格" in user_input:
-        return "Persona 工程验证"
+        return "人格与表达风格"
     if "记忆" in user_input:
-        return "Memory 工程验证"
-    return "Sora Agent State Sandbox 工程验证"
+        return "记忆与共同经历"
+    keywords = _keywords(user_input)
+    return " / ".join(keywords[:3]) if keywords else "当前对话"
+
+
+def infer_user_goal(user_input: str) -> str:
+    intent = infer_intent(user_input)
+    if intent == "engineering_design":
+        return "推进用户当前项目或方案的设计"
+    if intent == "worldops_followup":
+        return "了解 Sora 的生活、世界或近况"
+    if intent == "memory_grounded_reply":
+        return "基于共同记忆回应用户"
+    if intent == "greeting":
+        return "轻量回应用户的问候"
+    return "理解用户当前需要，并保持陪伴关系的连续性"
 
 
 def _keywords(text: str) -> list[str]:
-    base = ["方案", "设计", "agent", "Agent", "Sora", "sora", "WorldOps", "Persona", "记忆", "工程", "workflow"]
+    base = ["方案", "设计", "计划", "工作", "学习", "创作", "关系", "记忆", "生活", "workflow"]
     return [term for term in base if term in text] + [part for part in text.replace("，", " ").replace("。", " ").split() if len(part) >= 2]
 
 

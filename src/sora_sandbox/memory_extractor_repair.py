@@ -19,8 +19,8 @@ OPERATION_ALIASES = {
 }
 
 TYPE_ALIASES = {
-    "project": "project_principle",
-    "principle": "project_principle",
+    "project": "domain_principle",
+    "principle": "domain_principle",
     "relationship": "relationship_signal",
     "worldops": "world_ops",
     "worldops_episode": "worldops_episode",
@@ -220,16 +220,16 @@ def _infer_memory_type(candidate: JsonDict, input_package: JsonDict) -> str:
         return "procedural_hint"
     if any(term in text for term in ("closeness", "shared history", "companionship", "relationship")):
         return "relationship_signal"
-    if any(term in text for term in ("project sora", "module", "extractor", "architecture", "eval", "prompt")):
-        return "project_principle"
+    if any(term in text for term in ("project", "architecture", "design", "implementation", "workflow", "policy", "prompt")):
+        return "domain_principle"
     return "preference"
 
 
 def _should_override_memory_type(candidate: JsonDict, inferred: str) -> bool:
     current = str(candidate.get("memory_type") or "")
-    if current == "preference" and inferred in {"project_principle", "relationship_signal"}:
+    if current == "preference" and inferred in {"domain_principle", "project_principle", "relationship_signal"}:
         return True
-    if current == "project_principle" and inferred == "relationship_signal":
+    if current in {"domain_principle", "project_principle"} and inferred == "relationship_signal":
         return True
     if current == "procedural_hint" and str(candidate.get("operation") or "").upper() != "NOOP":
         return True

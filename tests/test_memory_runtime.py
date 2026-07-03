@@ -20,6 +20,7 @@ from sora_sandbox.extractor_eval import ExtractorEvalConfig, run_extractor_eval
 from sora_sandbox.memory_extractor_provider import OpenAICompatibleExtractorProvider
 from sora_sandbox.memory_extractor_repair import repair_extractor_json
 from sora_sandbox.memory_console import MemoryConsole
+from sora_sandbox.memory_recall_planner import extract_salient_terms
 from sora_sandbox.memory_reranker import HTTPCrossEncoderReranker, OpenAICompatibleLLMReranker
 from sora_sandbox.memory_runtime import MemoryRuntime
 from sora_sandbox.memory_schema import JsonDict
@@ -157,7 +158,7 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["status"], "active")
         self.assertIn("工程设计", result["summary"])
-        self.assertEqual(result["type"], "project_principle")
+        self.assertEqual(result["type"], "domain_principle")
 
     def test_forbidden_secret_is_not_persisted(self) -> None:
         before_memories = len(self.runtime.list_memories())
@@ -589,9 +590,9 @@ class MemoryRuntimeTests(unittest.TestCase):
 
     def test_module05_indexes_real_vector_documents_and_trace_items(self) -> None:
         memory = self.runtime.add_manual(
-            "module five vector recall alpha beta preference",
+            "workflow design vector recall alpha beta preference",
             memory_type="preference",
-            tags=["module05", "vector"],
+            tags=["workflow", "vector"],
         )
 
         document = self.runtime._conn.execute(
@@ -611,7 +612,7 @@ class MemoryRuntimeTests(unittest.TestCase):
             (memory["id"],),
         ).fetchone()[0]
 
-        frame = self.runtime.recall("alpha beta module five", top_k=1)
+        frame = self.runtime.recall("alpha beta workflow design", top_k=1)
         trace_item = self.runtime._conn.execute(
             "SELECT * FROM recall_trace_item WHERE trace_id = ? AND memory_id = ?",
             (frame["recall_trace_id"], memory["id"]),
@@ -1045,7 +1046,7 @@ class MemoryRuntimeTests(unittest.TestCase):
 
     def test_async_extractor_worker_materializes_golden_add_and_auto_commits(self) -> None:
         result = self.runtime.ingest_turn(
-            "remember that I prefer async extractor design for Project Sora memory",
+            "remember that I prefer async extractor design for my companion memory system",
             "I will keep that design preference.",
         )
 
@@ -1078,12 +1079,12 @@ class MemoryRuntimeTests(unittest.TestCase):
 
     def test_async_extractor_update_uses_related_memory_target(self) -> None:
         previous = self.runtime.add_manual(
-            "User prefers Project Sora development to use minimal loops before broader architecture.",
-            memory_type="project_principle",
-            tags=["project_sora", "development_principle"],
+            "User previously preferred minimal loops before broader architecture, but this product may need current best design.",
+            memory_type="domain_principle",
+            tags=["development_principle"],
         )
         result = self.runtime.ingest_turn(
-            "I no longer want minimal loops; Project Sora should pursue current best architecture.",
+            "I no longer want minimal loops; this product should pursue current best architecture.",
             "Understood.",
         )
 
@@ -1115,7 +1116,7 @@ class MemoryRuntimeTests(unittest.TestCase):
             "candidates": [
                 {
                     "operation": "ADD",
-                    "memory_type": "project_principle",
+                    "memory_type": "domain_principle",
                     "summary": "Span validation matters.",
                     "evidence_refs": [
                         {
@@ -1149,7 +1150,7 @@ class MemoryRuntimeTests(unittest.TestCase):
                 {
                     "candidate_id": "draft_known",
                     "operation": "ADD",
-                    "memory_type": "project_principle",
+                    "memory_type": "domain_principle",
                     "summary": "Contradiction validation matters.",
                     "evidence_refs": [
                         {
@@ -1199,7 +1200,7 @@ class MemoryRuntimeTests(unittest.TestCase):
 
         self.assertIn("candidate_to_candidates", repairs)
         self.assertEqual(validated.candidates[0].operation.value, "ADD")
-        self.assertEqual(validated.candidates[0].memory_type, "project_principle")
+        self.assertEqual(validated.candidates[0].memory_type, "domain_principle")
         self.assertEqual(validated.candidates[0].scores.confidence, 0.91)
 
     def test_openai_provider_second_pass_repairs_malformed_json(self) -> None:
@@ -1216,7 +1217,7 @@ class MemoryRuntimeTests(unittest.TestCase):
                         "choices": [
                             {
                                 "message": {
-                                    "content": '{"candidates":[{"operation":"ADD" "memory_type":"project_principle"}]}'
+                                    "content": '{"candidates":[{"operation":"ADD" "memory_type":"domain_principle"}]}'
                                 }
                             }
                         ],
@@ -1228,7 +1229,7 @@ class MemoryRuntimeTests(unittest.TestCase):
                         {
                             "message": {
                                 "content": (
-                                    '{"candidates":[{"operation":"ADD","memory_type":"project_principle",'
+                                    '{"candidates":[{"operation":"ADD","memory_type":"domain_principle",'
                                     '"summary":"Second pass JSON repair matters.",'
                                     '"evidence_refs":["$first_user_event"],"confidence":0.91,'
                                     '"importance":0.7,"stability":0.7,"specificity":0.8,'
@@ -1774,8 +1775,8 @@ class MemoryRuntimeTests(unittest.TestCase):
 
     def test_recall_planner_v2_schema_and_subqueries(self) -> None:
         plan = self.runtime.plan_recall(
-            "Do you remember what we said last time about Module 06 Recall Planner?",
-            turn_frame={"scene": "planning", "recent_topics": ["Module 06", "Recall Planner"]},
+            "Do you remember what we said last time about my writing workflow?",
+            turn_frame={"scene": "planning", "recent_topics": ["writing workflow", "character arcs"]},
             top_k=5,
         )
 
@@ -1789,10 +1790,15 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertIn("budget", plan)
         self.assertTrue(plan["decision_reasons"])
 
+    def test_salient_terms_keeps_broad_my_context(self) -> None:
+        self.assertEqual(extract_salient_terms("我的边界感需要更柔和"), ["边界感需要更柔和"])
+        self.assertEqual(extract_salient_terms("我的陪伴节奏和安全感很重要"), ["陪伴节奏和安全感很重要"])
+        self.assertEqual(extract_salient_terms("我的猫跑了"), ["猫跑了"])
+
     def test_prefetch_recall_writes_plan_cache_without_prompt_items(self) -> None:
         result = self.runtime.prefetch_recall(
-            "Module 06 Recall Planner next implementation",
-            turn_frame={"scene": "planning", "recent_topics": ["Module 06"]},
+            "next steps for my writing workflow design",
+            turn_frame={"scene": "planning", "recent_topics": ["writing workflow"]},
         )
 
         self.assertEqual(result["status"], "cached")
@@ -1803,8 +1809,8 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertEqual(cached[0]["plan"]["decision"], "prefetch_only")
 
         cache_hit = self.runtime.prefetch_recall(
-            "Module 06 Recall Planner next implementation",
-            turn_frame={"scene": "planning", "recent_topics": ["Module 06"]},
+            "next steps for my writing workflow design",
+            turn_frame={"scene": "planning", "recent_topics": ["writing workflow"]},
         )
         refreshed = self.runtime.list_recall_plan_cache()
         self.assertEqual(cache_hit["status"], "cache_hit")

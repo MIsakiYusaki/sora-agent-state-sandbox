@@ -67,18 +67,18 @@ class MemoryRecallPlannerEvalService:
         return [
             {
                 "case_name": "explicit_memory_lookup",
-                "query": "Do you remember what we said last time about Module 06?",
+                "query": "Do you remember what we said last time about my writing workflow?",
                 "expected_decision": "deep_recall",
                 "expected_intent": "explicit_memory_lookup",
                 "expected_backends": ["fts", "vector", "temporal", "graph"],
             },
             {
-                "case_name": "project_continuity",
-                "query": "继续推进 Module 06 的 Recall Planner 设计",
-                "turn_frame": {"scene": "planning", "recent_topics": ["Module 06", "Recall Planner"]},
+                "case_name": "domain_continuity",
+                "query": "继续推进我的创作工作流设计",
+                "turn_frame": {"scene": "planning", "recent_topics": ["创作工作流", "角色设定"]},
                 "expected_decision": "light_recall",
-                "expected_intent": "project_continuity",
-                "expected_memory_types": ["project_principle"],
+                "expected_intent": "domain_continuity",
+                "expected_memory_types": ["domain_principle"],
             },
             {
                 "case_name": "preference_lookup",
@@ -110,11 +110,11 @@ class MemoryRecallPlannerEvalService:
                 "expected_backends": ["fts", "vector", "temporal", "graph"],
             },
             {
-                "case_name": "prefetch_project_context",
-                "query": "Module 06 Recall Planner next implementation",
+                "case_name": "prefetch_domain_context",
+                "query": "next steps for my writing workflow design",
                 "planner_context": {"mode": "prefetch"},
                 "expected_decision": "prefetch_only",
-                "expected_intent": "project_continuity",
+                "expected_intent": "domain_continuity",
             },
             {
                 "case_name": "blocked_by_policy",

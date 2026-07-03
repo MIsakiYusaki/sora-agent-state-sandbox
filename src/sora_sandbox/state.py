@@ -63,8 +63,8 @@ def seed_state() -> JsonDict:
             "recent_turns": [],
             "rolling_summary": "",
             "dialogue_state": {
-                "active_topic": "Sora Agent State Sandbox 工程验证",
-                "user_goal": "验证 Memory、Persona、WorldOps 状态如何影响回应编排",
+                "active_topic": "当前对话",
+                "user_goal": "理解用户当前需要，并保持陪伴关系的连续性",
                 "unresolved_questions": [],
             },
             "working_memory": {},

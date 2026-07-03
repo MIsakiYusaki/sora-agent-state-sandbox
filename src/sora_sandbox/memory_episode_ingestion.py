@@ -457,25 +457,28 @@ class EpisodeIngestionService:
         if any(marker in lowered for marker in explicit_markers):
             return PreFilterDecision(True, f"{reason}:explicit_memory_signal", priority=95)
 
-        project_markers = (
-            "sora",
+        domain_or_relationship_markers = (
             "memory",
             "episode",
             "extract",
             "recall",
             "architecture",
+            "workflow",
             "project",
-            "模块",
+            "relationship",
+            "companionship",
+            "shared experience",
+            "记忆",
+            "经历",
             "架构",
-            "召回",
-            "抽取",
-            "治理",
+            "流程",
+            "项目",
             "关系",
             "陪伴",
             "共同经历",
         )
-        if any(marker in lowered for marker in project_markers):
-            return PreFilterDecision(True, f"{reason}:project_or_relationship_signal", priority=75)
+        if any(marker in lowered for marker in domain_or_relationship_markers):
+            return PreFilterDecision(True, f"{reason}:domain_or_relationship_signal", priority=75)
 
         short_ack = {
             "ok",

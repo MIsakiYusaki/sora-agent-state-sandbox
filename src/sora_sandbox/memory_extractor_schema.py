@@ -30,6 +30,7 @@ class ExtractedMemoryType(StrEnum):
     SHARED_EPISODE = "shared_episode"
     PERSONA_DELTA = "persona_delta"
     RELATIONSHIP_SIGNAL = "relationship_signal"
+    DOMAIN_PRINCIPLE = "domain_principle"
     PROJECT_PRINCIPLE = "project_principle"
     WORLD_STATE = "world_state"
     WORLD_OPS = "world_ops"

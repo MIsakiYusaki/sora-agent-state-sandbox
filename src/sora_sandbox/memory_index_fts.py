@@ -314,7 +314,7 @@ def _type_bias(
 ) -> float:
     if memory_type == "preference":
         return preference
-    if memory_type == "project_principle":
+    if memory_type in {"domain_principle", "project_principle"}:
         return principle
     if memory_type == "sensitive_boundary":
         return sensitive_boundary

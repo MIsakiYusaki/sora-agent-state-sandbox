@@ -27,7 +27,7 @@ FORBIDDEN_TERMS = (
     "助记词",
 )
 
-PROJECT_TERMS = ("项目", "架构", "设计", "技术", "原则", "方案")
+DOMAIN_PRINCIPLE_TERMS = ("项目", "计划", "工作", "学习", "创作", "架构", "设计", "技术", "原则", "方案", "流程")
 GOAL_TERMS = ("目标", "计划", "准备", "接下来")
 
 
@@ -41,8 +41,8 @@ def detect_sensitivity(text: str) -> str:
 
 
 def classify_memory_type(text: str) -> str:
-    if any(term in text for term in PROJECT_TERMS):
-        return "project_principle"
+    if any(term in text for term in DOMAIN_PRINCIPLE_TERMS):
+        return "domain_principle"
     if any(term in text for term in GOAL_TERMS):
         return "goal"
     return "preference"

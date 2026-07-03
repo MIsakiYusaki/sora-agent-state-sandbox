@@ -541,7 +541,7 @@ class MemoryRetrievalService:
 def _weights_for_plan(plan: RecallPlan) -> dict[str, float]:
     if plan.query_intent == "relationship_context":
         return {"fts": 0.7, "vector": 1.1, "vector_local": 1.1, "temporal": 0.8, "graph": 1.0}
-    if plan.query_intent == "project_continuity":
+    if plan.query_intent in {"domain_continuity", "project_continuity"}:
         return {"fts": 1.1, "vector": 1.0, "vector_local": 1.0, "temporal": 0.85, "graph": 0.65}
     if plan.query_intent == "write_related_memory":
         return {"fts": 1.0, "vector": 1.15, "vector_local": 1.15, "temporal": 0.75, "graph": 0.85}

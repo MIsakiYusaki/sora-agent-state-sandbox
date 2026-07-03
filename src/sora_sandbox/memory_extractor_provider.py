@@ -171,7 +171,7 @@ class OpenAICompatibleExtractorProvider:
                 {
                     "role": "system",
                     "content": (
-                        "You repair malformed JSON for Project Sora's memory extractor. "
+                        "You repair malformed JSON for a domain-neutral memory extractor. "
                         "Do not reinterpret, add, remove, or improve the semantic content. "
                         "Return one valid JSON object only. Preserve candidates, contradictions, "
                         "evidence_refs, operation, memory_type, summary, scores, and target_memory_id."
@@ -200,7 +200,7 @@ class OpenAICompatibleExtractorProvider:
 
     def _llm_payload(self, input_package: JsonDict) -> JsonDict:
         return {
-            "task": "extract_project_sora_memory_candidates",
+            "task": "extract_memory_candidates",
             "schema_version": EXTRACTOR_RESULT_SCHEMA_VERSION,
             "job": input_package["job"],
             "episode": input_package["episode"],
@@ -214,6 +214,7 @@ class OpenAICompatibleExtractorProvider:
                 "shared_episode",
                 "persona_delta",
                 "relationship_signal",
+                "domain_principle",
                 "project_principle",
                 "world_state",
                 "world_ops",
@@ -228,7 +229,7 @@ class OpenAICompatibleExtractorProvider:
         if prompt_path.exists():
             return prompt_path.read_text(encoding="utf-8")
         return (
-            "You are Project Sora's async memory extractor. Return only JSON. "
+            "You are a domain-neutral async memory extractor. Return only JSON. "
             "Extract durable, evidence-backed memory candidates from the episode. "
             "Use ADD for novel durable memory, UPDATE when an existing related memory should be superseded, "
             "MERGE when the new evidence strengthens an existing memory, DELETE when the user/source invalidates memory, "
@@ -362,7 +363,12 @@ def bind_expected_result(expected: JsonDict, input_package: JsonDict, case_id: s
             if not ref.get("speaker"):
                 ref["speaker"] = first_event.get("actor")
         if candidate.get("target_memory_id") == "$first_related_memory":
-            candidate["target_memory_id"] = related[0]["id"] if related else None
+            memory_type = str(candidate.get("memory_type") or "")
+            target = next(
+                (item for item in related if str(item.get("type") or "") == memory_type),
+                related[0] if related else None,
+            )
+            candidate["target_memory_id"] = target["id"] if target else None
     return result
 
 
@@ -405,8 +411,8 @@ def default_golden_cases() -> list[GoldenExtractorCase]:
                 "candidates": [
                     {
                         "operation": "ADD",
-                        "memory_type": "project_principle",
-                        "summary": "User prefers Project Sora memory extraction to run asynchronously outside the response hot path.",
+                        "memory_type": "domain_principle",
+                        "summary": "User prefers memory extraction to run asynchronously outside the response hot path.",
                         "confidence": 0.95,
                         "importance": 0.82,
                         "stability": 0.80,
@@ -414,7 +420,7 @@ def default_golden_cases() -> list[GoldenExtractorCase]:
                         "novelty": 1.0,
                         "conflict_score": 0.0,
                         "sensitivity": "low",
-                        "tags": ["project_sora", "async_extractor"],
+                        "tags": ["async_extractor", "memory_architecture"],
                         "reason": "explicit_user_statement",
                     }
                 ],
@@ -451,8 +457,8 @@ def default_golden_cases() -> list[GoldenExtractorCase]:
                 "candidates": [
                     {
                         "operation": "UPDATE",
-                        "memory_type": "project_principle",
-                        "summary": "User wants Project Sora development to pursue the current best design rather than minimal loops.",
+                        "memory_type": "domain_principle",
+                        "summary": "User wants product development to pursue the current best design rather than minimal loops.",
                         "target_memory_id": "$first_related_memory",
                         "confidence": 0.94,
                         "importance": 0.88,
@@ -461,7 +467,7 @@ def default_golden_cases() -> list[GoldenExtractorCase]:
                         "novelty": 0.7,
                         "conflict_score": 0.82,
                         "sensitivity": "low",
-                        "tags": ["project_sora", "development_principle"],
+                        "tags": ["development_principle"],
                         "reason": "explicit_correction_of_existing_memory",
                     }
                 ],
@@ -475,8 +481,8 @@ def default_golden_cases() -> list[GoldenExtractorCase]:
                 "candidates": [
                     {
                         "operation": "MERGE",
-                        "memory_type": "project_principle",
-                        "summary": "User wants Module 02 work merged into the current-best Project Sora architecture direction rather than optimized for a tiny loop.",
+                        "memory_type": "domain_principle",
+                        "summary": "User wants module work merged into the current-best architecture direction rather than optimized for a tiny loop.",
                         "target_memory_id": "$first_related_memory",
                         "confidence": 0.92,
                         "importance": 0.86,
@@ -485,7 +491,7 @@ def default_golden_cases() -> list[GoldenExtractorCase]:
                         "novelty": 0.35,
                         "conflict_score": 0.0,
                         "sensitivity": "low",
-                        "tags": ["project_sora", "development_principle"],
+                        "tags": ["development_principle"],
                         "reason": "multi_memory_merge_signal",
                     }
                 ],
@@ -500,7 +506,7 @@ def default_golden_cases() -> list[GoldenExtractorCase]:
                     {
                         "operation": "ADD",
                         "memory_type": "relationship_signal",
-                        "summary": "User wants Project Sora to remember that companionship closeness and shared history matter to them.",
+                        "summary": "User wants the companion to remember that companionship closeness and shared history matter to them.",
                         "confidence": 0.91,
                         "importance": 0.84,
                         "stability": 0.74,
