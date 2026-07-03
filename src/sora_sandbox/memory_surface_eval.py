@@ -184,6 +184,45 @@ def default_surface_eval_cases() -> list[JsonDict]:
             "expected_legacy_action": "none",
             "expected_selected": False,
         },
+        {
+            "case_name": "relationship_context_uses_companion_safe_action",
+            "explicit_recall": False,
+            "query_intent": "relationship_context",
+            "memory": {
+                "type": "relationship_signal",
+                "summary": "The user values warm continuity without possessive framing.",
+                "relationship_impact": 0.7,
+            },
+            "expected_action": "relationship_context",
+            "expected_legacy_action": "implicit",
+        },
+        {
+            "case_name": "sensitive_explicit_recall_uses_redacted_gist",
+            "explicit_recall": True,
+            "memory": {
+                "summary": "The user shared a sensitive family concern.",
+                "sensitivity": "high",
+                "disclosure_permission": "gist_only",
+            },
+            "expected_action": "redacted_gist",
+            "expected_legacy_action": "gist",
+        },
+        {
+            "case_name": "quote_request_with_permission_uses_quote_memory",
+            "query_text": "Please quote what I said about concise continuity.",
+            "explicit_recall": True,
+            "memory": {"disclosure_permission": "quote_ok"},
+            "expected_action": "quote_memory",
+            "expected_legacy_action": "gist",
+        },
+        {
+            "case_name": "negative_feedback_suppresses_proactive_surface",
+            "explicit_recall": False,
+            "memory": {"surface_feedback": {"score": -0.9}},
+            "expected_action": "none",
+            "expected_legacy_action": "none",
+            "expected_selected": False,
+        },
     ]
 
 

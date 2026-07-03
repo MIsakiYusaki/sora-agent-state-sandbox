@@ -41,6 +41,12 @@ class MemoryContextPacker:
         suppressed: list[JsonDict] = list(pre_suppressed or [])
         provider_usage: list[JsonDict] = []
         used = 0
+        pools = _budget_pools(budget)
+        pool_used = {
+            "memory_gist": 0,
+            "why_recalled": 0,
+            "policy_overhead": 0,
+        }
         seen: set[str] = set()
         policies = policy_by_memory_id or {}
         for candidate in candidates:
@@ -61,7 +67,40 @@ class MemoryContextPacker:
                 if relationship_result.get("provider_trace"):
                     item.setdefault("provider_traces", []).append(relationship_result["provider_trace"])
                     provider_usage.append(relationship_result["provider_trace"])
-            item_tokens = _estimate_tokens(item["gist"]) + _estimate_tokens(item["why_recalled"]) + 12
+            why_tokens = _estimate_tokens(item["why_recalled"])
+            if budget and pool_used["why_recalled"] + why_tokens > pools["why_recalled"]:
+                remaining_why = max(pools["why_recalled"] - pool_used["why_recalled"], 1)
+                item["why_recalled"] = _truncate_to_budget(item["why_recalled"], remaining_why)
+                why_tokens = _estimate_tokens(item["why_recalled"])
+
+            gist_tokens = _estimate_tokens(item["gist"])
+            remaining_gist = max(pools["memory_gist"] - pool_used["memory_gist"], 0)
+            if budget and gist_tokens > remaining_gist:
+                if selected and remaining_gist <= 0:
+                    suppressed.append({"memory_id": memory["id"], "reason": "memory_gist_budget"})
+                    continue
+                reserved_overhead = max(
+                    min(12, max(pools["policy_overhead"] - pool_used["policy_overhead"], 0)),
+                    1,
+                )
+                available_for_gist = max(
+                    min(remaining_gist or pools["memory_gist"], budget - why_tokens - reserved_overhead),
+                    1,
+                )
+                compression = self._compress_gist(
+                    item["gist"],
+                    available_for_gist,
+                    memory_id=str(memory["id"]),
+                    reason="memory_gist_budget",
+                )
+                item["gist"] = compression["text"]
+                if compression.get("provider_trace"):
+                    item.setdefault("provider_traces", []).append(compression["provider_trace"])
+                    provider_usage.append(compression["provider_trace"])
+                gist_tokens = _estimate_tokens(item["gist"])
+
+            overhead_tokens = min(12, max(pools["policy_overhead"] - pool_used["policy_overhead"], 0) or 12)
+            item_tokens = gist_tokens + why_tokens + overhead_tokens
             if budget and used + item_tokens > budget and selected:
                 suppressed.append({"memory_id": memory["id"], "reason": "token_budget"})
                 continue
@@ -97,9 +136,17 @@ class MemoryContextPacker:
                         _estimate_tokens(item["gist"]) + _estimate_tokens(item["why_recalled"]) + 12,
                     )
             item["token_estimate"] = item_tokens
+            item["budget_pool_usage"] = {
+                "memory_gist": gist_tokens,
+                "why_recalled": why_tokens,
+                "policy_overhead": overhead_tokens,
+            }
             selected.append(item)
             seen.add(dedupe_key)
             used += item_tokens
+            pool_used["memory_gist"] += gist_tokens
+            pool_used["why_recalled"] += why_tokens
+            pool_used["policy_overhead"] += overhead_tokens
         action = surface_action or ("answer_memory_question" if explicit_recall and selected else "implicit_continuity" if selected else "none")
         legacy_action = legacy_surface_action or ("gist" if explicit_recall and selected else "implicit" if selected else "none")
         forbidden = sorted(set(forbidden_disclosures or (["raw_evidence"] if selected else [])))
@@ -113,7 +160,9 @@ class MemoryContextPacker:
             "budget": {
                 "token_budget": budget,
                 "token_used": used,
-                "pools": _budget_pools(budget),
+                "pools": pools,
+                "pool_used": pool_used,
+                "pool_enforcement": "hard_gist_soft_why_response_reserved",
             },
             "provider_usage": provider_usage,
             "packing_strategy": "template_budgeted_v2",
@@ -206,6 +255,8 @@ class MemoryContextPacker:
                 }
             )
             compressed = str(result.get("text") or "")
+            if compressed and _estimate_tokens(compressed) > token_budget:
+                compressed = _truncate_to_budget(compressed, token_budget)
             return {
                 "text": compressed if compressed else _truncate_to_budget(text, token_budget),
                 "provider_trace": _provider_trace("compress", memory_id, result),
@@ -268,8 +319,11 @@ def _budget_pools(token_budget: int) -> JsonDict:
             "policy_overhead": 0,
             "response_reserve_hint": 0,
         }
-    policy_overhead = min(80, max(24, token_budget // 8))
-    why_recalled = min(90, max(24, token_budget // 5))
+    policy_overhead = min(80, max(2, token_budget // 8))
+    why_recalled = min(90, max(4, token_budget // 5))
+    if policy_overhead + why_recalled >= token_budget:
+        policy_overhead = max(1, token_budget // 8)
+        why_recalled = max(1, token_budget // 6)
     memory_gist = max(1, token_budget - policy_overhead - why_recalled)
     return {
         "memory_gist": memory_gist,

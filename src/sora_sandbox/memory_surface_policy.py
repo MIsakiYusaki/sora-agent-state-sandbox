@@ -496,6 +496,14 @@ class SurfacePolicyEngine:
                 if selection.action == "ask_consent":
                     consent_candidates.append(selection)
 
+        selected.sort(
+            key=lambda item: (
+                round(item.priority, 2),
+                float(getattr(item.candidate, "score", 0.0) or 0.0),
+            ),
+            reverse=True,
+        )
+
         if limit is not None:
             overflow = selected[limit:]
             selected = selected[:limit]
@@ -579,6 +587,7 @@ class SurfacePolicyEngine:
             return _consent(candidate, "silent_only_requires_consent_for_answer")
         if disclosure == "silent_only":
             if has_consent and plan.explicit_recall:
+                base_action = "answer_memory_question"
                 reason_parts.append("silent_only_user_consent_granted")
             else:
                 base_action = "silent_use"
@@ -814,7 +823,18 @@ def _cooldown_active(value: Any, now: str) -> bool:
 
 def _quote_requested(text: str) -> bool:
     lowered = text.lower()
-    return any(term in lowered for term in ("quote", "verbatim", "原话", "逐字", "原文"))
+    return any(
+        term in lowered
+        for term in (
+            "quote",
+            "verbatim",
+            "read back",
+            "引用",
+            "原话",
+            "逐字",
+            "原文",
+        )
+    )
 
 
 def _utc_now() -> str:

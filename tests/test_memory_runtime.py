@@ -20,10 +20,11 @@ from sora_sandbox.extractor_eval import ExtractorEvalConfig, run_extractor_eval
 from sora_sandbox.memory_extractor_provider import GoldenSetExtractorProvider, OpenAICompatibleExtractorProvider
 from sora_sandbox.memory_extractor_repair import repair_extractor_json
 from sora_sandbox.memory_console import MemoryConsole
+from sora_sandbox.memory_context_packer import PackedMemory
 from sora_sandbox.memory_recall_planner import extract_salient_terms
 from sora_sandbox.memory_reranker import HTTPCrossEncoderReranker, OpenAICompatibleLLMReranker
 from sora_sandbox.memory_runtime import MemoryRuntime
-from sora_sandbox.memory_schema import JsonDict
+from sora_sandbox.memory_schema import JsonDict, RecallBudget, RecallPlan
 from sora_sandbox.memory_system import MemorySystem
 from sora_sandbox.memory_surface_policy import DeterministicSurfacePolicyProvider, SurfacePolicyEngine
 from sora_sandbox.memory_vector_index import QdrantVectorIndex
@@ -927,6 +928,62 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertEqual(granted["status"], "granted")
         self.assertIn(consent_memory["id"], after["retrieved_ids"])
         self.assertEqual(after["surface_action_v2"], "answer_memory_question")
+
+    def test_module07_surface_policy_limit_uses_priority_not_input_order(self) -> None:
+        engine = SurfacePolicyEngine()
+        plan = RecallPlan(
+            query_text="Do you remember the important low score memory?",
+            top_k=1,
+            explicit_recall=True,
+            surface_hint="allow_gist",
+            query_intent="explicit_memory_lookup",
+            budget=RecallBudget(token_budget=120),
+        )
+        low_priority_first = PackedMemory(
+            score=0.4,
+            memory={
+                "id": "mem_low_priority_first",
+                "type": "preference",
+                "summary": "Low importance candidate arrived first.",
+                "confidence": 0.2,
+                "importance": 0.1,
+                "relationship_impact": 0.0,
+                "sensitivity": "low",
+                "use_permission": "allow_implicit",
+                "disclosure_permission": "gist_only",
+                "surface_permission": "auto",
+            },
+            matched_backends=("test",),
+            why_recalled="input order first",
+        )
+        high_priority_second = PackedMemory(
+            score=0.5,
+            memory={
+                "id": "mem_high_priority_second",
+                "type": "preference",
+                "summary": "High importance candidate arrived second.",
+                "confidence": 1.0,
+                "importance": 1.0,
+                "relationship_impact": 1.0,
+                "sensitivity": "low",
+                "use_permission": "allow_implicit",
+                "disclosure_permission": "gist_only",
+                "surface_permission": "auto",
+            },
+            matched_backends=("test",),
+            why_recalled="higher surface priority",
+        )
+
+        decision = engine.decide(
+            plan,
+            [low_priority_first, high_priority_second],
+            token_budget=120,
+            limit=1,
+        )
+
+        self.assertEqual([item.memory_id for item in decision.selections], ["mem_high_priority_second"])
+        self.assertEqual(decision.suppressed[0].memory_id, "mem_low_priority_first")
+        self.assertEqual(decision.suppressed[0].suppression_reason, "rank_limit")
 
     def test_module05_default_recall_eval_covers_multi_memory_golden_set(self) -> None:
         eval_run = self.runtime.run_recall_eval()
