@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .memory_extractor_provider import GoldenSetExtractorProvider, MemoryExtractorProvider
+from .memory_extractor_provider import MemoryExtractorProvider, OpenAICompatibleExtractorProvider
 from .memory_extractor_schema import (
     ExtractorValidationError,
     extractor_result_to_dict,
@@ -23,7 +23,7 @@ class AsyncMemoryExtractorWorker:
     worker_id: str = "async_memory_extractor"
 
     def __post_init__(self) -> None:
-        self.provider = self.provider or GoldenSetExtractorProvider()
+        self.provider = self.provider or OpenAICompatibleExtractorProvider.from_env()
 
     def run_once(self, *, auto_commit: bool = True) -> JsonDict:
         job = self.runtime.claim_next_extraction_job()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .memory_context_packer import MemoryContextPacker, PackedMemory
@@ -12,8 +12,14 @@ from .memory_index_fts import search_tokens
 from .memory_recall_planner import RecallPlanner, plan_to_json
 from .memory_reranker import FeatureMemoryReranker, MemoryReranker
 from .memory_schema import FusedMemoryHit, JsonDict, RecallPlan, RecallSubquery, RetrievalHit, json_dumps, new_id, utc_now
-from .memory_surface import choose_surface_action, decision_reason
-from .memory_trace import cleanup_recall_traces, record_recall_plan_trace, record_recall_trace
+from .memory_store import row_value
+from .memory_surface_policy import SurfacePolicyDecision, SurfacePolicyEngine, VISIBLE_ACTIONS
+from .memory_trace import (
+    cleanup_recall_traces,
+    record_recall_plan_trace,
+    record_recall_trace,
+    record_surface_policy_trace,
+)
 from .memory_vector_index import VectorIndex
 
 
@@ -27,6 +33,7 @@ class MemoryRetrievalService:
     vector_index: VectorIndex
     packer: MemoryContextPacker
     reranker: MemoryReranker
+    surface_policy: SurfacePolicyEngine = field(default_factory=SurfacePolicyEngine)
 
     def recall(
         self,
@@ -70,27 +77,34 @@ class MemoryRetrievalService:
                 for hit in governed[: max(top_k * 3, top_k)]
             ]
 
-        surface_action = choose_surface_action(
+        surface_decision = self.surface_policy.decide(
             plan,
-            [
-                (candidate.score, candidate.memory, candidate.matched_backends)
-                for candidate in packed_candidates[:top_k]
-            ],
-        )
-        packed = self.packer.pack(
             packed_candidates,
             token_budget=budget,
+            context_use_policy=context_use_policy,
+            turn_frame=turn_frame,
+            limit=max(top_k * 3, top_k),
+        )
+        packed = self.packer.pack(
+            surface_decision.selected_candidates,
+            token_budget=budget,
             explicit_recall=plan.explicit_recall,
+            surface_action=surface_decision.action,
+            legacy_surface_action=surface_decision.legacy_action,
+            policy_by_memory_id=surface_decision.policy_by_memory_id,
+            policy_profile=surface_decision.policy_profile,
+            forbidden_disclosures=list(surface_decision.forbidden_disclosures),
+            pre_suppressed=surface_decision.suppression_rows,
         )
         items = packed["items"][:top_k]
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
-        reason = decision_reason(surface_action, bool(items))
+        reason = surface_decision.decision_reason
         trace_items = self._trace_items(groups, fused, reranked, governed, filtered)
         degraded = bool(retrieval_errors) or bool(rerank_metadata.get("degraded"))
         trace_id = self._record_trace(
             query_text,
             plan=plan,
-            surface_action=surface_action,
+            surface_action=surface_decision.legacy_action,
             reason=reason,
             selected=[
                 (float(item["score"]), self._memory_dict_for_id(item["memory_id"]))
@@ -103,15 +117,24 @@ class MemoryRetrievalService:
             degraded=degraded,
             retrieval_errors=retrieval_errors,
             rerank_metadata=rerank_metadata,
+            surface_decision=surface_decision,
+            surface_provider_usage=packed.get("provider_usage", []),
         )
-        self._record_access(items, trace_id=trace_id, surface_action=surface_action)
+        self._record_access(
+            items,
+            trace_id=trace_id,
+            surface_action=surface_decision.legacy_action,
+            surface_action_v2=surface_decision.action,
+        )
         return {
-            "surface_action": surface_action,
+            "surface_action": surface_decision.legacy_action,
+            "surface_action_v2": surface_decision.action,
+            "surface_policy": surface_decision.public_dict(),
             "items": items,
             "retrieved_ids": [item["memory_id"] for item in items],
             "memory_summaries": [item["gist"] for item in items],
             "evidence_level": "strong" if items else "none",
-            "forbidden_disclosures": ["raw_evidence"] if items else [],
+            "forbidden_disclosures": packed.get("forbidden_disclosures", []),
             "decision_reason": reason,
             "recall_trace_id": trace_id,
             "backend": "hybrid_rrf",
@@ -122,7 +145,11 @@ class MemoryRetrievalService:
                 "token_budget": packed["token_budget"],
                 "token_used": packed["token_used"],
                 "suppressed": packed["suppressed"],
+                "context_frame": packed["context_frame"],
+                "provider_usage": packed.get("provider_usage", []),
             },
+            "memory_context_frame": packed["context_frame"],
+            "consent_request": surface_decision.consent_request,
             "degraded": degraded,
             "degradation_reasons": retrieval_errors + _rerank_errors(rerank_metadata),
             "latency_ms": latency_ms,
@@ -351,6 +378,7 @@ class MemoryRetrievalService:
         )
         return {
             "surface_action": "none",
+            "surface_action_v2": "none",
             "items": [],
             "retrieved_ids": [],
             "memory_summaries": [],
@@ -365,6 +393,26 @@ class MemoryRetrievalService:
                 "token_budget": token_budget,
                 "token_used": 0,
                 "suppressed": [],
+                "context_frame": {
+                    "version": "memory_context_frame_v2",
+                    "policy_profile": "companion_default",
+                    "surface_action": "none",
+                    "legacy_surface_action": "none",
+                    "items": [],
+                    "forbidden_disclosures": [],
+                    "budget": {"token_budget": token_budget, "token_used": 0, "pools": {}},
+                    "packing_strategy": "template_budgeted_v2",
+                },
+            },
+            "memory_context_frame": {
+                "version": "memory_context_frame_v2",
+                "policy_profile": "companion_default",
+                "surface_action": "none",
+                "legacy_surface_action": "none",
+                "items": [],
+                "forbidden_disclosures": [],
+                "budget": {"token_budget": token_budget, "token_used": 0, "pools": {}},
+                "packing_strategy": "template_budgeted_v2",
             },
             "degraded": False,
             "latency_ms": round(latency_ms, 2),
@@ -385,6 +433,8 @@ class MemoryRetrievalService:
         degraded: bool,
         retrieval_errors: list[JsonDict] | None = None,
         rerank_metadata: JsonDict | None = None,
+        surface_decision: SurfacePolicyDecision | None = None,
+        surface_provider_usage: list[JsonDict] | None = None,
     ) -> str:
         with self.lock:
             plan_json = self._plan_json(plan)
@@ -406,6 +456,8 @@ class MemoryRetrievalService:
                     "vector_backend": self.vector_index.backend_name,
                     "retrieval_errors": retrieval_errors or [],
                     "reranker": _public_rerank_metadata(rerank_metadata or {}),
+                    "surface_policy": surface_decision.public_dict() if surface_decision else {},
+                    "surface_provider_usage": surface_provider_usage or [],
                 },
             )
             record_recall_plan_trace(
@@ -415,24 +467,67 @@ class MemoryRetrievalService:
                 turn_id=plan.planner_trace.get("turn_id"),
                 session_id=plan.planner_trace.get("session_id"),
             )
+            if surface_decision is not None:
+                record_surface_policy_trace(
+                    self.conn,
+                    recall_trace_id=trace_id,
+                    policy_version=surface_decision.policy_version,
+                    policy_profile=surface_decision.policy_profile,
+                    provider=surface_decision.provider_name,
+                    surface_action=surface_decision.action,
+                    legacy_surface_action=surface_decision.legacy_action,
+                    decision_reason=surface_decision.decision_reason,
+                    forbidden_disclosures=list(surface_decision.forbidden_disclosures),
+                    consent_request=surface_decision.consent_request,
+                    items=surface_decision.trace_items(),
+                    token_budget=token_budget,
+                    token_used=token_used,
+                    provider_usage=surface_provider_usage or [],
+                    turn_id=plan.planner_trace.get("turn_id"),
+                    session_id=plan.planner_trace.get("session_id"),
+                )
             return trace_id
 
-    def _record_access(self, items: list[JsonDict], *, trace_id: str, surface_action: str) -> None:
+    def _record_access(
+        self,
+        items: list[JsonDict],
+        *,
+        trace_id: str,
+        surface_action: str,
+        surface_action_v2: str,
+    ) -> None:
         if not items:
             return
         now = utc_now()
+        surfaced_update = (
+            ", surface_count = surface_count + 1, last_surfaced_at = ?"
+            if surface_action_v2 in VISIBLE_ACTIONS
+            else ""
+        )
         with self.lock:
             for item in items:
                 memory_id = item["memory_id"]
-                self.conn.execute(
-                    """
-                    UPDATE memory_record
-                    SET access_count = access_count + 1,
-                        last_accessed_at = ?
-                    WHERE id = ?
-                    """,
-                    (now, memory_id),
-                )
+                if surfaced_update:
+                    self.conn.execute(
+                        f"""
+                        UPDATE memory_record
+                        SET access_count = access_count + 1,
+                            last_accessed_at = ?
+                            {surfaced_update}
+                        WHERE id = ?
+                        """,
+                        (now, now, memory_id),
+                    )
+                else:
+                    self.conn.execute(
+                        """
+                        UPDATE memory_record
+                        SET access_count = access_count + 1,
+                            last_accessed_at = ?
+                        WHERE id = ?
+                        """,
+                        (now, memory_id),
+                    )
                 self.conn.execute(
                     """
                     INSERT INTO memory_access_signal (
@@ -446,7 +541,14 @@ class MemoryRetrievalService:
                         trace_id,
                         now,
                         surface_action,
-                        json_dumps({"score": item.get("score"), "matched_backends": item.get("matched_backends", [])}),
+                        json_dumps(
+                            {
+                                "score": item.get("score"),
+                                "matched_backends": item.get("matched_backends", []),
+                                "surface_action_v2": surface_action_v2,
+                                "surface_instruction": item.get("surface_instruction"),
+                            }
+                        ),
                     ),
                 )
             self.conn.commit()
@@ -494,6 +596,8 @@ class MemoryRetrievalService:
             "SELECT evidence_id FROM memory_evidence WHERE memory_id = ? ORDER BY evidence_id",
             (row["id"],),
         ).fetchall()
+        surface_feedback = self._surface_feedback_for_memory(row["id"])
+        surface_consent = self._surface_consent_for_memory(row["id"])
         return {
             "id": row["id"],
             "owner_user_id": row["owner_user_id"],
@@ -514,10 +618,17 @@ class MemoryRetrievalService:
             "retrieval_permission": row["retrieval_permission"],
             "use_permission": row["use_permission"],
             "disclosure_permission": row["disclosure_permission"],
+            "surface_permission": row_value(row, "surface_permission", "auto") or "auto",
+            "surface_cooldown_until": row_value(row, "surface_cooldown_until"),
+            "relationship_impact": row_value(row, "relationship_impact", 0.0),
             "schema_version": row["schema_version"],
             "index_watermark": row["index_watermark"],
             "access_count": row["access_count"],
             "last_accessed_at": row["last_accessed_at"],
+            "surface_count": row_value(row, "surface_count", 0),
+            "last_surfaced_at": row_value(row, "last_surfaced_at"),
+            "surface_feedback": surface_feedback,
+            "surface_consent": surface_consent,
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -525,6 +636,59 @@ class MemoryRetrievalService:
     def _memory_dict_for_id(self, memory_id: str) -> JsonDict:
         row = self.conn.execute("SELECT * FROM memory_record WHERE id = ?", (memory_id,)).fetchone()
         return self._memory_from_row(row)
+
+    def _surface_feedback_for_memory(self, memory_id: str) -> JsonDict:
+        rows = self.conn.execute(
+            """
+            SELECT * FROM memory_surface_feedback
+            WHERE memory_id = ?
+            ORDER BY created_at DESC
+            LIMIT 20
+            """,
+            (memory_id,),
+        ).fetchall()
+        if not rows:
+            return {"score": 0.0, "positive_count": 0, "negative_count": 0, "last_feedback_at": None}
+        score = 0.0
+        positive = 0
+        negative = 0
+        for row in rows:
+            value = row_value(row, "value")
+            if value is None:
+                value = _feedback_default_value(str(row["feedback_type"]))
+            value = float(value)
+            score += value
+            if value > 0:
+                positive += 1
+            elif value < 0:
+                negative += 1
+        normalized = max(-1.0, min(1.0, score / max(len(rows), 1)))
+        return {
+            "score": round(normalized, 4),
+            "positive_count": positive,
+            "negative_count": negative,
+            "last_feedback_at": rows[0]["created_at"],
+        }
+
+    def _surface_consent_for_memory(self, memory_id: str) -> JsonDict:
+        rows = self.conn.execute(
+            """
+            SELECT * FROM memory_surface_consent
+            WHERE memory_id = ?
+              AND (expires_at IS NULL OR expires_at > ?)
+            ORDER BY created_at DESC
+            LIMIT 10
+            """,
+            (memory_id, utc_now()),
+        ).fetchall()
+        granted = next((row for row in rows if row["status"] == "granted"), None)
+        denied = next((row for row in rows if row["status"] in {"denied", "revoked"}), None)
+        return {
+            "granted": granted is not None and denied is None,
+            "granted_at": row_value(granted, "granted_at") if granted is not None else None,
+            "denied": denied is not None and granted is None,
+            "denied_at": row_value(denied, "created_at") if denied is not None else None,
+        }
 
     def _why_recalled(self, hit: FusedMemoryHit, plan: RecallPlan) -> str:
         backends = ", ".join(hit.matched_backends)
@@ -595,6 +759,15 @@ def _rerank_errors(metadata: JsonDict) -> list[JsonDict]:
             "error": metadata.get("error"),
         }
     ]
+
+
+def _feedback_default_value(feedback_type: str) -> float:
+    normalized = feedback_type.lower().strip()
+    if normalized in {"helpful", "useful", "use_more", "good_surface", "relevant"}:
+        return 1.0
+    if normalized in {"too_much", "not_relevant", "bad_surface", "annoying", "wrong_context"}:
+        return -1.0
+    return 0.0
 
 
 def _loads(value: str, default: Any) -> Any:

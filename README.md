@@ -131,7 +131,7 @@ python run.py
 不需要真实 LLM 密钥的本地演示：
 
 ```powershell
-python run.py --provider fake --once "你好呀" --trace
+python run.py --once "你好呀" --trace
 ```
 
 如果本机没有把 Python 加入 PATH，可以改用你自己的 Python 解释器路径运行。例如本工作区的 Codex 内置 Python：
@@ -140,10 +140,10 @@ python run.py --provider fake --once "你好呀" --trace
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" run.py
 ```
 
-开发时可先用 fake provider，不需要密钥：
+开发时默认使用真实 LLM，需要配置 DeepSeek/OpenAI-compatible 密钥：
 
 ```powershell
-& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" run.py --provider fake
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" run.py
 ```
 
 单次运行：
@@ -155,7 +155,7 @@ python run.py --provider fake --once "你好呀" --trace
 单次运行并显示旧 PoC 风格轨迹面板：
 
 ```powershell
-& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" run.py --provider fake --once "你好呀" --trace
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" run.py --once "你好呀" --trace
 ```
 
 ## 常用 REPL 命令

@@ -85,6 +85,10 @@ class MemoryConsole:
   canonical-evals [--limit N]
   planner-eval
   planner-evals [--limit N]
+  surface-eval
+  surface-traces [limit]
+  hide <memory_id>
+  surface-clear <memory_id>
   plan <query>
   prefetch <query>
   plan-cache [--limit N]
@@ -98,7 +102,7 @@ class MemoryConsole:
   seal-episode <episode_id>
   delete-event <event_id>
   claim-job
-  run-job [--real]
+  run-job
   backfill-jobs [--limit N] [--force]
   observability [--limit N]
   start-job <job_id>
@@ -348,14 +352,6 @@ class MemoryConsole:
         if command == "claim-job":
             return _dump(self.runtime.claim_next_extraction_job()), False
         if command == "run-job":
-            if "--real" in args:
-                from .memory_extractor_provider import OpenAICompatibleExtractorProvider
-
-                return _dump(
-                    self.runtime.run_extraction_once(
-                        provider=OpenAICompatibleExtractorProvider.from_env()
-                    )
-                ), False
             return _dump(self.runtime.run_extraction_once()), False
         if command == "backfill-jobs":
             force = "--force" in args
@@ -388,6 +384,17 @@ class MemoryConsole:
         if command == "traces":
             limit = int(_clean(args[0])) if args else 20
             return _dump(self.runtime.list_recall_traces(limit)), False
+        if command == "surface-traces":
+            limit = int(_clean(args[0])) if args else 20
+            return _dump(self.runtime.list_surface_policy_traces(limit)), False
+        if command == "surface-eval":
+            return _dump(self.runtime.run_surface_eval()), False
+        if command == "hide":
+            memory_id = self._required(args, "hide <memory_id>")
+            return _dump(self.runtime.hide_memory(memory_id)), False
+        if command == "surface-clear":
+            memory_id = self._required(args, "surface-clear <memory_id>")
+            return _dump(self.runtime.clear_surface_override(memory_id)), False
 
         raise ValueError(f"未知 Memory Console 命令：{command}。输入 help 查看命令。")
 

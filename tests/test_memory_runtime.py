@@ -17,7 +17,7 @@ from sora_sandbox.memory_extractor_schema import (
     validate_extractor_result,
 )
 from sora_sandbox.extractor_eval import ExtractorEvalConfig, run_extractor_eval
-from sora_sandbox.memory_extractor_provider import OpenAICompatibleExtractorProvider
+from sora_sandbox.memory_extractor_provider import GoldenSetExtractorProvider, OpenAICompatibleExtractorProvider
 from sora_sandbox.memory_extractor_repair import repair_extractor_json
 from sora_sandbox.memory_console import MemoryConsole
 from sora_sandbox.memory_recall_planner import extract_salient_terms
@@ -25,6 +25,7 @@ from sora_sandbox.memory_reranker import HTTPCrossEncoderReranker, OpenAICompati
 from sora_sandbox.memory_runtime import MemoryRuntime
 from sora_sandbox.memory_schema import JsonDict
 from sora_sandbox.memory_system import MemorySystem
+from sora_sandbox.memory_surface_policy import DeterministicSurfacePolicyProvider, SurfacePolicyEngine
 from sora_sandbox.memory_vector_index import QdrantVectorIndex
 from sora_sandbox.state import seed_state
 
@@ -111,6 +112,44 @@ class FakeLLMReranker(OpenAICompatibleLLMReranker):
                 for document in input_package.get("documents", [])
             ],
             "usage": {"total_tokens": 11},
+        }
+
+
+class FakeSurfaceLLMProvider(DeterministicSurfacePolicyProvider):
+    name = "fake_surface_llm"
+
+    def __init__(self) -> None:
+        self.compress_calls = 0
+        self.relationship_calls = 0
+
+    def compress(self, request: JsonDict) -> JsonDict:
+        self.compress_calls += 1
+        return {
+            "text": "compressed surface gist",
+            "degraded": False,
+            "provider": self.name,
+            "model": "fake-surface-llm",
+            "prompt_version": "surface_policy_prompt.test",
+            "usage": {"prompt_tokens": 12, "completion_tokens": 4, "total_tokens": 16},
+            "cost": {"estimated_cost": 0.001, "currency": "USD"},
+            "latency_ms": 3.2,
+            "json_repair_pass": {"used": False},
+            "fidelity_notes": ["memory_id preserved"],
+        }
+
+    def relationship_explain(self, request: JsonDict) -> JsonDict:
+        self.relationship_calls += 1
+        return {
+            "text": "relationship-safe continuity gist",
+            "degraded": False,
+            "provider": self.name,
+            "model": "fake-surface-llm",
+            "prompt_version": "surface_policy_prompt.test",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            "cost": {"estimated_cost": 0.001, "currency": "USD"},
+            "latency_ms": 2.8,
+            "json_repair_pass": {"used": False},
+            "boundary_notes": ["no possessive framing"],
         }
 
 
@@ -741,6 +780,154 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertEqual(eval_run["passed_cases"], 1)
         self.assertGreaterEqual(cleanup["deleted_count"], 1)
 
+    def test_module07_surface_policy_frame_trace_and_eval(self) -> None:
+        memory = self.runtime.add_manual(
+            "module seven surface policy remembers explicit topic",
+            memory_type="preference",
+            tags=["module7_surface"],
+        )
+
+        frame = self.runtime.recall("Do you remember module seven surface policy?", top_k=1)
+        traces = self.runtime.list_surface_policy_traces(limit=1)
+        eval_run = self.runtime.run_surface_eval()
+
+        self.assertEqual(frame["surface_action"], "gist")
+        self.assertEqual(frame["surface_action_v2"], "answer_memory_question")
+        self.assertEqual(frame["memory_context_frame"]["version"], "memory_context_frame_v2")
+        self.assertEqual(frame["memory_context_frame"]["items"][0]["memory_id"], memory["id"])
+        self.assertEqual(frame["items"][0]["surface_instruction"], "answer_from_governed_gist")
+        self.assertEqual(traces[0]["surface_action"], "answer_memory_question")
+        self.assertEqual(traces[0]["items"][0]["memory_id"], memory["id"])
+        self.assertEqual(eval_run["status"], "passed")
+
+    def test_module07_surface_hide_override_blocks_visible_recall(self) -> None:
+        memory = self.runtime.add_manual(
+            "module seven hidden surface override memory",
+            memory_type="preference",
+            tags=["module7_hidden"],
+        )
+
+        override = self.runtime.hide_memory(memory["id"], actor="test_user")
+        hidden = self.runtime.recall("module seven hidden surface override", top_k=3)
+        cleared = self.runtime.clear_surface_override(memory["id"], actor="test_user")
+        visible = self.runtime.recall("module seven hidden surface override", top_k=3)
+
+        self.assertEqual(override["surface_permission"], "none")
+        self.assertNotIn(memory["id"], hidden["retrieved_ids"])
+        self.assertEqual(hidden["surface_action_v2"], "none")
+        self.assertEqual(cleared["memory"]["surface_permission"], "auto")
+        self.assertIn(memory["id"], visible["retrieved_ids"])
+        self.assertTrue(self.runtime.list_surface_overrides(limit=5))
+
+    def test_module07_silent_only_disclosure_requests_consent(self) -> None:
+        memory = self.runtime.add_manual(
+            "module seven silent only disclosure memory",
+            memory_type="preference",
+            tags=["module7_silent"],
+        )
+        with self.runtime._lock:
+            self.runtime._conn.execute(
+                "UPDATE memory_record SET disclosure_permission = 'silent_only' WHERE id = ?",
+                (memory["id"],),
+            )
+            self.runtime._conn.commit()
+
+        frame = self.runtime.recall("Do you remember module seven silent only disclosure memory?", top_k=1)
+        consent = self.runtime.record_surface_consent(
+            memory["id"],
+            status="requested",
+            recall_trace_id=frame["recall_trace_id"],
+            prompt="test consent",
+            actor="test_user",
+        )
+
+        self.assertEqual(frame["surface_action"], "none")
+        self.assertEqual(frame["surface_action_v2"], "ask_consent")
+        self.assertEqual(frame["retrieved_ids"], [])
+        self.assertIn(memory["id"], frame["consent_request"]["memory_ids"])
+        self.assertEqual(consent["status"], "requested")
+        self.assertEqual(self.runtime.list_surface_consents(limit=1)[0]["id"], consent["id"])
+
+    def test_module07_real_provider_compression_and_relationship_trace(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        provider = FakeSurfaceLLMProvider()
+        runtime = MemoryRuntime(
+            Path(temp_dir.name) / "memory.db",
+            surface_policy=SurfacePolicyEngine(provider=provider),
+        )
+        self.addCleanup(runtime.close)
+        compressed_memory = runtime.add_manual(
+            "module seven provider compression alpha beta " * 12,
+            memory_type="preference",
+            tags=["module7_provider", "alpha_beta"],
+        )
+        relationship_memory = runtime.add_manual(
+            "relationship companionship continuity should stay warm but not possessive",
+            memory_type="relationship_signal",
+            tags=["relationship", "companionship"],
+        )
+        with runtime._lock:
+            runtime._conn.execute(
+                "UPDATE memory_record SET relationship_impact = 0.8 WHERE id = ?",
+                (relationship_memory["id"],),
+            )
+            runtime._conn.commit()
+
+        compressed = runtime.recall("Do you remember alpha beta provider compression?", top_k=1, token_budget=18)
+        relationship = runtime.recall("relationship companionship continuity", top_k=1, token_budget=120)
+        traces = runtime.list_surface_policy_traces(limit=2)
+
+        self.assertEqual(compressed["retrieved_ids"], [compressed_memory["id"]])
+        self.assertGreater(provider.compress_calls, 0)
+        self.assertTrue(compressed["packing"]["provider_usage"])
+        self.assertEqual(compressed["items"][0]["gist"], "compressed surface gist")
+        self.assertEqual(relationship["retrieved_ids"], [relationship_memory["id"]])
+        self.assertGreater(provider.relationship_calls, 0)
+        self.assertEqual(relationship["surface_action_v2"], "relationship_context")
+        self.assertEqual(relationship["items"][0]["gist"], "relationship-safe continuity gist")
+        self.assertTrue(any(trace["provider_usage"] for trace in traces))
+
+    def test_module07_feedback_and_granted_consent_affect_surface_policy(self) -> None:
+        feedback_memory = self.runtime.add_manual(
+            "module seven feedback should not proactively surface",
+            memory_type="preference",
+            tags=["module7_feedback"],
+        )
+        self.runtime.record_surface_feedback(
+            feedback_memory["id"],
+            feedback_type="too_much",
+            actor="test_user",
+        )
+        suppressed = self.runtime.recall("module seven feedback proactively surface", top_k=1)
+
+        consent_memory = self.runtime.add_manual(
+            "consentzeta omega can upgrade silent only disclosure",
+            memory_type="preference",
+            tags=["consentzeta", "omega"],
+        )
+        with self.runtime._lock:
+            self.runtime._conn.execute(
+                "UPDATE memory_record SET disclosure_permission = 'silent_only' WHERE id = ?",
+                (consent_memory["id"],),
+            )
+            self.runtime._conn.commit()
+        before = self.runtime.recall("Do you remember consentzeta omega?", top_k=1)
+        granted = self.runtime.record_surface_consent(
+            consent_memory["id"],
+            status="granted",
+            prompt="test grant",
+            actor="test_user",
+        )
+        after = self.runtime.recall("Do you remember consentzeta omega?", top_k=1)
+
+        self.assertNotIn(feedback_memory["id"], suppressed["retrieved_ids"])
+        self.assertEqual(self.runtime.get_memory(feedback_memory["id"])["surface_feedback"]["negative_count"], 1)
+        self.assertEqual(before["surface_action_v2"], "ask_consent")
+        self.assertEqual(granted["status"], "granted")
+        self.assertIn(consent_memory["id"], after["retrieved_ids"])
+        self.assertEqual(after["surface_action_v2"], "answer_memory_question")
+
     def test_module05_default_recall_eval_covers_multi_memory_golden_set(self) -> None:
         eval_run = self.runtime.run_recall_eval()
         case_names = {case["case_name"] for case in eval_run["cases"]}
@@ -1050,7 +1237,7 @@ class MemoryRuntimeTests(unittest.TestCase):
             "I will keep that design preference.",
         )
 
-        worker_result = self.runtime.run_extraction_once()
+        worker_result = self.runtime.run_extraction_once(provider=GoldenSetExtractorProvider())
 
         self.assertEqual(worker_result["status"], "completed")
         self.assertEqual(worker_result["job"]["job_id"], result["extraction_job"]["job_id"])
@@ -1070,7 +1257,7 @@ class MemoryRuntimeTests(unittest.TestCase):
             "I will not treat the joke as durable memory.",
         )
 
-        worker_result = self.runtime.run_extraction_once()
+        worker_result = self.runtime.run_extraction_once(provider=GoldenSetExtractorProvider())
 
         self.assertEqual(worker_result["status"], "completed")
         self.assertEqual(worker_result["job"]["job_id"], result["extraction_job"]["job_id"])
@@ -1088,7 +1275,10 @@ class MemoryRuntimeTests(unittest.TestCase):
             "Understood.",
         )
 
-        worker_result = self.runtime.run_extraction_once(auto_commit=False)
+        worker_result = self.runtime.run_extraction_once(
+            provider=GoldenSetExtractorProvider(),
+            auto_commit=False,
+        )
 
         self.assertEqual(worker_result["status"], "completed")
         candidate = worker_result["materialized"]["candidates"][0]
@@ -1260,7 +1450,7 @@ class MemoryRuntimeTests(unittest.TestCase):
             "I will remember that.",
         )
 
-        worker_result = self.runtime.run_extraction_once()
+        worker_result = self.runtime.run_extraction_once(provider=GoldenSetExtractorProvider())
         observability = self.runtime.extraction_observability()
         backfill = self.runtime.backfill_extraction_jobs(force=True, limit=1)
 
@@ -1276,6 +1466,7 @@ class MemoryRuntimeTests(unittest.TestCase):
                 ExtractorEvalConfig(
                     cases_path=ROOT / "evals" / "extractor" / "cases.jsonl",
                     report_dir=Path(report_dir),
+                    provider=GoldenSetExtractorProvider(),
                 )
             )
 
