@@ -21,6 +21,7 @@ from sora_sandbox.memory_extractor_provider import GoldenSetExtractorProvider, O
 from sora_sandbox.memory_extractor_repair import repair_extractor_json
 from sora_sandbox.memory_console import MemoryConsole
 from sora_sandbox.memory_context_packer import PackedMemory
+from sora_sandbox.memory_lifecycle import _type_half_life_days
 from sora_sandbox.memory_recall_planner import extract_salient_terms
 from sora_sandbox.memory_reranker import HTTPCrossEncoderReranker, OpenAICompatibleLLMReranker
 from sora_sandbox.memory_runtime import MemoryRuntime
@@ -1207,6 +1208,231 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertEqual(evidence["visibility"], "redacted")
         self.assertIsNone(evidence["raw_content"])
         self.assertEqual(evidence["delete_reason"], "user_forget_request")
+
+    def test_module08_lifecycle_heat_negative_feedback_and_eval(self) -> None:
+        memory = self.runtime.add_manual(
+            "module eight lifecycle memory should cool down after bad surface",
+            memory_type="preference",
+        )
+        self.runtime.record_surface_feedback(
+            memory["id"],
+            feedback_type="too_much",
+            actor="test_user",
+        )
+
+        run = self.runtime.run_lifecycle(mode="heat_only", limit=20)
+        state = self.runtime.get_lifecycle_state(memory["id"])
+        eval_run = self.runtime.run_lifecycle_eval()
+
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(state["tier"], "cold")
+        self.assertLessEqual(state["recent_negative_feedback"], -0.75)
+        self.assertGreaterEqual(state["heat_score"], 0.0)
+        self.assertLessEqual(state["heat_score"], 1.0)
+        self.assertEqual(eval_run["status"], "passed")
+
+    def test_module08_type_half_life_matches_design_matrix(self) -> None:
+        expected = {
+            "persona_delta": 365.0,
+            "preference": 180.0,
+            "relationship_signal": 120.0,
+            "shared_episode": 60.0,
+            "world_ops": 30.0,
+            "task_or_session": 7.0,
+            "temporary_fact": 14.0,
+        }
+
+        for memory_type, days in expected.items():
+            with self.subTest(memory_type=memory_type):
+                self.assertEqual(_type_half_life_days(memory_type), days)
+
+    def test_module08_archived_memory_requires_deep_recall(self) -> None:
+        memory = self.runtime.add_manual(
+            "module eight archived deep recall lantern",
+            memory_type="shared_episode",
+            tags=["module8_archived"],
+        )
+        self.runtime.run_lifecycle(mode="heat_only", limit=20)
+        with self.runtime._lock:
+            self.runtime._conn.execute(
+                """
+                UPDATE memory_lifecycle_state
+                SET tier = 'archived', heat_score = 0.01, archived_at = ?
+                WHERE memory_id = ?
+                """,
+                ("2026-01-01T00:00:00+00:00", memory["id"]),
+            )
+            self.runtime._conn.commit()
+
+        ordinary = self.runtime.recall("module eight archived deep recall lantern", top_k=3)
+        deep = self.runtime.recall(
+            "module eight archived deep recall lantern",
+            top_k=3,
+            context_use_policy={"include_archived": True},
+        )
+
+        self.assertNotIn(memory["id"], ordinary["retrieved_ids"])
+        self.assertIn(memory["id"], deep["retrieved_ids"])
+
+    def test_module08_forget_writes_tombstone_and_blocks_relearning(self) -> None:
+        memory = self.runtime.add_manual(
+            "module eight tombstone prevents relearning",
+            memory_type="preference",
+        )
+        self.runtime.forget_memory(memory["id"], actor="test_user")
+        evidence_id = self.runtime.add_evidence(
+            source_type="test",
+            content_summary="module eight tombstone prevents relearning",
+        )
+
+        candidate = self.runtime.propose(
+            summary="module eight tombstone prevents relearning",
+            memory_type="preference",
+            evidence_ids=[evidence_id],
+            confidence=0.95,
+            reason="tombstone_relearn_test",
+            allow_auto_commit=False,
+        )
+
+        self.assertEqual(candidate["status"], "discarded")
+        self.assertEqual(candidate["reason"], "tombstone_prevents_relearning")
+        self.assertEqual(len(self.runtime.list_tombstones()), 1)
+
+    def test_module08_tombstone_compacts_to_entity_guard_then_expires(self) -> None:
+        self.runtime.lifecycle.record_tombstone(
+            target_type="memory",
+            target_id="mem_old",
+            content="module eight old topic guard",
+            reason="forget_test",
+            actor="test_user",
+            now="2026-01-01T00:00:00+00:00",
+            ttl_days=180,
+        )
+        before = self.runtime.list_tombstones()[0]
+        original_content_hash = before["content_hash"]
+
+        compacted = self.runtime.process_tombstones(now="2026-04-05T00:00:00+00:00")
+        after = self.runtime.list_tombstones()[0]
+        entity_match = self.runtime.lifecycle.find_tombstone_match(
+            "guard topic old eight module",
+            now="2026-04-05T00:00:00+00:00",
+        )
+        expired = self.runtime.process_tombstones(now="2026-07-01T00:00:00+00:00")
+
+        self.assertEqual(compacted["compacted_count"], 1)
+        self.assertEqual(after["retention_stage"], "entity_guard")
+        self.assertEqual(after["content_hash"], original_content_hash)
+        self.assertIsNotNone(entity_match)
+        self.assertEqual(expired["deleted_count"], 1)
+        self.assertEqual(self.runtime.list_tombstones(), [])
+
+    def test_module08_contradiction_winner_uses_protection_confirmation_and_evidence_strength(self) -> None:
+        protected = self.runtime.add_manual(
+            "user likes espresso as a morning drink",
+            memory_type="preference",
+            tags=["coffee", "protected_from_supersede"],
+        )
+        challenger = self.runtime.add_manual(
+            "user no longer likes espresso as a morning drink",
+            memory_type="preference",
+            tags=["coffee"],
+        )
+
+        winner, loser, basis = self.runtime.lifecycle._contradiction_winner(protected, challenger)
+        self.assertEqual(winner["id"], protected["id"])
+        self.assertEqual(loser["id"], challenger["id"])
+        self.assertIn("protected_from_supersede", basis)
+
+        confirmed = self.runtime.add_manual(
+            "user likes matcha before work",
+            memory_type="preference",
+            tags=["matcha", "user_confirmed"],
+        )
+        unconfirmed = self.runtime.add_manual(
+            "user does not like matcha before work",
+            memory_type="preference",
+            tags=["matcha"],
+        )
+
+        winner, loser, basis = self.runtime.lifecycle._contradiction_winner(confirmed, unconfirmed)
+        self.assertEqual(winner["id"], confirmed["id"])
+        self.assertEqual(loser["id"], unconfirmed["id"])
+        self.assertIn("user_confirmation", basis)
+
+        weak = self.runtime.add_manual(
+            "user likes tea before focus work",
+            memory_type="preference",
+            tags=["tea"],
+        )
+        strong = self.runtime.add_manual(
+            "user does not like tea before focus work",
+            memory_type="preference",
+            tags=["tea"],
+        )
+        self.runtime.run_lifecycle(mode="heat_only", limit=50)
+        validation_at = "2026-01-01T00:00:00+00:00"
+        with self.runtime._lock:
+            for memory, evidence_strength in ((weak, 0.20), (strong, 0.90)):
+                self.runtime._conn.execute(
+                    """
+                    UPDATE memory_record
+                    SET confidence = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (0.80, validation_at, memory["id"]),
+                )
+                self.runtime._conn.execute(
+                    """
+                    UPDATE memory_lifecycle_state
+                    SET last_validation_at = ?,
+                        evidence_strength = ?,
+                        metadata_json = ?
+                    WHERE memory_id = ?
+                    """,
+                    (
+                        validation_at,
+                        evidence_strength,
+                        json.dumps({"signals": {"evidence_strength": evidence_strength}}),
+                        memory["id"],
+                    ),
+                )
+            self.runtime._conn.commit()
+        weak = self.runtime.get_memory(weak["id"])
+        strong = self.runtime.get_memory(strong["id"])
+
+        winner, loser, basis = self.runtime.lifecycle._contradiction_winner(weak, strong)
+        self.assertEqual(winner["id"], strong["id"])
+        self.assertEqual(loser["id"], weak["id"])
+        self.assertIn("higher_evidence_strength", basis)
+
+    def test_module08_consolidation_routes_contradiction_to_gate_review(self) -> None:
+        old = self.runtime.add_manual(
+            "用户喜欢咖啡作为早晨规划饮品",
+            memory_type="preference",
+            tags=["module8_conflict", "coffee"],
+        )
+        new = self.runtime.add_manual(
+            "用户不喜欢咖啡作为早晨规划饮品",
+            memory_type="preference",
+            tags=["module8_conflict", "coffee"],
+        )
+
+        result = self.runtime.plan_consolidation(limit=20, create_candidates=True)
+        update_plans = [
+            item
+            for item in result["items"]
+            if item["action"] == "UPDATE" and old["id"] in item["memory_ids"] and new["id"] in item["memory_ids"]
+        ]
+        reviews = self.runtime.list_review_items(status="open", limit=20)
+
+        self.assertTrue(update_plans)
+        self.assertTrue(any(review["queue"] == "conflict" for review in reviews))
+        self.assertTrue(
+            any(
+                self.runtime.get_candidate(review["candidate_id"])["operation"] == "UPDATE"
+                for review in reviews
+            )
+        )
 
     def test_store_health_and_canonical_eval_cover_module04_invariants(self) -> None:
         self.runtime.add_manual(

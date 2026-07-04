@@ -301,6 +301,45 @@ def handle_command(
     if command == "/process-memory-retention":
         require_memory_admin(memory_admin)
         return dump(memory_admin.process_retention(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/run-memory-lifecycle":
+        require_memory_admin(memory_admin)
+        mode = (_first_positional(args) or "dry_run").lower()
+        return dump(
+            memory_admin.run_lifecycle(
+                mode=mode,
+                limit=_int_arg(args, "--limit", default=200),
+                create_consolidation_candidates=("--create-candidates" in args) or None,
+            )
+        ), False
+    if command == "/memory-lifecycle-states":
+        require_memory_admin(memory_admin)
+        tier = (_first_positional(args) or "all").lower()
+        return dump(
+            memory_admin.list_lifecycle_states(
+                tier=None if tier == "all" else tier,
+                limit=_int_arg(args, "--limit", default=100),
+            )
+        ), False
+    if command == "/memory-lifecycle-health":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.lifecycle_health()), False
+    if command == "/memory-heat-runs":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_heat_runs(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/memory-consolidation-plans":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.list_consolidation_plans(
+                status=_value_after(args, "--status"),
+                limit=_int_arg(args, "--limit", default=100),
+            )
+        ), False
+    if command == "/memory-tombstones":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_tombstones(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/run-lifecycle-memory-eval":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.run_lifecycle_eval()), False
     if command == "/forget-memory":
         require_memory_admin(memory_admin)
         memory_id = required_arg(args, "/forget-memory <memory_id> [--redact]")
@@ -728,6 +767,12 @@ Memory：
       处理或查看 relationship/worldops/persona projector outbox 与 checkpoint。
   /process-memory-retention /forget-memory <id> [--redact] /forget-memory-evidence <id> [--redact]
       执行 retention worker 或用户 forget/redaction 流程。
+  /run-memory-lifecycle [dry_run|heat_only|consolidate|retention|forget|backfill] [--limit N]
+      运行 Module 08 lifecycle worker，默认 dry_run，只写审计 run/snapshot。
+  /memory-lifecycle-states [hot|warm|cold|archived|all] /memory-lifecycle-health
+      查看 heat/tier 状态与 lifecycle 健康信息。
+  /memory-heat-runs /memory-consolidation-plans /memory-tombstones /run-lifecycle-memory-eval
+      查看 heat run、巩固计划、tombstone，或运行 lifecycle eval。
   /memory-store-health /run-canonical-memory-eval /canonical-memory-evals
       查看 canonical store 健康状态，运行或查看 canonical eval。
   /plan-recall <query> /prefetch-recall <query> /run-planner-memory-eval

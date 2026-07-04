@@ -16,11 +16,17 @@ class MemoryRetentionService:
         lock: Any,
         delete_evidence: Callable[..., JsonDict],
         set_memory_status: Callable[..., JsonDict],
+        get_memory: Callable[[str], JsonDict] | None = None,
+        get_evidence: Callable[[str], JsonDict] | None = None,
+        record_tombstone: Callable[..., JsonDict] | None = None,
     ) -> None:
         self._conn = conn
         self._lock = lock
         self._delete_evidence = delete_evidence
         self._set_memory_status = set_memory_status
+        self._get_memory = get_memory
+        self._get_evidence = get_evidence
+        self._record_tombstone = record_tombstone
 
     def process_expired(self, *, now: str | None = None, limit: int = 100) -> JsonDict:
         cutoff = now or utc_now()
@@ -219,6 +225,16 @@ class MemoryRetentionService:
         actor: str,
     ) -> JsonDict:
         if target_type == "evidence":
+            if self._record_tombstone is not None and self._get_evidence is not None:
+                evidence = self._get_evidence(target_id)
+                self._record_tombstone(
+                    target_type="evidence",
+                    target_id=target_id,
+                    content=str(evidence.get("content_summary") or evidence.get("raw_content") or target_id),
+                    reason=reason,
+                    actor=actor,
+                    metadata={"mode": mode, "forget_target_type": "evidence"},
+                )
             if mode == "redact":
                 return {"redacted_evidence": [self.redact_evidence(target_id, reason=reason)]}
             return {"deleted_evidence": [self._delete_evidence(target_id, reason=reason, actor=actor)]}
@@ -228,6 +244,20 @@ class MemoryRetentionService:
                 "SELECT evidence_id FROM memory_evidence WHERE memory_id = ? ORDER BY evidence_id",
                 (target_id,),
             ).fetchall()
+        if self._record_tombstone is not None and self._get_memory is not None:
+            memory_before = self._get_memory(target_id)
+            self._record_tombstone(
+                target_type="memory",
+                target_id=target_id,
+                content=str(memory_before.get("summary") or target_id),
+                reason=reason,
+                actor=actor,
+                metadata={
+                    "mode": mode,
+                    "memory_type": memory_before.get("type"),
+                    "forget_target_type": "memory",
+                },
+            )
         memory = self._set_memory_status(target_id, "deleted", reason=reason, actor=actor)
         affected_evidence: list[JsonDict] = []
         for row in evidence_rows:

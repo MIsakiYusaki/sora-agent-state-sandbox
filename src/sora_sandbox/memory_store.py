@@ -446,6 +446,131 @@ CREATE TABLE IF NOT EXISTS memory_forget_request (
 CREATE INDEX IF NOT EXISTS idx_memory_forget_request_target
 ON memory_forget_request(target_type, target_id, created_at);
 
+CREATE TABLE IF NOT EXISTS memory_tombstone (
+    id TEXT PRIMARY KEY,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    entity_hash TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    retention_stage TEXT NOT NULL,
+    expires_at TEXT,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_tombstone_hash
+ON memory_tombstone(content_hash, entity_hash);
+
+CREATE INDEX IF NOT EXISTS idx_memory_tombstone_target
+ON memory_tombstone(target_type, target_id, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_lifecycle_state (
+    memory_id TEXT PRIMARY KEY,
+    tier TEXT NOT NULL,
+    heat_score REAL NOT NULL,
+    usefulness_score REAL NOT NULL,
+    evidence_strength REAL NOT NULL,
+    recent_negative_feedback REAL NOT NULL,
+    stale_penalty REAL NOT NULL,
+    last_validation_at TEXT,
+    last_scored_at TEXT NOT NULL,
+    archived_at TEXT,
+    policy_version TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_lifecycle_tier
+ON memory_lifecycle_state(tier, heat_score);
+
+CREATE TABLE IF NOT EXISTS memory_heat_run (
+    id TEXT PRIMARY KEY,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    total_count INTEGER NOT NULL,
+    scored_count INTEGER NOT NULL,
+    migrated_count INTEGER NOT NULL,
+    proposed_count INTEGER NOT NULL,
+    archived_count INTEGER NOT NULL,
+    forgotten_count INTEGER NOT NULL,
+    config_json TEXT NOT NULL,
+    summary_json TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_heat_run_status
+ON memory_heat_run(status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_heat_snapshot (
+    run_id TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    heat_score REAL NOT NULL,
+    tier_before TEXT,
+    tier_after TEXT NOT NULL,
+    usefulness_score REAL NOT NULL,
+    evidence_strength REAL NOT NULL,
+    recent_negative_feedback REAL NOT NULL,
+    stale_penalty REAL NOT NULL,
+    signals_json TEXT NOT NULL,
+    reasons_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (run_id, memory_id),
+    FOREIGN KEY (run_id) REFERENCES memory_heat_run(id),
+    FOREIGN KEY (memory_id) REFERENCES memory_record(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_heat_snapshot_memory
+ON memory_heat_snapshot(memory_id, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_consolidation_plan (
+    id TEXT PRIMARY KEY,
+    run_id TEXT,
+    status TEXT NOT NULL,
+    planner_version TEXT NOT NULL,
+    cluster_key TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_memory_id TEXT,
+    candidate_id TEXT,
+    score REAL NOT NULL,
+    reasons_json TEXT NOT NULL,
+    evidence_ids_json TEXT NOT NULL,
+    memory_ids_json TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    resolved_at TEXT,
+    FOREIGN KEY (run_id) REFERENCES memory_heat_run(id),
+    FOREIGN KEY (candidate_id) REFERENCES memory_candidate(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_consolidation_plan_status
+ON memory_consolidation_plan(status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_lifecycle_eval_run (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    total_cases INTEGER NOT NULL,
+    passed_cases INTEGER NOT NULL,
+    failed_cases INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    summary_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_lifecycle_eval_case (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    case_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    details_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES memory_lifecycle_eval_run(id)
+);
+
 CREATE TABLE IF NOT EXISTS memory_canonical_eval_run (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL,
@@ -761,6 +886,8 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "memory_index_outbox", "last_attempt_at", "TEXT")
     ensure_column(conn, "memory_index_outbox", "next_attempt_at", "TEXT")
     ensure_column(conn, "memory_index_outbox", "index_generation", "TEXT NOT NULL DEFAULT 'active'")
+    ensure_column(conn, "memory_tombstone", "retention_stage", "TEXT NOT NULL DEFAULT 'full_hash'")
+    ensure_column(conn, "memory_lifecycle_state", "policy_version", "TEXT NOT NULL DEFAULT 'memory_lifecycle_policy.v1'")
     ensure_column(conn, "recall_trace", "plan_json", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column(conn, "recall_trace", "token_budget", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "recall_trace", "token_used", "INTEGER NOT NULL DEFAULT 0")

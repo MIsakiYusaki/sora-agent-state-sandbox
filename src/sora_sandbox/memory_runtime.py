@@ -30,6 +30,8 @@ from .memory_embedding import EmbeddingProvider, create_embedding_provider_from_
 from .memory_index_fts import index_text as _index_text
 from .memory_index_outbox import MemoryIndexOutbox
 from .memory_hybrid_retrieval import MemoryRetrievalService
+from .memory_lifecycle import MemoryLifecycleService
+from .memory_lifecycle_eval import MemoryLifecycleEvalService
 from .memory_observability import MemoryObservabilityService
 from .memory_projector import MemoryProjectorBus
 from .memory_recall_planner import RecallPlanner, create_recall_planner_from_env, plan_to_json
@@ -147,12 +149,28 @@ class MemoryRuntime:
             record_delete_propagation=self.ingestion.record_delete_propagation,
             publish_memory_change=self._publish_memory_change,
         )
+        self.lifecycle = MemoryLifecycleService(
+            self._conn,
+            lock=self._lock,
+            owner_user_id=self.owner_user_id,
+            agent_id=self.agent_id,
+            get_memory=self.get_memory,
+            list_memories=self.list_memories,
+            evidence_for_memory=self.evidence_for_memory,
+            propose_candidate=self.propose,
+            run_candidate_gate=self.run_candidate_gate,
+            append_revision=self._append_revision,
+        )
         self.retention = MemoryRetentionService(
             self._conn,
             lock=self._lock,
             delete_evidence=self.delete_evidence,
             set_memory_status=self._set_status,
+            get_memory=self.get_memory,
+            get_evidence=self.get_evidence,
+            record_tombstone=self.lifecycle.record_tombstone,
         )
+        self.lifecycle.attach_retention_process(self.retention.process_expired)
         self.observability = MemoryObservabilityService(
             self._conn,
             lock=self._lock,
@@ -164,6 +182,7 @@ class MemoryRuntime:
             projector_pending_count=self.projector_bus.pending_count,
             projector_failed_count=self.projector_bus.failed_count,
             retention_backlog_count=self.retention.backlog_count,
+            lifecycle_health=self.lifecycle.lifecycle_health,
             projector_checkpoints=self.projector_bus.list_checkpoints,
         )
         self.canonical_eval = MemoryCanonicalEvalService(
@@ -186,6 +205,14 @@ class MemoryRuntime:
             self._conn,
             lock=self._lock,
             surface_policy=self.surface_policy,
+        )
+        self.lifecycle_eval = MemoryLifecycleEvalService(
+            self._conn,
+            lock=self._lock,
+            run_lifecycle=self.run_lifecycle,
+            lifecycle_health=self.lifecycle.lifecycle_health,
+            list_states=self.list_lifecycle_states,
+            list_tombstones=self.list_tombstones,
         )
         self.gate_pipeline = MemoryGatePipeline(
             self._conn,
@@ -239,6 +266,13 @@ class MemoryRuntime:
                 DELETE FROM memory_canonical_eval_case;
                 DELETE FROM memory_canonical_eval_run;
                 DELETE FROM memory_forget_request;
+                DELETE FROM memory_lifecycle_eval_case;
+                DELETE FROM memory_lifecycle_eval_run;
+                DELETE FROM memory_consolidation_plan;
+                DELETE FROM memory_heat_snapshot;
+                DELETE FROM memory_heat_run;
+                DELETE FROM memory_lifecycle_state;
+                DELETE FROM memory_tombstone;
                 DELETE FROM memory_projector_checkpoint;
                 DELETE FROM memory_projector_outbox;
                 DELETE FROM memory_index_rebuild_run;
@@ -438,6 +472,14 @@ class MemoryRuntime:
                 "candidate_id": None,
                 "status": "discarded",
                 "reason": "forbidden_secret_not_persisted",
+            }
+        tombstone = self.lifecycle.find_tombstone_match(cleaned)
+        if tombstone is not None:
+            return {
+                "candidate_id": None,
+                "status": "discarded",
+                "reason": "tombstone_prevents_relearning",
+                "tombstone": tombstone,
             }
         candidate_id = _new_id("mc")
         local_only = detected == "sensitive"
@@ -2254,6 +2296,84 @@ class MemoryRuntime:
     def process_retention(self, *, now: str | None = None, limit: int = 100) -> JsonDict:
         return self.retention.process_expired(now=now, limit=limit)
 
+    def run_lifecycle(
+        self,
+        *,
+        mode: str = "dry_run",
+        now: str | None = None,
+        limit: int = 200,
+        actor: str = "lifecycle_worker",
+        create_consolidation_candidates: bool | None = None,
+    ) -> JsonDict:
+        return self.lifecycle.run(
+            mode=mode,
+            now=now,
+            limit=limit,
+            actor=actor,
+            create_consolidation_candidates=create_consolidation_candidates,
+        )
+
+    def score_memory_heat(self, memory_id: str, *, now: str | None = None) -> JsonDict:
+        return self.lifecycle.score_memory_public(memory_id, now=now)
+
+    def list_lifecycle_states(
+        self,
+        *,
+        tier: str | None = None,
+        limit: int = 100,
+    ) -> list[JsonDict]:
+        return self.lifecycle.list_lifecycle_states(tier=tier, limit=limit)
+
+    def get_lifecycle_state(self, memory_id: str) -> JsonDict:
+        return self.lifecycle.get_lifecycle_state(memory_id)
+
+    def list_heat_runs(self, *, limit: int = 20) -> list[JsonDict]:
+        return self.lifecycle.list_heat_runs(limit=limit)
+
+    def list_heat_snapshots(
+        self,
+        *,
+        run_id: str | None = None,
+        memory_id: str | None = None,
+        limit: int = 100,
+    ) -> list[JsonDict]:
+        return self.lifecycle.list_heat_snapshots(run_id=run_id, memory_id=memory_id, limit=limit)
+
+    def plan_consolidation(
+        self,
+        *,
+        run_id: str | None = None,
+        now: str | None = None,
+        limit: int = 200,
+        create_candidates: bool = False,
+        actor: str = "lifecycle_worker",
+    ) -> JsonDict:
+        return self.lifecycle.plan_consolidation(
+            run_id=run_id,
+            now=now,
+            limit=limit,
+            create_candidates=create_candidates,
+            actor=actor,
+        )
+
+    def list_consolidation_plans(
+        self,
+        *,
+        run_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[JsonDict]:
+        return self.lifecycle.list_consolidation_plans(run_id=run_id, status=status, limit=limit)
+
+    def list_tombstones(self, *, limit: int = 100) -> list[JsonDict]:
+        return self.lifecycle.list_tombstones(limit=limit)
+
+    def process_tombstones(self, *, now: str | None = None) -> JsonDict:
+        return self.lifecycle.process_tombstones(now=now)
+
+    def lifecycle_health(self) -> JsonDict:
+        return self.lifecycle.lifecycle_health()
+
     def forget_memory(
         self,
         memory_id: str,
@@ -2618,6 +2738,12 @@ class MemoryRuntime:
     def list_surface_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
         return self.surface_eval.list_runs(limit=limit)
 
+    def run_lifecycle_eval(self) -> JsonDict:
+        return self.lifecycle_eval.run()
+
+    def list_lifecycle_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
+        return self.lifecycle_eval.list_runs(limit=limit)
+
     def revisions_for_memory(self, memory_id: str) -> list[JsonDict]:
         with self._lock:
             rows = self._conn.execute(
@@ -2853,6 +2979,7 @@ class MemoryRuntime:
             "episodes": episode_count,
             "pending_extraction_jobs": pending_job_count,
             "canonical_store": canonical_store,
+            "lifecycle": canonical_store.get("lifecycle", {}),
         }
 
     def sync_state_cache(self, state: JsonDict) -> None:
@@ -2880,6 +3007,7 @@ class MemoryRuntime:
             ).fetchall()
             surface_feedback = self._surface_feedback_for_memory(row["id"])
             surface_consent = self._surface_consent_for_memory(row["id"])
+            lifecycle = self.lifecycle.get_lifecycle_state(row["id"], missing_ok=True)
         return {
             "id": row["id"],
             "owner_user_id": row["owner_user_id"],
@@ -2911,6 +3039,7 @@ class MemoryRuntime:
             "last_surfaced_at": row_value(row, "last_surfaced_at"),
             "surface_feedback": surface_feedback,
             "surface_consent": surface_consent,
+            "lifecycle": lifecycle,
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }

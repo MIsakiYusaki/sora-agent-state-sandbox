@@ -66,7 +66,7 @@ class MemoryRetrievalService:
             groups, retrieval_errors = self._candidate_groups(plan)
             fused = self._fuse(groups, plan)
             reranked, rerank_metadata = self._rerank(fused, plan)
-            governed, filtered = self._govern(reranked, plan)
+            governed, filtered = self._govern(reranked, plan, context_use_policy=context_use_policy)
             packed_candidates = [
                 PackedMemory(
                     score=hit.score,
@@ -330,28 +330,45 @@ class MemoryRetrievalService:
         self,
         hits: list[FusedMemoryHit],
         plan: RecallPlan,
+        *,
+        context_use_policy: JsonDict | None = None,
     ) -> tuple[list[FusedMemoryHit], list[tuple[FusedMemoryHit, str]]]:
         allowed: list[FusedMemoryHit] = []
         filtered: list[tuple[FusedMemoryHit, str]] = []
         for hit in hits:
             row = hit.row
-            reason = self._filter_reason(row, plan)
+            reason = self._filter_reason(row, plan, context_use_policy=context_use_policy)
             if reason:
                 filtered.append((hit, reason))
             else:
                 allowed.append(hit)
         return allowed, filtered
 
-    def _filter_reason(self, row: Any, plan: RecallPlan) -> str | None:
+    def _filter_reason(
+        self,
+        row: Any,
+        plan: RecallPlan,
+        *,
+        context_use_policy: JsonDict | None = None,
+    ) -> str | None:
         if row["status"] != "active":
             return "inactive"
         if row["retrieval_permission"] != "allow":
             return "retrieval_denied"
         if row["use_permission"] == "deny":
             return "use_denied"
+        if self._is_archived(row["id"]) and not _plan_allows_archived(plan, context_use_policy):
+            return "archived"
         if row["sensitivity"] == "sensitive" and not plan.explicit_recall:
             return "sensitive_requires_explicit_recall"
         return None
+
+    def _is_archived(self, memory_id: str) -> bool:
+        row = self.conn.execute(
+            "SELECT tier FROM memory_lifecycle_state WHERE memory_id = ?",
+            (memory_id,),
+        ).fetchone()
+        return bool(row and row["tier"] == "archived")
 
     def _empty_recollection(
         self,
@@ -759,6 +776,26 @@ def _rerank_errors(metadata: JsonDict) -> list[JsonDict]:
             "error": metadata.get("error"),
         }
     ]
+
+
+def _plan_allows_archived(
+    plan: RecallPlan,
+    context_use_policy: JsonDict | None = None,
+) -> bool:
+    if context_use_policy and bool(context_use_policy.get("include_archived")):
+        return True
+    query = str(plan.query_text or "").lower()
+    deep_terms = (
+        "deep recall",
+        "archived",
+        "archive",
+        "归档",
+        "深度回忆",
+        "很久以前",
+        "更早以前",
+        "历史记忆",
+    )
+    return bool(plan.explicit_recall and any(term in query for term in deep_terms))
 
 
 def _feedback_default_value(feedback_type: str) -> float:

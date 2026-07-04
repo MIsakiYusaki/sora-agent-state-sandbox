@@ -77,6 +77,17 @@ class MemoryConsole:
   process-projectors [--limit N]
   projector-checkpoints
   process-retention [--limit N]
+  lifecycle-run [dry_run|heat_only|consolidate|retention|forget|backfill] [--limit N]
+  lifecycle-states [hot|warm|cold|archived|all] [--limit N]
+  lifecycle-health
+  heat-runs [--limit N]
+  heat-snapshots [--run-id X] [--memory-id X] [--limit N]
+  consolidation-plan [--limit N] [--create-candidates]
+  consolidation-plans [--status X] [--limit N]
+  tombstones [--limit N]
+  process-tombstones
+  lifecycle-eval
+  lifecycle-evals [--limit N]
   forget-memory <memory_id> [--redact]
   forget-evidence <evidence_id> [--redact]
   forget-requests [--limit N]
@@ -294,6 +305,57 @@ class MemoryConsole:
             return _dump(self.runtime.list_projector_checkpoints()), False
         if command == "process-retention":
             return _dump(self.runtime.process_retention(limit=_flag_int(args, "--limit", default=100))), False
+        if command == "lifecycle-run":
+            mode = (self._first_positional(args) or "dry_run").lower()
+            return _dump(
+                self.runtime.run_lifecycle(
+                    mode=mode,
+                    limit=_flag_int(args, "--limit", default=200),
+                    create_consolidation_candidates=("--create-candidates" in args) or None,
+                )
+            ), False
+        if command == "lifecycle-states":
+            tier = (self._first_positional(args) or "all").lower()
+            return _dump(
+                self.runtime.list_lifecycle_states(
+                    tier=None if tier == "all" else tier,
+                    limit=_flag_int(args, "--limit", default=100),
+                )
+            ), False
+        if command == "lifecycle-health":
+            return _dump(self.runtime.lifecycle_health()), False
+        if command == "heat-runs":
+            return _dump(self.runtime.list_heat_runs(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "heat-snapshots":
+            return _dump(
+                self.runtime.list_heat_snapshots(
+                    run_id=self._value_after(args, "--run-id"),
+                    memory_id=self._value_after(args, "--memory-id"),
+                    limit=_flag_int(args, "--limit", default=100),
+                )
+            ), False
+        if command == "consolidation-plan":
+            return _dump(
+                self.runtime.plan_consolidation(
+                    limit=_flag_int(args, "--limit", default=200),
+                    create_candidates="--create-candidates" in args,
+                )
+            ), False
+        if command == "consolidation-plans":
+            return _dump(
+                self.runtime.list_consolidation_plans(
+                    status=self._value_after(args, "--status"),
+                    limit=_flag_int(args, "--limit", default=100),
+                )
+            ), False
+        if command == "tombstones":
+            return _dump(self.runtime.list_tombstones(limit=_flag_int(args, "--limit", default=100))), False
+        if command == "process-tombstones":
+            return _dump(self.runtime.process_tombstones()), False
+        if command == "lifecycle-eval":
+            return _dump(self.runtime.run_lifecycle_eval()), False
+        if command == "lifecycle-evals":
+            return _dump(self.runtime.list_lifecycle_eval_runs(limit=_flag_int(args, "--limit", default=20))), False
         if command == "forget-memory":
             memory_id = self._required(args, "forget-memory <memory_id> [--redact]")
             return _dump(self.runtime.forget_memory(memory_id, mode="redact" if "--redact" in args else "delete")), False

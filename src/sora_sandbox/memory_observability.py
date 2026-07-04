@@ -22,6 +22,7 @@ class MemoryObservabilityService:
         projector_pending_count: Callable[[], int],
         projector_failed_count: Callable[[], int],
         retention_backlog_count: Callable[[], int],
+        lifecycle_health: Callable[[], JsonDict],
         projector_checkpoints: Callable[[], list[JsonDict]],
     ) -> None:
         self._conn = conn
@@ -34,6 +35,7 @@ class MemoryObservabilityService:
         self._projector_pending_count = projector_pending_count
         self._projector_failed_count = projector_failed_count
         self._retention_backlog_count = retention_backlog_count
+        self._lifecycle_health = lifecycle_health
         self._projector_checkpoints = projector_checkpoints
 
     def store_health(self) -> JsonDict:
@@ -45,6 +47,7 @@ class MemoryObservabilityService:
         projector_pending = self._projector_pending_count()
         projector_failed = self._projector_failed_count()
         retention_backlog = self._retention_backlog_count()
+        lifecycle = self._lifecycle_health()
         with self._lock:
             active_memories = int(
                 self._conn.execute(
@@ -75,6 +78,8 @@ class MemoryObservabilityService:
             warnings.append("projector_pending")
         if retention_backlog:
             warnings.append("retention_backlog")
+        if lifecycle.get("pending_consolidation_plans"):
+            warnings.append("lifecycle_consolidation_pending")
         status = "error" if blockers else ("warn" if warnings else "ok")
         return {
             "status": status,
@@ -102,4 +107,5 @@ class MemoryObservabilityService:
             "retention": {
                 "backlog": retention_backlog,
             },
+            "lifecycle": lifecycle,
         }
