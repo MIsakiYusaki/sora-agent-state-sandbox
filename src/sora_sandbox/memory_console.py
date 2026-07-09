@@ -76,6 +76,12 @@ class MemoryConsole:
   projector-outbox [--status X] [--limit N]
   process-projectors [--limit N]
   projector-checkpoints
+  projection-snapshots [--subsystem X] [--status active] [--limit N]
+  projection-frame <relationship|persona|worldops>
+  projection-rebuild [--subsystems relationship,persona,worldops] [--limit N]
+  projection-rebuilds [--limit N]
+  projection-audits [--action X] [--subsystem X] [--limit N]
+  projection-proposals [--status X] [--limit N]
   process-retention [--limit N]
   lifecycle-run [dry_run|heat_only|consolidate|retention|forget|backfill] [--limit N]
   lifecycle-states [hot|warm|cold|archived|all] [--limit N]
@@ -303,6 +309,42 @@ class MemoryConsole:
             return _dump(self.runtime.process_projector_outbox(limit=_flag_int(args, "--limit", default=100))), False
         if command == "projector-checkpoints":
             return _dump(self.runtime.list_projector_checkpoints()), False
+        if command == "projection-snapshots":
+            return _dump(
+                self.runtime.list_projection_snapshots(
+                    subsystem=self._value_after(args, "--subsystem"),
+                    status=self._value_after(args, "--status") or "active",
+                    limit=_flag_int(args, "--limit", default=50),
+                )
+            ), False
+        if command == "projection-frame":
+            subsystem = self._required(args, "projection-frame <relationship|persona|worldops>")
+            return _dump(self.runtime.get_projection_frame(subsystem)), False
+        if command == "projection-rebuild":
+            subsystem_value = self._value_after(args, "--subsystems")
+            return _dump(
+                self.runtime.rebuild_projections(
+                    subsystems=subsystem_value.split(",") if subsystem_value else None,
+                    limit=_flag_int(args, "--limit", default=500),
+                )
+            ), False
+        if command == "projection-rebuilds":
+            return _dump(self.runtime.list_projection_rebuilds(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "projection-audits":
+            return _dump(
+                self.runtime.list_projection_audits(
+                    action=self._value_after(args, "--action"),
+                    subsystem=self._value_after(args, "--subsystem"),
+                    limit=_flag_int(args, "--limit", default=50),
+                )
+            ), False
+        if command == "projection-proposals":
+            return _dump(
+                self.runtime.list_projection_proposals(
+                    status=self._value_after(args, "--status"),
+                    limit=_flag_int(args, "--limit", default=50),
+                )
+            ), False
         if command == "process-retention":
             return _dump(self.runtime.process_retention(limit=_flag_int(args, "--limit", default=100))), False
         if command == "lifecycle-run":

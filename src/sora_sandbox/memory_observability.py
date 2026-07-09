@@ -21,6 +21,7 @@ class MemoryObservabilityService:
         index_health: Callable[[], JsonDict],
         projector_pending_count: Callable[[], int],
         projector_failed_count: Callable[[], int],
+        projector_dead_letter_count: Callable[[], int],
         retention_backlog_count: Callable[[], int],
         lifecycle_health: Callable[[], JsonDict],
         projector_checkpoints: Callable[[], list[JsonDict]],
@@ -34,6 +35,7 @@ class MemoryObservabilityService:
         self._index_health = index_health
         self._projector_pending_count = projector_pending_count
         self._projector_failed_count = projector_failed_count
+        self._projector_dead_letter_count = projector_dead_letter_count
         self._retention_backlog_count = retention_backlog_count
         self._lifecycle_health = lifecycle_health
         self._projector_checkpoints = projector_checkpoints
@@ -46,6 +48,7 @@ class MemoryObservabilityService:
         index_health = self._index_health()
         projector_pending = self._projector_pending_count()
         projector_failed = self._projector_failed_count()
+        projector_dead_letter = self._projector_dead_letter_count()
         retention_backlog = self._retention_backlog_count()
         lifecycle = self._lifecycle_health()
         with self._lock:
@@ -71,6 +74,8 @@ class MemoryObservabilityService:
             blockers.append("index_outbox_dead_letter")
         if projector_failed:
             blockers.append("projector_failed")
+        if projector_dead_letter:
+            blockers.append("projector_dead_letter")
         warnings = []
         if index_pending:
             warnings.append("index_outbox_pending")
@@ -102,6 +107,7 @@ class MemoryObservabilityService:
             "projectors": {
                 "pending": projector_pending,
                 "failed": projector_failed,
+                "dead_letter": projector_dead_letter,
                 "checkpoints": self._projector_checkpoints(),
             },
             "retention": {

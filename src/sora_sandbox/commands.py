@@ -298,6 +298,48 @@ def handle_command(
     if command == "/memory-projector-checkpoints":
         require_memory_admin(memory_admin)
         return dump(memory_admin.list_projector_checkpoints()), False
+    if command == "/memory-projection-snapshots":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.list_projection_snapshots(
+                subsystem=_value_after(args, "--subsystem"),
+                status=_value_after(args, "--status") or "active",
+                limit=_int_arg(args, "--limit", default=50),
+            )
+        ), False
+    if command == "/memory-projection-frame":
+        require_memory_admin(memory_admin)
+        subsystem = required_arg(args, "/memory-projection-frame <relationship|persona|worldops>")
+        return dump(memory_admin.get_projection_frame(subsystem)), False
+    if command == "/rebuild-memory-projections":
+        require_memory_admin(memory_admin)
+        subsystem_value = _value_after(args, "--subsystems")
+        return dump(
+            memory_admin.rebuild_projections(
+                subsystems=subsystem_value.split(",") if subsystem_value else None,
+                limit=_int_arg(args, "--limit", default=500),
+            )
+        ), False
+    if command == "/memory-projection-rebuilds":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_projection_rebuilds(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/memory-projection-audits":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.list_projection_audits(
+                action=_value_after(args, "--action"),
+                subsystem=_value_after(args, "--subsystem"),
+                limit=_int_arg(args, "--limit", default=50),
+            )
+        ), False
+    if command == "/memory-projection-proposals":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.list_projection_proposals(
+                status=_value_after(args, "--status"),
+                limit=_int_arg(args, "--limit", default=50),
+            )
+        ), False
     if command == "/process-memory-retention":
         require_memory_admin(memory_admin)
         return dump(memory_admin.process_retention(limit=_int_arg(args, "--limit", default=100))), False
@@ -764,6 +806,7 @@ Memory：
   /process-memory-index-outbox /memory-index-outbox
       处理或查看 FTS/vector/graph index outbox。
   /process-memory-projectors /memory-projector-outbox /memory-projector-checkpoints
+  /memory-projection-snapshots /memory-projection-frame <subsystem> /rebuild-memory-projections
       处理或查看 relationship/worldops/persona projector outbox 与 checkpoint。
   /process-memory-retention /forget-memory <id> [--redact] /forget-memory-evidence <id> [--redact]
       执行 retention worker 或用户 forget/redaction 流程。

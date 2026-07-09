@@ -181,6 +181,7 @@ class MemoryRuntime:
             index_health=self.index_outbox.health,
             projector_pending_count=self.projector_bus.pending_count,
             projector_failed_count=self.projector_bus.failed_count,
+            projector_dead_letter_count=self.projector_bus.dead_letter_count,
             retention_backlog_count=self.retention.backlog_count,
             lifecycle_health=self.lifecycle.lifecycle_health,
             projector_checkpoints=self.projector_bus.list_checkpoints,
@@ -273,6 +274,10 @@ class MemoryRuntime:
                 DELETE FROM memory_heat_run;
                 DELETE FROM memory_lifecycle_state;
                 DELETE FROM memory_tombstone;
+                DELETE FROM memory_projection_audit;
+                DELETE FROM memory_projection_proposal;
+                DELETE FROM memory_projection_snapshot;
+                DELETE FROM memory_projection_rebuild_run;
                 DELETE FROM memory_projector_checkpoint;
                 DELETE FROM memory_projector_outbox;
                 DELETE FROM memory_index_rebuild_run;
@@ -2292,6 +2297,73 @@ class MemoryRuntime:
 
     def list_projector_checkpoints(self) -> list[JsonDict]:
         return self.projector_bus.list_checkpoints()
+
+    def list_projection_snapshots(
+        self,
+        *,
+        subsystem: str | None = None,
+        status: str | None = "active",
+        limit: int = 50,
+    ) -> list[JsonDict]:
+        return self.projector_bus.list_snapshots(
+            subsystem=subsystem,
+            status=status,
+            limit=limit,
+        )
+
+    def get_projection_frame(self, subsystem: str) -> JsonDict:
+        return self.projector_bus.latest_frame(subsystem)
+
+    def rebuild_projections(
+        self,
+        *,
+        subsystems: list[str] | None = None,
+        limit: int = 500,
+    ) -> JsonDict:
+        return self.projector_bus.rebuild_from_memories(
+            self.list_memories(status="active"),
+            subsystems=subsystems,
+            limit=limit,
+        )
+
+    def list_projection_rebuilds(self, *, limit: int = 20) -> list[JsonDict]:
+        return self.projector_bus.list_rebuild_runs(limit=limit)
+
+    def list_projection_audits(
+        self,
+        *,
+        action: str | None = None,
+        subsystem: str | None = None,
+        limit: int = 50,
+    ) -> list[JsonDict]:
+        return self.projector_bus.list_audit(
+            action=action,
+            subsystem=subsystem,
+            limit=limit,
+        )
+
+    def record_projection_proposal(
+        self,
+        *,
+        subsystem: str,
+        proposal: JsonDict,
+        source_event_id: str | None = None,
+        source_snapshot_ref: str | None = None,
+    ) -> JsonDict:
+        return self.projector_bus.record_proposal_request(
+            subsystem=subsystem,
+            proposal=proposal,
+            source_event_id=source_event_id,
+            source_snapshot_ref=source_snapshot_ref,
+        )
+
+    def list_projection_proposals(
+        self,
+        *,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[JsonDict]:
+        return self.projector_bus.list_proposal_requests(status=status, limit=limit)
 
     def process_retention(self, *, now: str | None = None, limit: int = 100) -> JsonDict:
         return self.retention.process_expired(now=now, limit=limit)

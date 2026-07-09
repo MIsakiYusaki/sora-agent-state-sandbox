@@ -405,12 +405,21 @@ CREATE TABLE IF NOT EXISTS memory_projector_outbox (
     projector_name TEXT NOT NULL,
     memory_id TEXT NOT NULL,
     action TEXT NOT NULL,
+    event_type TEXT,
+    event_key TEXT,
+    payload_hash TEXT,
+    target_subsystem TEXT,
+    projector_version TEXT,
     status TEXT NOT NULL,
     attempts INTEGER NOT NULL,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
     payload_json TEXT NOT NULL,
     result_json TEXT NOT NULL,
+    error_type TEXT,
     error TEXT,
     created_at TEXT NOT NULL,
+    last_attempt_at TEXT,
+    next_attempt_at TEXT,
     processed_at TEXT
 );
 
@@ -420,6 +429,9 @@ ON memory_projector_outbox(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_memory_projector_outbox_memory
 ON memory_projector_outbox(memory_id, projector_name, status);
 
+CREATE INDEX IF NOT EXISTS idx_memory_projector_outbox_event_key
+ON memory_projector_outbox(event_key, payload_hash, status);
+
 CREATE TABLE IF NOT EXISTS memory_projector_checkpoint (
     projector_name TEXT PRIMARY KEY,
     last_event_id TEXT,
@@ -427,8 +439,76 @@ CREATE TABLE IF NOT EXISTS memory_projector_checkpoint (
     status TEXT NOT NULL,
     processed_count INTEGER NOT NULL,
     updated_at TEXT NOT NULL,
+    last_snapshot_ref TEXT,
+    last_snapshot_version TEXT,
+    last_ack_status TEXT,
+    last_generation TEXT,
     metadata_json TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memory_projection_snapshot (
+    id TEXT PRIMARY KEY,
+    subsystem TEXT NOT NULL,
+    snapshot_ref TEXT NOT NULL,
+    snapshot_version TEXT NOT NULL,
+    frame_json TEXT NOT NULL,
+    source_memory_ids_json TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    metadata_json TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_projection_snapshot_subsystem
+ON memory_projection_snapshot(subsystem, status, updated_at);
+
+CREATE TABLE IF NOT EXISTS memory_projection_proposal (
+    id TEXT PRIMARY KEY,
+    subsystem TEXT NOT NULL,
+    source_snapshot_ref TEXT,
+    source_event_id TEXT,
+    status TEXT NOT NULL,
+    proposal_json TEXT NOT NULL,
+    routed_candidate_id TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    resolved_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_projection_proposal_status
+ON memory_projection_proposal(status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_projection_rebuild_run (
+    id TEXT PRIMARY KEY,
+    generation TEXT NOT NULL,
+    status TEXT NOT NULL,
+    subsystems_json TEXT NOT NULL,
+    total_count INTEGER NOT NULL,
+    processed_count INTEGER NOT NULL,
+    failed_count INTEGER NOT NULL,
+    payload_json TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_projection_rebuild_status
+ON memory_projection_rebuild_run(status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_projection_audit (
+    id TEXT PRIMARY KEY,
+    action TEXT NOT NULL,
+    subsystem TEXT NOT NULL,
+    event_id TEXT,
+    memory_id TEXT,
+    details_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_projection_audit_action
+ON memory_projection_audit(action, subsystem, created_at);
 
 CREATE TABLE IF NOT EXISTS memory_forget_request (
     id TEXT PRIMARY KEY,
@@ -886,6 +966,19 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "memory_index_outbox", "last_attempt_at", "TEXT")
     ensure_column(conn, "memory_index_outbox", "next_attempt_at", "TEXT")
     ensure_column(conn, "memory_index_outbox", "index_generation", "TEXT NOT NULL DEFAULT 'active'")
+    ensure_column(conn, "memory_projector_outbox", "event_type", "TEXT")
+    ensure_column(conn, "memory_projector_outbox", "event_key", "TEXT")
+    ensure_column(conn, "memory_projector_outbox", "payload_hash", "TEXT")
+    ensure_column(conn, "memory_projector_outbox", "target_subsystem", "TEXT")
+    ensure_column(conn, "memory_projector_outbox", "projector_version", "TEXT")
+    ensure_column(conn, "memory_projector_outbox", "max_attempts", "INTEGER NOT NULL DEFAULT 3")
+    ensure_column(conn, "memory_projector_outbox", "error_type", "TEXT")
+    ensure_column(conn, "memory_projector_outbox", "last_attempt_at", "TEXT")
+    ensure_column(conn, "memory_projector_outbox", "next_attempt_at", "TEXT")
+    ensure_column(conn, "memory_projector_checkpoint", "last_snapshot_ref", "TEXT")
+    ensure_column(conn, "memory_projector_checkpoint", "last_snapshot_version", "TEXT")
+    ensure_column(conn, "memory_projector_checkpoint", "last_ack_status", "TEXT")
+    ensure_column(conn, "memory_projector_checkpoint", "last_generation", "TEXT")
     ensure_column(conn, "memory_tombstone", "retention_stage", "TEXT NOT NULL DEFAULT 'full_hash'")
     ensure_column(conn, "memory_lifecycle_state", "policy_version", "TEXT NOT NULL DEFAULT 'memory_lifecycle_policy.v1'")
     ensure_column(conn, "recall_trace", "plan_json", "TEXT NOT NULL DEFAULT '{}'")

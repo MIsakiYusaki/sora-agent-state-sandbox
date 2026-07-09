@@ -629,6 +629,179 @@ class MemoryRuntimeTests(unittest.TestCase):
         )
         self.assertTrue(any(item["projector_name"] == "relationship" for item in checkpoints))
 
+    def test_module09_projection_gateway_contract_snapshot_and_idempotency(self) -> None:
+        memory = self.runtime.add_manual(
+            "module nine relationship gateway contract memory",
+            memory_type="relationship_signal",
+            tags=["module09"],
+        )
+
+        projector_items = [
+            item
+            for item in self.runtime.list_projector_outbox(limit=20)
+            if item["memory_id"] == memory["id"] and item["projector_name"] == "relationship"
+        ]
+        self.assertEqual(len(projector_items), 1)
+        item = projector_items[0]
+        event = item["payload"]
+        ack = item["result"]
+        snapshots = self.runtime.list_projection_snapshots(subsystem="relationship", limit=5)
+        frame = self.runtime.get_projection_frame("relationship")
+
+        self.assertEqual(item["event_type"], "memory_upsert")
+        self.assertEqual(event["contract"], "ProjectionEvent.v1")
+        self.assertEqual(event["target_subsystem"], "relationship")
+        self.assertEqual(event["memory"]["id"], memory["id"])
+        self.assertEqual(event["policy"]["disclosure_permission"], memory["disclosure_permission"])
+        self.assertEqual(event["adapter_config"]["state_owner"], "external_relationship_system")
+        self.assertTrue(event["idempotency"]["event_key"])
+        self.assertTrue(event["idempotency"]["payload_hash"])
+        self.assertEqual(ack["contract"], "ProjectionAck.v1")
+        self.assertEqual(ack["status"], "applied")
+        self.assertEqual(ack["snapshot"]["contract"], "ProjectionSnapshot.v1")
+        self.assertEqual(snapshots[0]["subsystem"], "relationship")
+        self.assertEqual(frame["contract"], "ProjectionFrame.v1")
+        self.assertIn(memory["id"], frame["source_memory_ids"])
+
+        queued = self.runtime.projector_bus.enqueue_memory_change(
+            memory,
+            action="upsert",
+            reason="manual_repl",
+            source_ref=memory["id"],
+        )
+        self.assertEqual(queued[0]["id"], item["id"])
+
+        changed_memory = {**memory, "summary": "module nine relationship gateway changed payload"}
+        superseding = self.runtime.projector_bus.enqueue_memory_change(
+            changed_memory,
+            action="upsert",
+            reason="manual_repl",
+            source_ref=memory["id"],
+        )[0]
+        audits = self.runtime.list_projection_audits(
+            action="payload_superseded",
+            subsystem="relationship",
+            limit=5,
+        )
+
+        self.assertNotEqual(superseding["id"], item["id"])
+        self.assertEqual(audits[0]["details"]["old_event_id"], item["id"])
+        self.assertEqual(audits[0]["details"]["new_payload_hash"], superseding["payload_hash"])
+
+    def test_module09_projection_gateway_snapshot_lifecycle_keeps_one_active(self) -> None:
+        first = self.runtime.add_manual(
+            "module nine first relationship snapshot",
+            memory_type="relationship_signal",
+        )
+        second = self.runtime.add_manual(
+            "module nine second relationship snapshot",
+            memory_type="relationship_signal",
+        )
+
+        active_snapshots = self.runtime.list_projection_snapshots(
+            subsystem="relationship",
+            status="active",
+            limit=20,
+        )
+        superseded_snapshots = self.runtime.list_projection_snapshots(
+            subsystem="relationship",
+            status="superseded",
+            limit=20,
+        )
+        frame = self.runtime.get_projection_frame("relationship")
+
+        self.assertEqual(len(active_snapshots), 1)
+        self.assertIn(second["id"], frame["source_memory_ids"])
+        self.assertTrue(
+            any(first["id"] in snapshot["source_memory_ids"] for snapshot in superseded_snapshots)
+        )
+
+    def test_module09_projection_gateway_retry_and_dead_letter(self) -> None:
+        class RetryAdapter:
+            def deliver(self, event: JsonDict) -> JsonDict:
+                return {
+                    "contract": "ProjectionAck.v1",
+                    "event_id": event["event_id"],
+                    "target_subsystem": event["target_subsystem"],
+                    "status": "failed_retryable",
+                    "error_type": "temporary_outage",
+                    "error": "external subsystem unavailable",
+                }
+
+        self.runtime.projector_bus.register_adapter("relationship", RetryAdapter())
+        memory = self.runtime.add_manual(
+            "module nine retry relationship memory",
+            memory_type="relationship_signal",
+        )
+        item = next(
+            item
+            for item in self.runtime.list_projector_outbox(status="pending", limit=20)
+            if item["memory_id"] == memory["id"]
+        )
+        self.assertEqual(item["attempts"], 1)
+        self.runtime._conn.execute(
+            """
+            UPDATE memory_projector_outbox
+            SET attempts = 2, next_attempt_at = NULL
+            WHERE id = ?
+            """,
+            (item["id"],),
+        )
+        self.runtime._conn.commit()
+
+        result = self.runtime.process_projector_outbox(limit=10)
+        dead_letter = self.runtime.list_projector_outbox(status="dead_letter", limit=5)[0]
+        health = self.runtime.store_health()
+
+        self.assertEqual(result["status"], "partial_failure")
+        self.assertEqual(dead_letter["id"], item["id"])
+        self.assertEqual(dead_letter["error_type"], "temporary_outage")
+        self.assertIn("projector_dead_letter", health["blockers"])
+
+    def test_module09_projection_gateway_rebuild_and_proposal_contracts(self) -> None:
+        persona = self.runtime.add_manual(
+            "module nine persona delta contract memory",
+            memory_type="persona_delta",
+        )
+        worldops = self.runtime.add_manual(
+            "module nine worldops episode contract memory",
+            memory_type="worldops_episode",
+        )
+
+        run = self.runtime.rebuild_projections(
+            subsystems=["persona", "worldops"],
+            limit=10,
+        )
+        proposal = self.runtime.record_projection_proposal(
+            subsystem="persona",
+            source_snapshot_ref="persona:contract",
+            proposal={
+                "contract": "MemoryProposalRequest.v1",
+                "operation": "ADD",
+                "summary": "external persona system proposes a memory candidate",
+            },
+        )
+        rebuilds = self.runtime.list_projection_rebuilds(limit=1)
+        proposals = self.runtime.list_projection_proposals(status="pending", limit=5)
+        persona_frame = self.runtime.get_projection_frame("persona")
+        worldops_frame = self.runtime.get_projection_frame("worldops")
+
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["processed_count"], 2)
+        self.assertEqual(run["result"]["parity"]["contract"], "ProjectionRebuildParityReport.v1")
+        self.assertEqual(run["result"]["parity"]["status"], "matched")
+        self.assertEqual(
+            self.runtime.list_projection_audits(action="rebuild_parity_checked", limit=1)[0][
+                "details"
+            ]["contract"],
+            "ProjectionRebuildParityReport.v1",
+        )
+        self.assertEqual(rebuilds[0]["id"], run["id"])
+        self.assertEqual(proposal["status"], "pending")
+        self.assertEqual(proposals[0]["proposal"]["contract"], "MemoryProposalRequest.v1")
+        self.assertIn(persona["id"], persona_frame["source_memory_ids"])
+        self.assertIn(worldops["id"], worldops_frame["source_memory_ids"])
+
     def test_module05_indexes_real_vector_documents_and_trace_items(self) -> None:
         memory = self.runtime.add_manual(
             "workflow design vector recall alpha beta preference",
