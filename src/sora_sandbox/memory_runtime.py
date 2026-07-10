@@ -34,6 +34,7 @@ from .memory_lifecycle import MemoryLifecycleService
 from .memory_lifecycle_eval import MemoryLifecycleEvalService
 from .memory_observability import MemoryObservabilityService
 from .memory_projector import MemoryProjectorBus
+from .memory_quality_ops import AdminActionSpec, MemoryQualityOpsService
 from .memory_recall_planner import RecallPlanner, create_recall_planner_from_env, plan_to_json
 from .memory_recall_planner_eval import MemoryRecallPlannerEvalService
 from .memory_recall_eval_service import MemoryRecallEvalService
@@ -229,6 +230,13 @@ class MemoryRuntime:
                 reason=reason,
             ),
         )
+        self.quality_ops = MemoryQualityOpsService(
+            self._conn,
+            lock=self._lock,
+            store_health=self.store_health,
+            module_versions=self._memory_module_versions,
+        )
+        self._register_quality_ops()
 
     @classmethod
     def default(cls) -> "MemoryRuntime":
@@ -244,11 +252,285 @@ class MemoryRuntime:
         with self._lock:
             init_memory_schema(self._conn)
 
+    def _memory_module_versions(self) -> JsonDict:
+        return {
+            "memory_quality_ops": "v1",
+            "canonical_eval": "v1",
+            "recall_eval": "v1",
+            "planner_eval": "v1",
+            "surface_eval": "v1",
+            "lifecycle_eval": "v1",
+            "projection_gateway": "v1",
+        }
+
+    def _register_quality_ops(self) -> None:
+        self.quality_ops.register_eval_suite(
+            "canonical",
+            self.run_canonical_eval,
+            source_module="memory_canonical_eval",
+        )
+        self.quality_ops.register_eval_suite(
+            "recall",
+            self.run_recall_eval,
+            source_module="memory_recall_eval_service",
+        )
+        self.quality_ops.register_eval_suite(
+            "planner",
+            self.run_planner_eval,
+            source_module="memory_recall_planner_eval",
+        )
+        self.quality_ops.register_eval_suite(
+            "surface",
+            self.run_surface_eval,
+            source_module="memory_surface_eval",
+        )
+        self.quality_ops.register_eval_suite(
+            "lifecycle",
+            self.run_lifecycle_eval,
+            source_module="memory_lifecycle_eval",
+        )
+        self.quality_ops.register_eval_suite(
+            "projection_gateway",
+            self._run_projection_gateway_eval,
+            source_module="memory_projector",
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="process_index_outbox",
+                risk_level="medium",
+                preview=lambda params: {
+                    "impact_summary": {
+                        "mutates": ["memory_index_outbox", "memory_fts", "memory_index_document"],
+                        "limit": int(params.get("limit") or 100),
+                        "pending": self.index_outbox.pending_count(),
+                    }
+                },
+                execute=lambda params: self.process_index_outbox(limit=int(params.get("limit") or 100)),
+                rollback_plan=lambda params: {
+                    "type": "rebuild_indexes",
+                    "note": "Index outbox processing is idempotent; rebuild indexes if an index backend diverges.",
+                },
+                description="Process pending memory index outbox items.",
+            )
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="process_projector_outbox",
+                risk_level="medium",
+                preview=lambda params: {
+                    "impact_summary": {
+                        "mutates": ["memory_projector_outbox", "memory_projection_snapshot"],
+                        "limit": int(params.get("limit") or 100),
+                        "pending": self.projector_bus.pending_count(),
+                    }
+                },
+                execute=lambda params: self.process_projector_outbox(limit=int(params.get("limit") or 100)),
+                rollback_plan=lambda params: {
+                    "type": "projection_rebuild",
+                    "note": "Projector events are idempotent; run projection rebuild for affected subsystems if needed.",
+                },
+                description="Process pending projection gateway outbox items.",
+            )
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="forget_memory",
+                risk_level="high",
+                preview=lambda params: self._preview_forget("memory", str(params.get("memory_id") or "")),
+                execute=lambda params: self.forget_memory(
+                    str(params["memory_id"]),
+                    mode=str(params.get("mode") or "delete"),
+                    reason=str(params.get("reason") or "admin_forget_memory"),
+                    actor=str(params.get("actor") or "admin_action"),
+                ),
+                rollback_plan=lambda params: {
+                    "type": "not_fully_reversible",
+                    "note": "Forget creates tombstones and delete propagation; restore requires explicit user approval and preserved backups.",
+                },
+                description="Request forget for a committed memory.",
+            )
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="forget_evidence",
+                risk_level="high",
+                preview=lambda params: self._preview_forget("evidence", str(params.get("evidence_id") or "")),
+                execute=lambda params: self.forget_evidence(
+                    str(params["evidence_id"]),
+                    mode=str(params.get("mode") or "delete"),
+                    reason=str(params.get("reason") or "admin_forget_evidence"),
+                    actor=str(params.get("actor") or "admin_action"),
+                ),
+                rollback_plan=lambda params: {
+                    "type": "not_fully_reversible",
+                    "note": "Evidence deletion may redact source material; use backups or retained raw pointers only with consent.",
+                },
+                description="Request forget for an evidence record.",
+            )
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="rollback_candidate",
+                risk_level="high",
+                preview=lambda params: {
+                    "impact_summary": {
+                        "mutates": ["memory_record", "memory_revision", "memory_index_outbox"],
+                        "candidate_id": params.get("candidate_id"),
+                    }
+                },
+                execute=lambda params: self.rollback_committed_candidate(
+                    str(params["candidate_id"]),
+                    reason=str(params.get("reason") or "admin_rollback_candidate"),
+                ),
+                rollback_plan=lambda params: {
+                    "type": "manual_review",
+                    "note": "Rollback produces a revision trail; recommit the candidate only after review.",
+                },
+                description="Rollback a committed memory candidate.",
+            )
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="force_commit_candidate",
+                risk_level="high",
+                preview=lambda params: {
+                    "impact_summary": {
+                        "mutates": ["memory_candidate", "memory_record", "memory_revision"],
+                        "candidate_ids": params.get("candidate_ids") or [params.get("candidate_id")],
+                    }
+                },
+                execute=lambda params: self.commit(
+                    [
+                        str(item)
+                        for item in (
+                            params.get("candidate_ids")
+                            or [params.get("candidate_id")]
+                        )
+                        if item
+                    ],
+                    actor=str(params.get("actor") or "admin_action"),
+                ),
+                rollback_plan=lambda params: {
+                    "type": "rollback_candidate",
+                    "note": "Use rollback_candidate on each committed candidate if force commit was wrong.",
+                },
+                description="Force commit candidate ids through the canonical store.",
+            )
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="force_reject_candidate",
+                risk_level="high",
+                preview=lambda params: {
+                    "impact_summary": {
+                        "mutates": ["memory_candidate"],
+                        "candidate_id": params.get("candidate_id"),
+                    }
+                },
+                execute=lambda params: self.reject(
+                    str(params["candidate_id"]),
+                    reason=str(params.get("reason") or "admin_force_reject"),
+                ),
+                rollback_plan=lambda params: {
+                    "type": "manual_reproposal",
+                    "note": "Rejected candidates are not auto-restored; repropose from evidence if needed.",
+                },
+                description="Force reject a candidate.",
+            )
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="delete_evidence",
+                risk_level="high",
+                preview=lambda params: self._preview_forget("evidence", str(params.get("evidence_id") or "")),
+                execute=lambda params: self.delete_evidence(
+                    str(params["evidence_id"]),
+                    reason=str(params.get("reason") or "admin_delete_evidence"),
+                    actor=str(params.get("actor") or "admin_action"),
+                ),
+                rollback_plan=lambda params: {
+                    "type": "not_fully_reversible",
+                    "note": "Direct evidence deletion should be rare; prefer forget_evidence for governed propagation.",
+                },
+                description="Delete evidence directly with propagation.",
+            )
+        )
+
+    def _preview_forget(self, target_type: str, target_id: str) -> JsonDict:
+        exists = False
+        if target_type == "memory" and target_id:
+            with self._lock:
+                exists = bool(
+                    self._conn.execute(
+                        "SELECT 1 FROM memory_record WHERE id = ?",
+                        (target_id,),
+                    ).fetchone()
+                )
+        if target_type == "evidence" and target_id:
+            with self._lock:
+                exists = bool(
+                    self._conn.execute(
+                        "SELECT 1 FROM evidence WHERE id = ?",
+                        (target_id,),
+                    ).fetchone()
+                )
+        return {
+            "impact_summary": {
+                "mutates": [
+                    "memory_forget_request",
+                    "memory_tombstone",
+                    "delete_propagation",
+                    "memory_record" if target_type == "memory" else "evidence",
+                ],
+                "target_type": target_type,
+                "target_id": target_id,
+                "target_exists": exists,
+            }
+        }
+
+    def _run_projection_gateway_eval(self) -> JsonDict:
+        health = self.store_health().get("projectors", {})
+        cases = [
+            {
+                "case_name": "projector_outbox_has_no_failed_events",
+                "status": "passed" if int(health.get("failed", 0)) == 0 else "failed",
+                "details": {"failed": health.get("failed", 0)},
+            },
+            {
+                "case_name": "projector_outbox_has_no_dead_letters",
+                "status": "passed" if int(health.get("dead_letter", 0)) == 0 else "failed",
+                "details": {"dead_letter": health.get("dead_letter", 0)},
+            },
+            {
+                "case_name": "projector_checkpoints_are_readable",
+                "status": "passed" if isinstance(health.get("checkpoints", []), list) else "failed",
+                "details": {"checkpoint_count": len(health.get("checkpoints", []))},
+            },
+        ]
+        failed = [case for case in cases if case["status"] != "passed"]
+        return {
+            "run_id": _new_id("projection_eval"),
+            "status": "failed" if failed else "passed",
+            "total_cases": len(cases),
+            "passed_cases": len(cases) - len(failed),
+            "failed_cases": len(failed),
+            "summary": {"projector_health": health},
+            "cases": cases,
+        }
+
     def reset(self) -> None:
         with self._lock:
             self._conn.executescript(
                 """
                 DELETE FROM recall_trace_item;
+                DELETE FROM memory_quality_metric_point;
+                DELETE FROM memory_quality_case_result;
+                DELETE FROM memory_quality_baseline;
+                DELETE FROM memory_quality_run;
+                DELETE FROM memory_trace_index;
+                DELETE FROM memory_admin_action;
+                DELETE FROM memory_quality_event;
+                DELETE FROM memory_quality_setting;
                 DELETE FROM memory_surface_policy_item;
                 DELETE FROM memory_surface_policy_trace;
                 DELETE FROM memory_surface_feedback;
@@ -2815,6 +3097,201 @@ class MemoryRuntime:
 
     def list_lifecycle_eval_runs(self, *, limit: int = 20) -> list[JsonDict]:
         return self.lifecycle_eval.list_runs(limit=limit)
+
+    def list_quality_eval_suites(self) -> list[JsonDict]:
+        return self.quality_ops.list_eval_suites()
+
+    def run_quality_eval(
+        self,
+        *,
+        suites: list[str] | None = None,
+        run_type: str = "module_eval",
+        trigger: str = "manual",
+        policy_profile: str = "core",
+        dataset_version: str = "default",
+        baseline_id: str | None = None,
+        scope: JsonDict | None = None,
+    ) -> JsonDict:
+        return self.quality_ops.run_quality_eval(
+            suites=suites,
+            run_type=run_type,
+            trigger=trigger,
+            policy_profile=policy_profile,
+            dataset_version=dataset_version,
+            baseline_id=baseline_id,
+            scope=scope,
+        )
+
+    def run_scenario_replay(
+        self,
+        *,
+        package_name: str = "default_memory_scenario_replay",
+        suites: list[str] | None = None,
+        policy_profile: str = "core",
+        dataset_version: str = "default",
+    ) -> JsonDict:
+        return self.quality_ops.run_scenario_replay(
+            package_name=package_name,
+            suites=suites,
+            policy_profile=policy_profile,
+            dataset_version=dataset_version,
+        )
+
+    def list_quality_runs(
+        self,
+        *,
+        limit: int = 20,
+        run_type: str | None = None,
+    ) -> list[JsonDict]:
+        return self.quality_ops.list_quality_runs(limit=limit, run_type=run_type)
+
+    def get_quality_run(self, run_id: str) -> JsonDict:
+        return self.quality_ops.get_quality_run(run_id)
+
+    def sync_quality_trace_index(self, *, limit: int = 500, replay: bool = False) -> JsonDict:
+        return self.quality_ops.sync_trace_index(limit=limit, replay=replay)
+
+    def quality_trace_index_coverage(self) -> JsonDict:
+        return self.quality_ops.trace_index_coverage()
+
+    def collect_quality_metrics(self, *, source_ref: str = "quality_ops") -> JsonDict:
+        return self.quality_ops.collect_metrics(source_ref=source_ref)
+
+    def quality_dashboard(self) -> JsonDict:
+        return self.quality_ops.dashboard()
+
+    def pin_quality_baseline(
+        self,
+        run_id: str,
+        *,
+        name: str,
+        policy_profile: str = "core",
+        dataset_version: str = "default",
+        status: str = "candidate",
+        accepted_failures: list[JsonDict] | None = None,
+        promote: bool = False,
+    ) -> JsonDict:
+        return self.quality_ops.pin_baseline(
+            run_id,
+            name=name,
+            policy_profile=policy_profile,
+            dataset_version=dataset_version,
+            status=status,
+            accepted_failures=accepted_failures,
+            promote=promote,
+        )
+
+    def list_quality_baselines(
+        self,
+        *,
+        limit: int = 20,
+        status: str | None = None,
+        policy_profile: str | None = None,
+    ) -> list[JsonDict]:
+        return self.quality_ops.list_baselines(
+            limit=limit,
+            status=status,
+            policy_profile=policy_profile,
+        )
+
+    def compare_quality_baseline(
+        self,
+        run_id: str,
+        *,
+        baseline_id: str | None = None,
+    ) -> JsonDict:
+        return self.quality_ops.compare_baseline(run_id, baseline_id=baseline_id)
+
+    def run_release_gate(
+        self,
+        *,
+        change_scope: list[str] | None = None,
+        baseline_id: str | None = None,
+        policy_profile: str = "core",
+        dataset_version: str = "default",
+    ) -> JsonDict:
+        return self.quality_ops.run_release_gate(
+            change_scope=change_scope,
+            baseline_id=baseline_id,
+            policy_profile=policy_profile,
+            dataset_version=dataset_version,
+        )
+
+    def list_admin_action_specs(self) -> list[JsonDict]:
+        return self.quality_ops.list_admin_action_specs()
+
+    def preview_admin_action(
+        self,
+        action_name: str,
+        params: JsonDict | None = None,
+        *,
+        actor: str = "local_user",
+        role: str = "admin",
+        reason: str = "manual_admin_action",
+    ) -> JsonDict:
+        return self.quality_ops.preview_admin_action(
+            action_name,
+            params or {},
+            actor=actor,
+            role=role,
+            reason=reason,
+        )
+
+    def execute_admin_action(
+        self,
+        action_id: str,
+        *,
+        confirmation_token: str | None = None,
+        actor: str = "local_user",
+    ) -> JsonDict:
+        return self.quality_ops.execute_admin_action(
+            action_id,
+            confirmation_token=confirmation_token,
+            actor=actor,
+        )
+
+    def list_admin_actions(
+        self,
+        *,
+        limit: int = 20,
+        execution_status: str | None = None,
+    ) -> list[JsonDict]:
+        return self.quality_ops.list_admin_actions(
+            limit=limit,
+            execution_status=execution_status,
+        )
+
+    def set_quality_global_dry_run(
+        self,
+        enabled: bool,
+        *,
+        ttl_seconds: int | None = None,
+    ) -> JsonDict:
+        return self.quality_ops.set_global_dry_run(enabled, ttl_seconds=ttl_seconds)
+
+    def cleanup_quality_metrics(self, *, older_than_days: int = 30) -> JsonDict:
+        return self.quality_ops.cleanup_metrics(older_than_days=older_than_days)
+
+    def export_quality_report(
+        self,
+        *,
+        run_id: str | None = None,
+        output_path: str | Path | None = None,
+    ) -> JsonDict:
+        return self.quality_ops.export_quality_report(run_id=run_id, output_path=output_path)
+
+    def list_quality_events(
+        self,
+        *,
+        status: str | None = None,
+        event_type: str | None = None,
+        limit: int = 20,
+    ) -> list[JsonDict]:
+        return self.quality_ops.list_quality_events(
+            status=status,
+            event_type=event_type,
+            limit=limit,
+        )
 
     def revisions_for_memory(self, memory_id: str) -> list[JsonDict]:
         with self._lock:

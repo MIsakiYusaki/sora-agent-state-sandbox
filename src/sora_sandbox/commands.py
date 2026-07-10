@@ -382,6 +382,63 @@ def handle_command(
     if command == "/run-lifecycle-memory-eval":
         require_memory_admin(memory_admin)
         return dump(memory_admin.run_lifecycle_eval()), False
+    if command == "/memory-quality-suites":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_quality_eval_suites()), False
+    if command == "/run-memory-quality-eval":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.run_quality_eval(suites=_csv_arg(args, "--suites"))), False
+    if command == "/memory-quality-runs":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_quality_runs(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/memory-quality-run":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.get_quality_run(required_arg(args, "/memory-quality-run <run_id>"))), False
+    if command == "/memory-quality-trace-sync":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.sync_quality_trace_index(limit=_int_arg(args, "--limit", default=500))), False
+    if command == "/memory-quality-dashboard":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.quality_dashboard()), False
+    if command == "/memory-quality-metrics":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.collect_quality_metrics()), False
+    if command == "/pin-memory-quality-baseline":
+        require_memory_admin(memory_admin)
+        if len(args) < 2:
+            raise CommandError("Usage: /pin-memory-quality-baseline <run_id> <name> [--promote]")
+        return dump(
+            memory_admin.pin_quality_baseline(
+                arg_value(args[0]),
+                name=arg_value(args[1]),
+                promote="--promote" in args,
+            )
+        ), False
+    if command == "/memory-quality-baselines":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_quality_baselines(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/run-memory-release-gate":
+        require_memory_admin(memory_admin)
+        return dump(
+            memory_admin.run_release_gate(
+                change_scope=_csv_arg(args, "--scope"),
+                baseline_id=_value_after(args, "--baseline"),
+            )
+        ), False
+    if command == "/memory-admin-actions":
+        require_memory_admin(memory_admin)
+        return dump(memory_admin.list_admin_action_specs()), False
+    if command == "/memory-admin-preview":
+        require_memory_admin(memory_admin)
+        if not args:
+            raise CommandError("Usage: /memory-admin-preview <action_name> [json_params]")
+        params = json.loads(arg_value(" ".join(args[1:]))) if len(args) > 1 else {}
+        return dump(memory_admin.preview_admin_action(arg_value(args[0]), params)), False
+    if command == "/memory-admin-execute":
+        require_memory_admin(memory_admin)
+        action_id = required_arg(args, "/memory-admin-execute <action_id> [confirmation_token]")
+        token = arg_value(args[1]) if len(args) > 1 else None
+        return dump(memory_admin.execute_admin_action(action_id, confirmation_token=token)), False
     if command == "/forget-memory":
         require_memory_admin(memory_admin)
         memory_id = required_arg(args, "/forget-memory <memory_id> [--redact]")
@@ -673,6 +730,14 @@ def _value_after(args: list[str], flag: str) -> str | None:
     return arg_value(args[index + 1])
 
 
+def _csv_arg(args: list[str], flag: str) -> list[str] | None:
+    value = _value_after(args, flag)
+    if value is None:
+        return None
+    values = [item.strip() for item in value.split(",") if item.strip()]
+    return values or None
+
+
 def _positional_args(args: list[str]) -> list[str]:
     values: list[str] = []
     skip_next = False
@@ -830,6 +895,14 @@ Memory：
       查看 extractor job 状态、候选分布、token/cost/latency 和最近 job。
   /recall-traces [数量] /memory-health
       查看召回轨迹和本地 Runtime 健康状态。
+  /memory-quality-dashboard /run-memory-quality-eval [--suites a,b] /run-memory-release-gate [--scope a,b]
+      Module 10 quality ops: dashboard, unified eval registry, trace index, baseline diff and release gate.
+  /memory-admin-actions /memory-admin-preview <action> [json] /memory-admin-execute <action_id> [token]
+      Module 10 governed admin action wrapper with dry-run, audit, confirmation and rollback plan.
+  /pin-memory-quality-baseline <run_id> <name> [--promote] /memory-quality-baselines
+      Pin or inspect QualityOps baselines for release regression checks.
+  /memory-quality-trace-sync /memory-quality-metrics /memory-quality-runs
+      Sync trace index, collect SLO metrics and inspect quality run history.
   /memory-hooks
       查看待提交或已处理的记忆写入候选。
   /commit-memory-hook <id>

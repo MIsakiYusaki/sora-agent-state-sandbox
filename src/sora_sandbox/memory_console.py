@@ -94,6 +94,19 @@ class MemoryConsole:
   process-tombstones
   lifecycle-eval
   lifecycle-evals [--limit N]
+  quality-suites
+  quality-eval [--suites a,b]
+  quality-runs [--limit N]
+  quality-run <run_id>
+  quality-trace-sync [--limit N]
+  quality-dashboard
+  quality-metrics
+  quality-baseline-pin <run_id> <name> [--promote]
+  quality-baselines [--limit N]
+  quality-release-gate [--scope a,b] [--baseline baseline_id]
+  admin-actions
+  admin-preview <action_name> [json_params]
+  admin-execute <action_id> [confirmation_token]
   forget-memory <memory_id> [--redact]
   forget-evidence <evidence_id> [--redact]
   forget-requests [--limit N]
@@ -398,6 +411,59 @@ class MemoryConsole:
             return _dump(self.runtime.run_lifecycle_eval()), False
         if command == "lifecycle-evals":
             return _dump(self.runtime.list_lifecycle_eval_runs(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "quality-suites":
+            return _dump(self.runtime.list_quality_eval_suites()), False
+        if command == "quality-eval":
+            return _dump(
+                self.runtime.run_quality_eval(suites=self._csv_flag(args, "--suites"))
+            ), False
+        if command == "quality-runs":
+            return _dump(self.runtime.list_quality_runs(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "quality-run":
+            run_id = self._required(args, "quality-run <run_id>")
+            return _dump(self.runtime.get_quality_run(run_id)), False
+        if command == "quality-trace-sync":
+            return _dump(
+                self.runtime.sync_quality_trace_index(
+                    limit=_flag_int(args, "--limit", default=500)
+                )
+            ), False
+        if command == "quality-dashboard":
+            return _dump(self.runtime.quality_dashboard()), False
+        if command == "quality-metrics":
+            return _dump(self.runtime.collect_quality_metrics()), False
+        if command == "quality-baseline-pin":
+            if len(args) < 2:
+                raise ValueError("Usage: quality-baseline-pin <run_id> <name> [--promote]")
+            return _dump(
+                self.runtime.pin_quality_baseline(
+                    _clean(args[0]),
+                    name=_clean(args[1]),
+                    promote="--promote" in args,
+                )
+            ), False
+        if command == "quality-baselines":
+            return _dump(self.runtime.list_quality_baselines(limit=_flag_int(args, "--limit", default=20))), False
+        if command == "quality-release-gate":
+            return _dump(
+                self.runtime.run_release_gate(
+                    change_scope=self._csv_flag(args, "--scope"),
+                    baseline_id=self._value_after(args, "--baseline"),
+                )
+            ), False
+        if command == "admin-actions":
+            return _dump(self.runtime.list_admin_action_specs()), False
+        if command == "admin-preview":
+            if not args:
+                raise ValueError("Usage: admin-preview <action_name> [json_params]")
+            params = json.loads(_clean(" ".join(args[1:]))) if len(args) > 1 else {}
+            return _dump(self.runtime.preview_admin_action(_clean(args[0]), params)), False
+        if command == "admin-execute":
+            action_id = self._required(args, "admin-execute <action_id> [confirmation_token]")
+            token = _clean(args[1]) if len(args) > 1 else None
+            return _dump(
+                self.runtime.execute_admin_action(action_id, confirmation_token=token)
+            ), False
         if command == "forget-memory":
             memory_id = self._required(args, "forget-memory <memory_id> [--redact]")
             return _dump(self.runtime.forget_memory(memory_id, mode="redact" if "--redact" in args else "delete")), False
@@ -557,6 +623,20 @@ class MemoryConsole:
         if index + 1 >= len(args):
             raise ValueError(f"用法：{flag} <value>")
         return _clean(args[index + 1])
+
+    @staticmethod
+    def _csv_flag(args: list[str], flag: str) -> list[str] | None:
+        if flag not in args:
+            return None
+        index = args.index(flag)
+        if index + 1 >= len(args):
+            raise ValueError(f"Usage: {flag} a,b")
+        values = [
+            item.strip()
+            for item in _clean(args[index + 1]).split(",")
+            if item.strip()
+        ]
+        return values or None
 
     @staticmethod
     def _positional_args(args: list[str]) -> list[str]:

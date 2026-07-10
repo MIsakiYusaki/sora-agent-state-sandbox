@@ -65,7 +65,13 @@ class LLMTurnInterpreter:
             ensure_ascii=False,
             indent=2,
         )
-        result = self.llm.chat(system=system, user=user, temperature=0.0, max_tokens=900)
+        result = self.llm.chat(
+            system=system,
+            user=user,
+            temperature=0.0,
+            max_tokens=900,
+            thinking={"type": "disabled"},
+        )
         content = result.get("content", "")
         try:
             payload = extract_json_object(content)
@@ -122,7 +128,13 @@ class LLMArbitrationJudger:
             ensure_ascii=False,
             indent=2,
         )
-        result = self.llm.chat(system=system, user=user, temperature=0.0, max_tokens=700)
+        result = self.llm.chat(
+            system=system,
+            user=user,
+            temperature=0.0,
+            max_tokens=700,
+            thinking={"type": "disabled"},
+        )
         content = result.get("content", "")
         try:
             payload = extract_json_object(content)

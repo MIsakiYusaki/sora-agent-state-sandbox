@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -2483,6 +2484,195 @@ class MemoryRuntimeTests(unittest.TestCase):
         self.assertEqual(result["summary"]["decision_accuracy"], 1.0)
         self.assertEqual(result["summary"]["intent_accuracy"], 1.0)
         self.assertEqual(result["summary"]["trace_completeness"], 1.0)
+
+    def test_module10_quality_ops_registry_trace_admin_and_release_gate(self) -> None:
+        suites = {suite["name"] for suite in self.runtime.list_quality_eval_suites()}
+        self.assertIn("canonical", suites)
+        self.assertIn("projection_gateway", suites)
+
+        quality_run = self.runtime.run_quality_eval(suites=["canonical", "projection_gateway"])
+        self.assertEqual(quality_run["status"], "passed")
+        self.assertEqual(quality_run["summary"]["suite_count"], 2)
+        self.assertTrue(quality_run["cases"])
+
+        baseline = self.runtime.pin_quality_baseline(
+            quality_run["id"],
+            name="module10-test-baseline",
+            promote=True,
+        )
+        self.assertEqual(baseline["status"], "active")
+        self.assertEqual(
+            self.runtime.compare_quality_baseline(quality_run["id"])["status"],
+            "passed",
+        )
+
+        self.runtime.recall("design workflow", top_k=3)
+        sync = self.runtime.sync_quality_trace_index()
+        self.assertGreaterEqual(sync["total_synced"], 1)
+        coverage = self.runtime.quality_trace_index_coverage()
+        self.assertGreaterEqual(coverage["coverage"], 0.99)
+
+        metrics = self.runtime.collect_quality_metrics()
+        self.assertIn(metrics["slos"]["status"], {"passed", "warning"})
+        dashboard = self.runtime.quality_dashboard()
+        self.assertIn("latest_quality_runs", dashboard)
+        self.assertIn("trace_index", dashboard)
+
+        gate = self.runtime.run_release_gate(
+            change_scope=["canonical"],
+            baseline_id=baseline["id"],
+        )
+        self.assertEqual(gate["status"], "passed")
+
+        memory = self.runtime.add_manual("module10 high risk admin target")
+        with self.assertRaises(ValueError):
+            self.runtime.preview_admin_action(
+                "forget_memory",
+                {"memory_id": memory["id"]},
+                role="operator",
+            )
+        preview = self.runtime.preview_admin_action(
+            "forget_memory",
+            {"memory_id": memory["id"], "mode": "redact"},
+            reason="module10_test",
+        )
+        self.assertEqual(preview["approval_status"], "required")
+        self.assertIn("confirmation_token", preview)
+        executed = self.runtime.execute_admin_action(
+            preview["id"],
+            confirmation_token=preview["confirmation_token"],
+        )
+        self.assertEqual(executed["execution_status"], "executed")
+        self.assertEqual(self.runtime.list_forget_requests(limit=1)[0]["target_id"], memory["id"])
+
+        self.runtime.set_quality_global_dry_run(True, ttl_seconds=60)
+        dry_preview = self.runtime.preview_admin_action(
+            "process_index_outbox",
+            {"limit": 1},
+        )
+        dry_result = self.runtime.execute_admin_action(dry_preview["id"])
+        self.assertEqual(dry_result["execution_status"], "dry_run_blocked")
+        self.runtime.set_quality_global_dry_run(False)
+
+        console = MemoryConsole(self.runtime)
+        output, should_back = console.execute("quality-dashboard")
+        self.assertFalse(should_back)
+        self.assertIn("trace_index", output)
+
+        slash_output, should_exit = handle_command(
+            "/memory-quality-dashboard",
+            seed_state(),
+            memory_admin=self.runtime,
+        )
+        self.assertFalse(should_exit)
+        self.assertIn("trace_index", slash_output)
+
+    def test_module10_quality_ops_security_regression_and_accepted_failure_edges(self) -> None:
+        self.runtime.quality_ops.register_eval_suite(
+            "synthetic_regression",
+            lambda: {
+                "run_id": "synthetic_pass",
+                "status": "passed",
+                "total_cases": 1,
+                "passed_cases": 1,
+                "failed_cases": 0,
+                "summary": {"pass_rate": 1.0},
+                "cases": [
+                    {
+                        "case_name": "stable_case",
+                        "status": "passed",
+                        "expected_result": "ok",
+                        "actual_result": "ok",
+                    }
+                ],
+            },
+            source_module="test_synthetic",
+        )
+        baseline_run = self.runtime.run_quality_eval(suites=["synthetic_regression"])
+        future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+        active_baseline = self.runtime.pin_quality_baseline(
+            baseline_run["id"],
+            name="accepted-failure-baseline",
+            promote=True,
+            accepted_failures=[
+                {
+                    "case": "synthetic_regression::stable_case",
+                    "expires_at": future,
+                },
+                {
+                    "case": "__summary__",
+                    "expires_at": future,
+                }
+            ],
+        )
+        self.runtime.quality_ops.register_eval_suite(
+            "synthetic_regression",
+            lambda: {
+                "run_id": "synthetic_fail",
+                "status": "failed",
+                "total_cases": 1,
+                "passed_cases": 0,
+                "failed_cases": 1,
+                "summary": {"pass_rate": 0.0},
+                "cases": [
+                    {
+                        "case_name": "stable_case",
+                        "status": "failed",
+                        "expected_result": "ok",
+                        "actual_result": "regressed",
+                        "failure_category": "synthetic_regression",
+                    }
+                ],
+            },
+            source_module="test_synthetic",
+        )
+        failed_run = self.runtime.run_quality_eval(suites=["synthetic_regression"])
+        accepted = self.runtime.compare_quality_baseline(
+            failed_run["id"],
+            baseline_id=active_baseline["id"],
+        )
+        self.assertEqual(accepted["status"], "passed")
+        self.assertTrue(accepted["regressions"])
+        self.assertEqual(accepted["unaccepted_regressions"], [])
+
+        expired = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        expired_baseline = self.runtime.pin_quality_baseline(
+            baseline_run["id"],
+            name="expired-accepted-failure-baseline",
+            accepted_failures=[
+                {
+                    "case": "synthetic_regression::stable_case",
+                    "expires_at": expired,
+                }
+            ],
+        )
+        expired_diff = self.runtime.compare_quality_baseline(
+            failed_run["id"],
+            baseline_id=expired_baseline["id"],
+        )
+        self.assertEqual(expired_diff["status"], "failed")
+        self.assertTrue(expired_diff["unaccepted_regressions"])
+
+        release_gate = self.runtime.run_release_gate(
+            change_scope=["all"],
+            baseline_id=expired_baseline["id"],
+        )
+        self.assertEqual(release_gate["status"], "blocked")
+        self.assertIn("baseline_regression", release_gate["blockers"])
+
+        preview = self.runtime.preview_admin_action(
+            "process_index_outbox",
+            {"limit": 1},
+            role="reviewer",
+        )
+        self.assertNotIn("confirmation_token_hash", preview)
+        self.assertNotIn("token_expires_at", preview)
+        executed = self.runtime.execute_admin_action(preview["id"])
+        repeated = self.runtime.execute_admin_action(preview["id"])
+        self.assertEqual(executed["execution_status"], "executed")
+        self.assertEqual(repeated["execution_status"], "executed")
+        self.assertNotIn("confirmation_token_hash", repeated)
+        self.assertNotIn("token_expires_at", repeated)
 
     def test_legacy_memory_hook_command_commits_to_canonical_runtime(self) -> None:
         state = seed_state()

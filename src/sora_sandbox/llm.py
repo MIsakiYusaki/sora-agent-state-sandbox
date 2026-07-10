@@ -33,6 +33,8 @@ class DeepSeekClient:
             "temperature": kwargs.get("temperature", 0.7),
             "max_tokens": kwargs.get("max_tokens", 800),
         }
+        if kwargs.get("thinking") is not None:
+            body["thinking"] = kwargs["thinking"]
         req = urllib.request.Request(
             endpoint,
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),

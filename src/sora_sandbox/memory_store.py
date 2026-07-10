@@ -735,6 +735,158 @@ CREATE TABLE IF NOT EXISTS memory_surface_eval_case (
     FOREIGN KEY (run_id) REFERENCES memory_surface_eval_run(id)
 );
 
+CREATE TABLE IF NOT EXISTS memory_quality_run (
+    id TEXT PRIMARY KEY,
+    run_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    trigger TEXT NOT NULL,
+    policy_profile TEXT NOT NULL,
+    dataset_version TEXT NOT NULL,
+    baseline_id TEXT,
+    scope_json TEXT NOT NULL,
+    module_versions_json TEXT NOT NULL,
+    summary_json TEXT NOT NULL,
+    blockers_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_quality_run_type
+ON memory_quality_run(run_type, status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_quality_case_result (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    suite_name TEXT NOT NULL,
+    case_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    expected_json TEXT NOT NULL,
+    actual_json TEXT NOT NULL,
+    metric_json TEXT NOT NULL,
+    trace_refs_json TEXT NOT NULL,
+    diff_json TEXT NOT NULL,
+    failure_category TEXT,
+    source_run_ref TEXT,
+    source_case_ref TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES memory_quality_run(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_quality_case_run
+ON memory_quality_case_result(run_id, suite_name, status);
+
+CREATE TABLE IF NOT EXISTS memory_trace_index (
+    id TEXT PRIMARY KEY,
+    trace_id TEXT NOT NULL,
+    correlation_id TEXT NOT NULL,
+    session_id TEXT,
+    turn_id TEXT,
+    module TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    source_table TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    causality_refs_json TEXT NOT NULL,
+    redaction_level TEXT NOT NULL,
+    policy_profile TEXT,
+    provider_versions_json TEXT NOT NULL,
+    cost_latency_tokens_json TEXT NOT NULL,
+    replay INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(source_table, source_id, module, entity_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_trace_index_correlation
+ON memory_trace_index(correlation_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_memory_trace_index_entity
+ON memory_trace_index(entity_type, entity_id, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_quality_metric_point (
+    id TEXT PRIMARY KEY,
+    metric_name TEXT NOT NULL,
+    value REAL NOT NULL,
+    unit TEXT NOT NULL,
+    dimensions_json TEXT NOT NULL,
+    source_ref TEXT,
+    window_start TEXT,
+    window_end TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_quality_metric_name
+ON memory_quality_metric_point(metric_name, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_quality_baseline (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    policy_profile TEXT NOT NULL,
+    dataset_version TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    accepted_failures_json TEXT NOT NULL,
+    supersedes_id TEXT,
+    created_at TEXT NOT NULL,
+    promoted_at TEXT,
+    FOREIGN KEY (run_id) REFERENCES memory_quality_run(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_quality_baseline_status
+ON memory_quality_baseline(policy_profile, dataset_version, status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_admin_action (
+    id TEXT PRIMARY KEY,
+    action_name TEXT NOT NULL,
+    risk_level TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    role TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    params_hash TEXT NOT NULL,
+    params_json TEXT NOT NULL,
+    preview_json TEXT NOT NULL,
+    impact_summary_json TEXT NOT NULL,
+    rollback_plan_json TEXT NOT NULL,
+    approval_status TEXT NOT NULL,
+    confirmation_token_hash TEXT,
+    token_expires_at TEXT,
+    execution_status TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    audit_event_id TEXT,
+    dry_run INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    executed_at TEXT,
+    expires_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_admin_action_status
+ON memory_admin_action(action_name, execution_status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_quality_event (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    status TEXT NOT NULL,
+    source_type TEXT,
+    source_id TEXT,
+    correlation_id TEXT,
+    message TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    resolved_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_quality_event_status
+ON memory_quality_event(event_type, severity, status, created_at);
+
+CREATE TABLE IF NOT EXISTS memory_quality_setting (
+    key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS recall_plan_trace (
     plan_id TEXT PRIMARY KEY,
     recall_trace_id TEXT,
@@ -1005,6 +1157,14 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "memory_surface_policy_trace", "token_budget", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "memory_surface_policy_trace", "token_used", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "memory_surface_override", "metadata_json", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column(conn, "memory_quality_run", "blockers_json", "TEXT NOT NULL DEFAULT '[]'")
+    ensure_column(conn, "memory_quality_run", "baseline_id", "TEXT")
+    ensure_column(conn, "memory_trace_index", "policy_profile", "TEXT")
+    ensure_column(conn, "memory_trace_index", "provider_versions_json", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column(conn, "memory_trace_index", "cost_latency_tokens_json", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column(conn, "memory_trace_index", "replay", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "memory_admin_action", "dry_run", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "memory_admin_action", "expires_at", "TEXT")
     conn.commit()
 
 
