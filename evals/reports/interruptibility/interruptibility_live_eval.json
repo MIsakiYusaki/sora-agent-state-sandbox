@@ -1,0 +1,226 @@
+{
+  "schema_version": "interruptibility_live_eval.v1",
+  "model": "deepseek-v4-flash",
+  "status": "passed",
+  "cases": [
+    {
+      "case_name": "direct_task",
+      "status": "passed",
+      "emitted": true,
+      "response_obligation": "required",
+      "response_shape": "normal",
+      "question_budget": 0,
+      "decision_path": "deterministic_fast_path",
+      "model_assist": {
+        "invoked": false,
+        "provider": null,
+        "reason": null,
+        "requested_dimensions": [],
+        "accepted_dimensions": [],
+        "rejected_dimensions": [],
+        "deadline_ms": 700,
+        "min_confidence": 0.8,
+        "latency_ms": 0.0,
+        "fallback_used": false,
+        "fallback_reason": null
+      },
+      "enforcement": {
+        "recorded_at": 1783955433772,
+        "emitted": true,
+        "route": "text",
+        "output_hash": "44020a714d44959d3427f0d43c1861262316a672c5b3b199edc6a23c4563d5f6",
+        "question_count": 0,
+        "sentence_count": 1,
+        "planner_reported": {
+          "muted": false,
+          "question_trimmed": false,
+          "sentence_trimmed": false,
+          "question_count": 0,
+          "sentence_count": 1,
+          "question_budget": 0,
+          "max_sentences": 5
+        },
+        "violations": [],
+        "compliant": true,
+        "control_effect_turn_lag": null
+      },
+      "reply_hash": "44020a714d44959d3427f0d43c1861262316a672c5b3b199edc6a23c4563d5f6",
+      "reply_char_count": 78,
+      "latency_ms": 10237.15
+    },
+    {
+      "case_name": "brief_control",
+      "status": "passed",
+      "emitted": true,
+      "response_obligation": "required",
+      "response_shape": "brief",
+      "question_budget": 0,
+      "decision_path": "deterministic_fast_path",
+      "model_assist": {
+        "invoked": false,
+        "provider": null,
+        "reason": null,
+        "requested_dimensions": [],
+        "accepted_dimensions": [],
+        "rejected_dimensions": [],
+        "deadline_ms": 700,
+        "min_confidence": 0.8,
+        "latency_ms": 0.0,
+        "fallback_used": false,
+        "fallback_reason": null
+      },
+      "enforcement": {
+        "recorded_at": 1783955443637,
+        "emitted": true,
+        "route": "text",
+        "output_hash": "b6daf5409f2595a9a85d61073d1836868fa216ab00b688028dd147f5d8285799",
+        "question_count": 0,
+        "sentence_count": 1,
+        "planner_reported": {
+          "muted": false,
+          "question_trimmed": false,
+          "sentence_trimmed": false,
+          "question_count": 0,
+          "sentence_count": 1,
+          "question_budget": 0,
+          "max_sentences": 2
+        },
+        "violations": [],
+        "compliant": true,
+        "control_effect_turn_lag": 0
+      },
+      "reply_hash": "b6daf5409f2595a9a85d61073d1836868fa216ab00b688028dd147f5d8285799",
+      "reply_char_count": 30,
+      "latency_ms": 9864.07
+    },
+    {
+      "case_name": "no_question",
+      "status": "passed",
+      "emitted": true,
+      "response_obligation": "required",
+      "response_shape": "normal",
+      "question_budget": 0,
+      "decision_path": "conservative_fallback",
+      "model_assist": {
+        "invoked": true,
+        "provider": null,
+        "reason": "unresolved_policy_dimensions",
+        "requested_dimensions": [
+          "response_shape"
+        ],
+        "accepted_dimensions": [],
+        "rejected_dimensions": [],
+        "deadline_ms": 700,
+        "min_confidence": 0.8,
+        "latency_ms": 834.13,
+        "fallback_used": true,
+        "fallback_reason": "TimeoutError:The read operation timed out"
+      },
+      "enforcement": {
+        "recorded_at": 1783955451014,
+        "emitted": true,
+        "route": "text",
+        "output_hash": "957a69615b27b230936af651264c0fd1055dd309b48e1220e019320c91283482",
+        "question_count": 0,
+        "sentence_count": 3,
+        "planner_reported": {
+          "muted": false,
+          "question_trimmed": false,
+          "sentence_trimmed": false,
+          "question_count": 0,
+          "sentence_count": 3,
+          "question_budget": 0,
+          "max_sentences": 5
+        },
+        "violations": [],
+        "compliant": true,
+        "control_effect_turn_lag": 0
+      },
+      "reply_hash": "957a69615b27b230936af651264c0fd1055dd309b48e1220e019320c91283482",
+      "reply_char_count": 130,
+      "latency_ms": 7376.6
+    },
+    {
+      "case_name": "open_invitation",
+      "status": "passed",
+      "emitted": true,
+      "response_obligation": "required",
+      "response_shape": "deep",
+      "question_budget": 1,
+      "decision_path": "deterministic_fast_path",
+      "model_assist": {
+        "invoked": false,
+        "provider": null,
+        "reason": null,
+        "requested_dimensions": [],
+        "accepted_dimensions": [],
+        "rejected_dimensions": [],
+        "deadline_ms": 700,
+        "min_confidence": 0.8,
+        "latency_ms": 0.0,
+        "fallback_used": false,
+        "fallback_reason": null
+      },
+      "enforcement": {
+        "recorded_at": 1783955459819,
+        "emitted": true,
+        "route": "text",
+        "output_hash": "9ca12bdd0488c2a202805bf38db1f758febb11da88cdafe854fd87afb0ac2ba5",
+        "question_count": 0,
+        "sentence_count": 3,
+        "planner_reported": {
+          "muted": false,
+          "question_trimmed": false,
+          "sentence_trimmed": false,
+          "question_count": 0,
+          "sentence_count": 3,
+          "question_budget": 1,
+          "max_sentences": 10
+        },
+        "violations": [],
+        "compliant": true,
+        "control_effect_turn_lag": 0
+      },
+      "reply_hash": "9ca12bdd0488c2a202805bf38db1f758febb11da88cdafe854fd87afb0ac2ba5",
+      "reply_char_count": 43,
+      "latency_ms": 8804.04
+    },
+    {
+      "case_name": "response_mute",
+      "status": "passed",
+      "emitted": false,
+      "response_obligation": "forbidden",
+      "response_shape": "brief",
+      "question_budget": 0,
+      "decision_path": "deterministic_fast_path",
+      "model_assist": {
+        "invoked": false,
+        "provider": null,
+        "reason": null,
+        "requested_dimensions": [],
+        "accepted_dimensions": [],
+        "rejected_dimensions": [],
+        "deadline_ms": 700,
+        "min_confidence": 0.8,
+        "latency_ms": 0.0,
+        "fallback_used": false,
+        "fallback_reason": null
+      },
+      "enforcement": {
+        "recorded_at": 1783955459821,
+        "emitted": false,
+        "route": "silent",
+        "output_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "question_count": 0,
+        "sentence_count": 0,
+        "planner_reported": {},
+        "violations": [],
+        "compliant": true,
+        "control_effect_turn_lag": 0
+      },
+      "reply_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reply_char_count": 0,
+      "latency_ms": 1.53
+    }
+  ]
+}

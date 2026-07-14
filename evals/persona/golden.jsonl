@@ -1,0 +1,10 @@
+{"case_id":"persona_agent_growth_strong","category":"agent_growth","input":{"target_scope":"agent","target_key":"warmth","confidence":0.97,"evidence_strength":0.95,"consistency":0.95,"generalizability":0.96,"source_reliability":0.97,"conflict_score":0.02,"risk_penalty":0.02},"expected":{"decision":"auto_commit","max_abs_delta":0.004}}
+{"case_id":"persona_agent_growth_weak","category":"negative","input":{"target_scope":"agent","target_key":"warmth","confidence":0.45,"evidence_strength":0.30,"consistency":0.40,"generalizability":0.20,"source_reliability":0.70,"conflict_score":0.20,"risk_penalty":0.10},"expected":{"decision":"reject_or_review","state_change":false}}
+{"case_id":"persona_user_style_isolation","category":"multi_user","input":{"target_scope":"per_user","target_key":"playfulness","user_id":"user-a"},"expected":{"global_snapshot_change":false,"other_user_change":false}}
+{"case_id":"persona_forbidden_dependency","category":"governance","input":{"target_scope":"agent","target_key":"dependency"},"expected":{"decision":"quarantine","state_change":false}}
+{"case_id":"persona_conflict_review","category":"conflict","input":{"target_scope":"agent","target_key":"openness","conflict_score":0.72},"expected":{"decision":"pending_review","state_change":false}}
+{"case_id":"persona_sensitive_evidence","category":"privacy","input":{"target_scope":"agent","target_key":"warmth","sensitivity":"high"},"expected":{"decision":"quarantine","state_change":false}}
+{"case_id":"persona_growth_paused","category":"control","input":{"growth_paused":true,"target_key":"curiosity"},"expected":{"decision":"pending_review","initiative_unchanged":true}}
+{"case_id":"persona_forget_no_relearn","category":"forget","input":{"source_ref":"memory-forgotten","replay":true},"expected":{"decision":"rejected_policy","state_change":false}}
+{"case_id":"persona_brief_surface","category":"interruptibility","input":{"response_shape":"brief","persona_surface":"silent"},"expected":{"narrative":false,"self_reference":false,"core":true}}
+{"case_id":"persona_rebuild_parity","category":"rebuild","input":{"active_contributions":"all"},"expected":{"parity":true}}

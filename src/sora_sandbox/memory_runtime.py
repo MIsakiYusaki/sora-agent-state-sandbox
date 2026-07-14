@@ -3101,6 +3101,28 @@ class MemoryRuntime:
     def list_quality_eval_suites(self) -> list[JsonDict]:
         return self.quality_ops.list_eval_suites()
 
+    def register_quality_eval_suite(
+        self,
+        name: str,
+        runner: Callable[[], JsonDict],
+        *,
+        source_module: str,
+        default_severity: str = "error",
+    ) -> None:
+        self.quality_ops.register_eval_suite(
+            name,
+            runner,
+            source_module=source_module,
+            default_severity=default_severity,
+        )
+
+    def register_quality_export_section(
+        self,
+        name: str,
+        provider: Callable[[], JsonDict],
+    ) -> None:
+        self.quality_ops.register_export_section(name, provider)
+
     def run_quality_eval(
         self,
         *,

@@ -5,6 +5,7 @@ Python 工程验证原型，用来验证：
 ```text
 Event Bus
 -> Dialogue / Behavior / Memory / Persona / WorldOps / Relationship / Initiative 子系统 Signals
+-> Interruptibility Frame（回应义务、展开、追问、切题、主动性、状态外显预算）
 -> Initiative Window
 -> Arbiter
 -> DeepSeek-backed Agent Runtime
@@ -27,7 +28,8 @@ Event Bus
 - v0.6 可插拔子系统：Memory、Persona、WorldOps 等能力统一通过 `SubsystemRegistry` 和 Adapter 契约接入；支持并行求值、超时、单模块降级及 HTTP 服务替换。
 - 本地 Memory Runtime：随 `run.py` 在同一进程启动，以 SQLite 为唯一事实源，提供 FTS 召回、evidence、candidate、revision 和 recall trace；不需要另起 HTTP 服务。
 - 显式低风险记忆：用户明确说“记住……”时可自动提交；普通推断和 WorldOps memory hook 仍先进入候选。密码、API Key、token 等禁止持久化。
-- 主动唤醒：REPL 内置空闲评估计时器，默认 3 分钟无输入时创建 proactive turn；3 分钟只是最低评估门槛，感知状态、Initiative 与 Arbiter 共同决定发出短消息或保持静默。
+- 主动唤醒：REPL 内置空闲评估计时器，默认 3 分钟无输入时创建 proactive turn；当前 text-first 版本只有有效 activity lease 才允许进入 Initiative 与 Arbiter，否则保持静默。
+- Text-first Interruptibility：用户控制优先于 Persona、Relationship、WorldOps、Affect 与模型建议；缺少 Presence/Behavior 证据时保持 `availability=unknown`，不猜用户是否忙碌。明确控制走本地快速路径，只有未决维度才允许调用受限低温 Provider。
 
 ## 子系统模块化
 
@@ -58,20 +60,19 @@ Idle Timer -> Event Bus -> Subsystem Signals -> Initiative Window
 -> Arbiter -> Response Planner -> Sora 主动消息或静默
 ```
 
-主动消息要求 Behavior 明确提供 `interruptibility=available`、置信度不低于
-`0.70`、用户在场、非高专注且隐私风险可接受，同时还要有 WorldOps 内容源
-并通过 15 分钟最小间隔。未达到任一条件时，Runtime 会静默且不调用 LLM。
-同一个 WorldOps 事件不会被重复用于主动开场，但用户主动询问时仍可召回并继续展开。
-主动回合最多注入最近 10 轮对话，用于保持近期关系和话题连续性。
+当前生产入口采用 text-first 策略，不根据 Mock Behavior 假装知道用户是否忙碌。
+主动消息必须先由用户显式邀请，例如“陪我聊会儿”，由此创建 session-scoped
+activity lease。lease 在 15 分钟无用户交互后到期，只有新的合格用户回合会续期；
+Sora 输出、后台事件和在线状态不会续期。quiet、response mute、显式撤销、会话结束
+或安全策略会关闭 lease。没有有效 lease 时 proactive turn 保持静默且不进入生成阶段。
 
-默认 Mock Behavior 是 `casual_idle`，方便直接测试；`project_design` 和
-`focus_work` 都会阻止主动搭话。
+未来 Presence / Behavior 会作为带 provenance、confidence、TTL 和权限的独立证据
+Adapter 接入；在此之前 `availability` 始终是 `unknown`。
 
-快速验证：
+快速验证 activity lease：
 
 ```text
-/set-behavior casual_idle
-/activate-world-event evt_echo_market_postbox_001
+陪我聊会儿
 /simulate-idle 3m
 ```
 
@@ -166,6 +167,11 @@ python run.py --once "你好呀" --trace
 /trace
 /trace-json
 /state-diff
+/interruptibility status
+/interruptibility set follow_up none --scope session
+/interruptibility confirm <token>
+/interruptibility revoke all
+/interruptibility traces 20
 /signals
 /subsystems
 /arbitration
@@ -193,10 +199,17 @@ python run.py --once "你好呀" --trace
 /search-memory 方案
 /persona
 /traits
-/set-trait playfulness 0.55 --debug
 /growth-events
 /apply-growth-event <id>
 /reject-growth-event <id>
+/persona-health
+/persona-worker --limit 20
+/persona-contributions
+/persona-rollback <contribution_id>
+/persona-rebuild
+/persona-forget-source <source_ref>
+/persona-growth pause|resume
+/persona-self-reference silent|implicit|explicit
 /set-mood 平静
 /set-energy 低
 /worldops-events
@@ -221,6 +234,9 @@ python run.py --once "你好呀" --trace
 - WorldOps 未被用户参与的事件不写共同经历。
 - WorldOps 可以在非工作陪伴场景提供主动话题候选，但必须通过 Initiative Window 和 Arbiter。
 - 主动发起话题必须短、低打扰，并在用户不接时自然收回。
+- `response_obligation=forbidden` 只能来自白名单显式 response mute；persistent mute 和 persistent state-surface consent 必须二次确认，resume 始终可达。
+- `love`、`dependency`、`loyalty`、`possessiveness` 及派生压力字段在 Interruptibility Evidence Aggregator 入口删除，不得进入规则、模型 prompt 或 trace value。
+- 下游 Recall、Arbiter、Response Planner 和 Expression Router 只能收紧 Interruptibility Frame，不能自行放宽。
 - Persona 手动调参必须标记为 debug override。
 - 短期 Session 优先级高于长期记忆和 WorldOps。
 - 每轮输出保留 trace 和 state_diff。
@@ -230,6 +246,37 @@ python run.py --once "你好呀" --trace
 ```powershell
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s tests
 ```
+
+真实 DeepSeek 的脱敏 Interruptibility E2E：
+
+```powershell
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" scripts/eval_interruptibility_live.py --output evals/reports/interruptibility/interruptibility_live_eval.json
+```
+
+## Persona System
+
+Persona is an independent canonical subsystem backed by `.sandbox/persona.db`.
+It receives committed `persona_delta` and `profile` memories through the Module
+09 `ProjectionEvent.v1` boundary. Projection delivery is fast and idempotent;
+real DeepSeek candidate evaluation happens on the asynchronous Persona worker.
+
+The model may propose a target trait and evidence scores, but it never computes
+or writes a trait delta. `persona_growth_policy.v1` applies the deterministic
+Gate, multiplicative support, trait bounds, inertia, and 24h/7d/30d budgets.
+Committed changes are append-only contributions. Rollback and Forget deactivate
+contributions and rebuild snapshots instead of writing old values back.
+
+Run the complete local suite and real-provider Persona E2E with:
+
+```powershell
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s tests
+$env:PYTHONPATH="src"
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" scripts/eval_persona_live.py
+```
+
+`FakeLLMClient` remains a deterministic test fixture only. The application
+bootstrap always attaches `LLMPersonaCandidateProvider` to the configured real
+DeepSeek client.
 
 ## 记忆召回评测
 

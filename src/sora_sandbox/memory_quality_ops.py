@@ -84,6 +84,7 @@ class MemoryQualityOpsService:
         self._module_versions = module_versions or (lambda: {"memory_quality_ops": "v1"})
         self._eval_suites: dict[str, EvalSuiteAdapter] = {}
         self._admin_actions: dict[str, AdminActionSpec] = {}
+        self._export_sections: dict[str, Callable[[], JsonDict]] = {}
         self._register_builtin_actions()
 
     def register_eval_suite(
@@ -110,6 +111,9 @@ class MemoryQualityOpsService:
             }
             for suite in sorted(self._eval_suites.values(), key=lambda item: item.name)
         ]
+
+    def register_export_section(self, name: str, provider: Callable[[], JsonDict]) -> None:
+        self._export_sections[name] = provider
 
     def run_quality_eval(
         self,
@@ -1147,6 +1151,7 @@ class MemoryQualityOpsService:
             "exported_at": utc_now(),
             "dashboard": self.dashboard(),
             "run": self.get_quality_run(run_id) if run_id else None,
+            "extensions": self._quality_export_extensions(),
         }
         if output_path:
             path = Path(output_path)
@@ -1163,6 +1168,18 @@ class MemoryQualityOpsService:
             payload={"output_path": str(output_path) if output_path else None},
         )
         return report
+
+    def _quality_export_extensions(self) -> JsonDict:
+        extensions: JsonDict = {}
+        for name, provider in sorted(self._export_sections.items()):
+            try:
+                extensions[name] = provider()
+            except Exception as exc:  # report export must remain available
+                extensions[name] = {
+                    "status": "degraded",
+                    "reason": f"{type(exc).__name__}: {exc}"[:240],
+                }
+        return extensions
 
     def _register_builtin_actions(self) -> None:
         self.register_admin_action(
@@ -1594,6 +1611,11 @@ class MemoryQualityOpsService:
             "forget": {"lifecycle", "canonical"},
             "projection": {"projection_gateway"},
             "projector": {"projection_gateway"},
+            "interruptibility": {"interruptibility"},
+            "dialogue_control": {"interruptibility"},
+            "initiative": {"interruptibility"},
+            "persona": {"persona"},
+            "persona_growth": {"persona", "projection_gateway"},
         }
         for scope in normalized:
             selected.update(mapping.get(scope, set()))

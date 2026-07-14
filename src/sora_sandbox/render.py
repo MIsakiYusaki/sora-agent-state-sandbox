@@ -16,6 +16,7 @@ def render_trace_panel(result: JsonDict) -> str:
     origin = context_pack.get("origin_frame", {})
     session = context_pack.get("session_context", {})
     dialogue_control = context_pack.get("dialogue_control_frame", {})
+    interruptibility = context_pack.get("interruptibility_frame", {}) or {}
     turn_frame = context_pack.get("turn_frame", {})
     interpretation = context_pack.get("turn_interpretation", {})
     context_use_policy = context_pack.get("context_use_policy", {})
@@ -40,7 +41,7 @@ def render_trace_panel(result: JsonDict) -> str:
     lines.append("")
     lines.append(f"💻 行为（{_changed_label(behavior)}）: {_format_behavior(behavior)}")
     lines.append(
-        "   可打扰性: "
+        "   Legacy Behavior hint（text-first 不作为权限依据）: "
         f"{behavior.get('interruptibility', 'unknown')} | "
         f"confidence={float(behavior.get('interruptibility_confidence', 0) or 0):.2f} | "
         f"present={behavior.get('user_present', False)} | "
@@ -112,6 +113,24 @@ def render_trace_panel(result: JsonDict) -> str:
             f"recent_questions={dialogue_control.get('recent_sora_question_streak', 0)} | "
             f"closing={dialogue_control.get('preferred_closing', '-')}"
         )
+    if interruptibility:
+        budgets = interruptibility.get("budgets", {})
+        lines.append(
+            "Interruptibility: "
+            f"obligation={interruptibility.get('response_obligation', '-')} | "
+            f"shape={interruptibility.get('response_shape', '-')} | "
+            f"expand={interruptibility.get('expansion_permission', '-')} | "
+            f"follow_up={interruptibility.get('follow_up_permission', '-')} | "
+            f"initiative={interruptibility.get('initiative_permission', '-')}"
+        )
+        lines.append(
+            "   Budgets: "
+            f"sentences={budgets.get('max_sentences', 0)} | "
+            f"questions={budgets.get('question_budget', 0)} | "
+            f"topic_shifts={budgets.get('topic_shift_budget', 0)} | "
+            f"path={interruptibility.get('decision_path', '-')} | "
+            f"trace={interruptibility.get('trace_id', '-')}"
+        )
 
     if interpretation:
         intent = interpretation.get("intent", {})
@@ -166,7 +185,7 @@ def render_trace_panel(result: JsonDict) -> str:
         lines.append("")
         lines.append(f"⏱️  耗时: {total:.1f}ms")
         lines.append("   Runtime phases")
-        for key in ["event_bus", "context_frames", "subsystem_signals", "initiative_window", "arbitration", "response_planner", "expression_router", "state_commit"]:
+        for key in ["turn_interpretation", "interruptibility", "memory_recall", "event_bus", "context_frames", "subsystem_signals", "initiative_window", "arbitration", "response_planner", "expression_router", "state_commit"]:
             if key not in timing:
                 continue
             value = float(timing.get(key) or 0)

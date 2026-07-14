@@ -45,7 +45,8 @@ class DeepSeekClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as response:
+            request_timeout = float(kwargs.get("timeout", self.timeout))
+            with urllib.request.urlopen(req, timeout=request_timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")

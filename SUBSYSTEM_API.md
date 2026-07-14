@@ -110,5 +110,28 @@ propose_updates()
   -> commit(candidate_ids)
 ```
 
-The current PoC keeps Memory and Persona writes candidate-only. An independently
-developed subsystem must preserve this boundary when it is connected.
+Memory and Persona writes remain candidate-first. Persona is now attached as an
+independent canonical subsystem rather than a mutable section of `state.json`.
+
+## Persona Projection Boundary
+
+Committed Memory records with type `persona_delta` or `profile` are delivered by
+Module 09 as `ProjectionEvent.v1`. `PersonaProjectionAdapter` persists the event
+to the Persona inbox and returns `ProjectionAck.v1` immediately. It does not call
+an LLM on the request path.
+
+```text
+Memory canonical commit
+  -> Module 09 projector outbox
+  -> PersonaProjectionAdapter (idempotent inbox)
+  -> async real-LLM proposal provider
+  -> deterministic Persona Gate and bounded delta
+  -> append-only contribution
+  -> PersonaSnapshot.v1
+  -> PersonaFrame.v1 + PersonaUsePolicy.v1
+```
+
+Runtime reads use `PersonaFrame.v1`. `PersonaUsePolicy.v1` applies the most
+restrictive Interruptibility and consent constraints before the frame reaches
+the response planner. Relationship, Affect, WorldOps, and user-specific
+adaptation remain separate ownership domains.

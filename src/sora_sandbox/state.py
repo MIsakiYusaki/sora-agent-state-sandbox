@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .interruptibility import default_interruptibility_state, ensure_interruptibility_state
 from .paths import SEEDS_DIR, workspace_state_dir
 
 
@@ -56,6 +57,7 @@ def seed_state() -> JsonDict:
         "worldops": read_json(SEEDS_DIR / "worldops.seed.json"),
         "behavior": behavior,
         "initiative": default_initiative_state(),
+        "interruptibility": default_interruptibility_state(),
         "session": {
             "session_id": "local-sandbox",
             "turn_id": 0,
@@ -165,12 +167,42 @@ def summarize_state(state: JsonDict) -> JsonDict:
             "cooldowns": list(state.get("initiative", {}).get("cooldowns", {}).keys()),
             "worldops_share_when_free": state.get("initiative", {}).get("user_preference", {}).get("worldops_share_when_free", True),
         },
+        "interruptibility": {
+            "schema_version": state.get("interruptibility", {}).get("schema_version"),
+            "policy_profile": state.get("interruptibility", {}).get("profile", {}).get("policy_profile"),
+            "active_override_count": sum(
+                1
+                for item in state.get("interruptibility", {}).get("overrides", [])
+                if not item.get("revoked_at")
+                and (not item.get("expires_at") or int(item["expires_at"]) > now_ms())
+            ),
+            "pending_confirmation_count": sum(
+                1
+                for item in state.get("interruptibility", {}).get("pending_confirmations", [])
+                if item.get("status") == "pending"
+                and int(item.get("expires_at", 0)) > now_ms()
+            ),
+            "initiative_lease_active": bool(
+                state.get("interruptibility", {})
+                .get("session", {})
+                .get("initiative_lease", {})
+                and state["interruptibility"]["session"]["initiative_lease"].get("active")
+                and int(state["interruptibility"]["session"]["initiative_lease"].get("expires_at", 0)) > now_ms()
+            ),
+            "last_frame": {
+                "response_obligation": state.get("interruptibility", {}).get("last_frame", {}).get("response_obligation"),
+                "response_shape": state.get("interruptibility", {}).get("last_frame", {}).get("response_shape"),
+                "trace_id": state.get("interruptibility", {}).get("last_frame", {}).get("trace_id"),
+            },
+        },
         "origin": summarize_origin(state),
     }
 
 
 def ensure_state_migrations(state: JsonDict) -> bool:
     changed = False
+    if ensure_interruptibility_state(state):
+        changed = True
     if "initiative" not in state:
         state["initiative"] = default_initiative_state()
         changed = True

@@ -7,8 +7,12 @@ import sys
 
 from .agent import AgentRunner
 from .credentials import CredentialError, CredentialManager
+from .interruptibility import InterruptibilityService, LLMInterruptibilityResolutionProvider
+from .interruptibility_eval import run_interruptibility_eval
 from .llm import DeepSeekClient
 from .memory_system import MemorySystem
+from .persona.provider import LLMPersonaCandidateProvider
+from .persona.system import PersonaSystem
 from .render import render_trace_panel
 from .repl import SoraRepl
 from .state import StateStore
@@ -64,13 +68,43 @@ def main(argv: list[str] | None = None) -> int:
         print(f"凭据错误：{exc}", file=sys.stderr)
         return 2
 
-    runner = AgentRunner(llm, memory_runtime=memory_runtime)
+    interruptibility = InterruptibilityService(
+        provider=LLMInterruptibilityResolutionProvider(llm),
+    )
+    persona_runtime = PersonaSystem.default(
+        provider=LLMPersonaCandidateProvider(llm),
+        start_worker=True,
+    )
+    if args.reset_state:
+        persona_runtime.reset()
+    memory_runtime.projector_bus.register_adapter(
+        "persona",
+        persona_runtime.projection_adapter,
+    )
+    runner = AgentRunner(
+        llm,
+        memory_runtime=memory_runtime,
+        interruptibility=interruptibility,
+        persona_runtime=persona_runtime,
+    )
     repl = SoraRepl(
         store,
         runner,
         show_trace_panel=not args.compact,
         memory_runtime=memory_runtime,
+        interruptibility_runtime=interruptibility,
+        persona_runtime=persona_runtime,
     )
+    memory_runtime.register_quality_eval_suite(
+        "interruptibility",
+        run_interruptibility_eval,
+        source_module="interruptibility_system",
+    )
+    memory_runtime.register_quality_export_section(
+        "interruptibility",
+        lambda: interruptibility.export_traces(repl.state, limit=500),
+    )
+    persona_runtime.register_quality_ops(memory_runtime)
 
     try:
         if args.once:
@@ -86,4 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         repl.loop()
         return 0
     finally:
-        memory_runtime.close()
+        try:
+            persona_runtime.close()
+        finally:
+            memory_runtime.close()

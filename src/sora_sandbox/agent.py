@@ -3,10 +3,16 @@ from __future__ import annotations
 import json
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .contracts import TurnContext
+from .interruptibility import (
+    InterruptibilityService,
+    enforce_interruptibility_output,
+    tighten_dialogue_control,
+)
 from .llm import LLMClient
 from .prompt_loader import render_system_prompt, render_user_prompt
 from .state import append_recent_turn, find_world_event, now_ms, persist_response_candidates
@@ -53,7 +59,8 @@ class LLMTurnInterpreter:
             "You are Project Sora's turn interpreter. "
             "Read the current user input with recent conversation context. "
             "Resolve implicit references, infer conversation move, intent, domain, risk, "
-            "and whether world/persona framing is literal or stylistic. "
+            "whether world/persona framing is literal or stylistic, canonical explicit user controls, "
+            "and only genuinely ambiguous interruptibility dimensions. "
             "Return strict JSON only; do not answer the user."
         )
         user = json.dumps(
@@ -155,6 +162,8 @@ class AgentRunner:
     memory_runtime: Any | None = None
     arbitration_judger: ArbitrationJudger | None = None
     turn_interpreter: TurnInterpreter | None = None
+    interruptibility: InterruptibilityService | None = None
+    persona_runtime: Any | None = None
 
     def run(self, state: JsonDict, user_input: str) -> JsonDict:
         return self._run(state, user_input=user_input, proactive_trigger=None)
@@ -172,6 +181,7 @@ class AgentRunner:
         start = _timer()
         trace: list[JsonDict] = []
         timing: dict[str, float] = {}
+        correlation_id = f"corr_{uuid.uuid4().hex}"
 
         def step(name: str, payload: JsonDict | None = None) -> None:
             trace.append({"seq": len(trace) + 1, "kind": name, "at": now_ms(), "payload": payload or {}})
@@ -193,6 +203,9 @@ class AgentRunner:
             memory_runtime=self.memory_runtime,
             arbitration_judger=self.arbitration_judger or LLMArbitrationJudger(self.llm),
             turn_interpreter=self.turn_interpreter or LLMTurnInterpreter(self.llm),
+            interruptibility=self.interruptibility,
+            persona_runtime=self.persona_runtime,
+            correlation_id=correlation_id,
         )
         mark_behavior_observed(state)
 
@@ -204,6 +217,22 @@ class AgentRunner:
                 timing,
                 proactive_trigger,
                 start,
+                interruptibility=self.interruptibility,
+            )
+
+        interruptibility_frame = context_pack.get("interruptibility_frame") or {}
+        if (
+            not proactive_trigger
+            and interruptibility_frame.get("response_obligation") == "forbidden"
+        ):
+            return finalize_silent_reactive_result(
+                state,
+                context_pack,
+                trace,
+                timing,
+                user_input,
+                start,
+                interruptibility=self.interruptibility,
             )
 
         t0 = _timer()
@@ -213,6 +242,17 @@ class AgentRunner:
         t0 = _timer()
         expression_event = route_expression(response_plan, context_pack, step)
         timing["expression_router"] = _elapsed_since(t0)
+
+        if self.interruptibility is not None and interruptibility_frame:
+            enforcement = self.interruptibility.record_enforcement(
+                state,
+                trace_id=str(interruptibility_frame["trace_id"]),
+                emitted=True,
+                output_text=str(response_plan.get("output_text", "")),
+                response_plan=response_plan,
+                route=str(expression_event.get("route", "text")),
+            )
+            step("interruptibility.enforced", enforcement)
 
         t0 = _timer()
         reply = response_plan["output_text"]
@@ -259,6 +299,7 @@ class AgentRunner:
 
         result = {
             "user_input": user_input,
+            "correlation_id": correlation_id,
             "turn_kind": "proactive" if proactive_trigger else "reactive",
             "proactive_trigger": proactive_trigger,
             "emitted": True,
@@ -282,16 +323,42 @@ class AgentRunner:
         return result
 
     def _plan_response(self, context_pack: JsonDict, user_input: str, step) -> JsonDict:
-        system = build_system_prompt(context_pack)
-        user = build_user_prompt(context_pack, user_input)
-        llm_result = self.llm.chat(system=system, user=user, temperature=0.7, max_tokens=800)
-        step("llm.response.received", {"model": llm_result.get("model"), "usage": llm_result.get("usage", {})})
+        deterministic_control_reply = interruptibility_control_reply(context_pack)
+        if deterministic_control_reply is not None:
+            llm_result = {
+                "content": deterministic_control_reply,
+                "model": "interruptibility-control-adapter",
+                "usage": {},
+            }
+            step("interruptibility.control_reply.built", {"model": llm_result["model"]})
+        else:
+            system = build_system_prompt(context_pack)
+            user = build_user_prompt(context_pack, user_input)
+            llm_result = self.llm.chat(system=system, user=user, temperature=0.7, max_tokens=800)
+            step("llm.response.received", {"model": llm_result.get("model"), "usage": llm_result.get("usage", {})})
 
         output_text = clean_response(llm_result["content"].strip())
         output_text = enforce_turn_frame(output_text, context_pack["turn_frame"])
         output_text = enforce_question_budget(output_text, context_pack["dialogue_control_frame"])
+        interruptibility_compliance: JsonDict = {}
+        if context_pack.get("interruptibility_frame"):
+            output_text, interruptibility_compliance = enforce_interruptibility_output(
+                output_text,
+                context_pack["interruptibility_frame"],
+            )
+            if (
+                context_pack["interruptibility_frame"].get("response_obligation") == "required"
+                and not output_text.strip()
+            ):
+                output_text = "收到。"
+                interruptibility_compliance["required_output_fallback_used"] = True
+                interruptibility_compliance["sentence_count"] = 1
         usage = normalize_token_usage(llm_result.get("usage", {}))
-        growth_candidate = maybe_growth_candidate(context_pack, user_input, output_text)
+        growth_candidate = (
+            None
+            if self.persona_runtime is not None
+            else maybe_growth_candidate(context_pack, user_input, output_text)
+        )
         memory_hook_candidate = maybe_memory_hook_candidate(context_pack, user_input, output_text)
         return {
             "intent": (
@@ -300,6 +367,8 @@ class AgentRunner:
                 else infer_intent(user_input)
             ),
             "turn_frame": context_pack["turn_frame"],
+            "interruptibility_frame": context_pack.get("interruptibility_frame"),
+            "interruptibility_compliance": interruptibility_compliance,
             "context_use_policy": context_pack["context_use_policy"],
             "event_bus": context_pack["event_bus"],
             "arbitration_result": context_pack["arbitration_result"],
@@ -332,6 +401,9 @@ def build_context_pack(
     memory_runtime: Any | None = None,
     arbitration_judger: ArbitrationJudger | None = None,
     turn_interpreter: TurnInterpreter | None = None,
+    interruptibility: InterruptibilityService | None = None,
+    persona_runtime: Any | None = None,
+    correlation_id: str | None = None,
 ) -> JsonDict:
     context_start = _timer()
     behavior_frame = dict(state["behavior"]["current"])
@@ -339,11 +411,19 @@ def build_context_pack(
     step("behavior.frame.provided", {"scene_type": behavior_frame["scene_type"], "changed": behavior_frame["changed"]})
 
     t0 = _timer()
+    interpreter_for_turn = turn_interpreter
+    if interruptibility is not None:
+        preparsed_controls = interruptibility.parser.parse(user_input)
+        if any(
+            event.control in {"response_mute", "resume", "confirm", "revoke", "status"}
+            for event in preparsed_controls
+        ):
+            interpreter_for_turn = None
     turn_interpretation = interpret_turn(
         state,
         user_input,
         proactive_trigger=proactive_trigger,
-        interpreter=turn_interpreter,
+        interpreter=interpreter_for_turn,
     )
     timing["turn_interpretation"] = _elapsed_since(t0)
     step(
@@ -367,13 +447,64 @@ def build_context_pack(
     context_use_policy = build_context_use_policy(turn_frame)
     step("context.use_policy.built", {"allowed": context_use_policy["allowed_context_sources"], "blocked": context_use_policy["blocked_context_sources"]})
 
+    interruptibility_frame: JsonDict | None = None
+    if interruptibility is not None:
+        t0 = _timer()
+        interruptibility_frame = interruptibility.evaluate(
+            state,
+            user_input=user_input,
+            turn_interpretation=turn_interpretation,
+            turn_kind="proactive" if proactive_trigger else "reactive",
+            correlation_id=correlation_id or f"corr_{uuid.uuid4().hex}",
+            proactive_trigger=proactive_trigger,
+            safety_privacy_frame={
+                "risk_level": turn_interpretation.get("domain", {}).get("risk_level", "low"),
+            },
+            domain_features={
+                "relationship": state.get("relationship", {}),
+                "affect": state.get("affect", {}),
+            },
+        )
+        timing["interruptibility"] = _elapsed_since(t0)
+        surface = interruptibility_frame.get("state_surface_permission", {})
+        context_use_policy["interruptibility"] = {
+            "expansion_permission": interruptibility_frame.get("expansion_permission"),
+            "state_surface_permission": surface,
+        }
+        if surface.get("memory") == "silent":
+            if "memory_recollection" not in context_use_policy["blocked_context_sources"]:
+                context_use_policy["blocked_context_sources"].append("memory_recollection")
+            context_use_policy["allowed_context_sources"] = [
+                item for item in context_use_policy["allowed_context_sources"] if item != "memory_recollection"
+            ]
+        step(
+            "interruptibility.frame.provided",
+            {
+                "response_obligation": interruptibility_frame.get("response_obligation"),
+                "response_shape": interruptibility_frame.get("response_shape"),
+                "initiative_permission": interruptibility_frame.get("initiative_permission"),
+                "decision_path": interruptibility_frame.get("decision_path"),
+            },
+        )
+
     session_context = build_session_context(state, behavior_frame, context_use_policy)
     step("session.context.updated", {"turn_id": session_context["turn_id"]})
 
     origin_frame = build_origin_frame(state)
     step("origin.frame.provided", {"template_id": origin_frame.get("template_id"), "name": origin_frame.get("name")})
 
-    if memory_runtime is None:
+    memory_surface = (interruptibility_frame or {}).get("state_surface_permission", {}).get("memory")
+    if memory_surface == "silent":
+        recollection_frame = {
+            "surface_action": "none",
+            "retrieved_ids": [],
+            "memory_summaries": [],
+            "evidence_level": "none",
+            "decision_reason": "Interruptibility state-surface policy suppressed memory injection.",
+            "forbidden_disclosures": ["memory_surface_silent"],
+            "latency_ms": 0.0,
+        }
+    elif memory_runtime is None:
         recollection_frame = retrieve_memories(state, user_input)
     else:
         recollection_frame = memory_runtime.recall(
@@ -384,8 +515,25 @@ def build_context_pack(
         timing["memory_recall"] = recollection_frame.get("latency_ms", 0.0)
     step("memory.recollection.provided", {"ids": recollection_frame["retrieved_ids"], "surface_action": recollection_frame["surface_action"]})
 
-    persona_frame = build_persona_frame(state)
-    step("persona.frame.provided", {"debug_overrides": len(state["persona"].get("debug_overrides", []))})
+    if persona_runtime is None:
+        persona_frame = build_persona_frame(state)
+        persona_frame["runtime_mode"] = "legacy_fallback"
+    else:
+        persona_frame = persona_runtime.frame(
+            user_id=state.get("session", {}).get("user_id"),
+            interruptibility_frame=interruptibility_frame,
+            correlation_id=correlation_id,
+        )
+        persona_frame["runtime_mode"] = "canonical_persona_system"
+    step(
+        "persona.frame.provided",
+        {
+            "runtime_mode": persona_frame.get("runtime_mode"),
+            "snapshot_version": persona_frame.get("snapshot_version"),
+            "cache_status": persona_frame.get("cache_status"),
+            "use_policy": persona_frame.get("use_policy", {}),
+        },
+    )
 
     worldops_frame = build_worldops_frame(state, behavior_frame, persona_frame)
     step("worldops.frame.provided", {"active_event_id": worldops_frame.get("selected_event_id"), "level": worldops_frame.get("expression_level")})
@@ -400,6 +548,8 @@ def build_context_pack(
         })
     else:
         apply_turn_interpretation_dialogue_control(dialogue_control_frame, turn_interpretation, turn_frame)
+    if interruptibility_frame is not None:
+        tighten_dialogue_control(dialogue_control_frame, interruptibility_frame)
     timing["context_frames"] = _elapsed_since(context_start)
 
     t0 = _timer()
@@ -431,7 +581,14 @@ def build_context_pack(
     timing["subsystem_signals"] = _elapsed_since(t0)
 
     t0 = _timer()
-    initiative_window = build_initiative_window(state, event_bus, behavior_frame, turn_frame, base_signals)
+    initiative_window = build_initiative_window(
+        state,
+        event_bus,
+        behavior_frame,
+        turn_frame,
+        base_signals,
+        interruptibility_frame=interruptibility_frame,
+    )
     timing["initiative_window"] = _elapsed_since(t0)
 
     t0 = _timer()
@@ -441,12 +598,16 @@ def build_context_pack(
 
     signals = base_signals + initiative_signals
     t0 = _timer()
+    semantic_judger = arbitration_judger
+    if (interruptibility_frame or {}).get("response_obligation") == "forbidden":
+        semantic_judger = None
     arbitration_result = arbitrate_signals(
         signals,
         initiative_window,
         turn_frame,
         behavior_frame,
-        semantic_judger=arbitration_judger,
+        semantic_judger=semantic_judger,
+        interruptibility_frame=interruptibility_frame,
     )
     timing["arbitration"] = _elapsed_since(t0)
     step(
@@ -470,6 +631,7 @@ def build_context_pack(
         "turn_interpretation": turn_interpretation,
         "context_use_policy": context_use_policy,
         "dialogue_control_frame": dialogue_control_frame,
+        "interruptibility_frame": interruptibility_frame,
         "event_bus": event_bus,
         "signals": signals,
         "subsystem_health": subsystem_health,
@@ -1455,10 +1617,44 @@ def relationship_signal(event_bus: JsonDict, state: JsonDict, session_context: J
     )
 
 
-def build_initiative_window(state: JsonDict, event_bus: JsonDict, behavior_frame: JsonDict, turn_frame: JsonDict, signals: list[JsonDict]) -> JsonDict:
+def build_initiative_window(
+    state: JsonDict,
+    event_bus: JsonDict,
+    behavior_frame: JsonDict,
+    turn_frame: JsonDict,
+    signals: list[JsonDict],
+    interruptibility_frame: JsonDict | None = None,
+) -> JsonDict:
     initiative = state.get("initiative", {})
     if not initiative.get("enabled", True):
         return initiative_window(False, "initiative disabled", behavior_frame)
+
+    if interruptibility_frame is not None:
+        permission = interruptibility_frame.get("initiative_permission", "blocked")
+        if permission == "blocked":
+            return initiative_window(
+                False,
+                "Interruptibility Frame blocks initiative for this turn.",
+                behavior_frame,
+            )
+        if turn_frame["speech_act"] == "greeting_ack":
+            return initiative_window(False, "用户只是问候，本轮不主动展开新话题。", behavior_frame)
+        if user_has_task_intent(event_bus):
+            return initiative_window(False, "用户正在主导明确任务，本轮不插入主动话题。", behavior_frame)
+        return {
+            "allowed": True,
+            "reason": "An explicit, active session initiative lease permits low-interruption continuation.",
+            "max_interrupt_level": "low",
+            "max_length": "short",
+            "allowed_types": ["self_life_share", "gentle_check_in", "topic_resume", "quiet_presence"],
+            "cooldowns": initiative.get("cooldowns", {}),
+            "candidate_signal_ids": [
+                signal["id"]
+                for signal in signals
+                if signal.get("source") in {"worldops", "memory", "relationship"}
+            ],
+            "permission_source": interruptibility_frame.get("schema_version"),
+        }
 
     if turn_frame["speech_act"] == "proactive_opening":
         trigger = turn_frame.get("proactive_trigger", {})
@@ -1725,6 +1921,34 @@ def turn_interpretation_schema() -> JsonDict:
         ],
         "risk_level": ["none", "low", "medium", "high"],
         "frame_role": ["none", "literal_topic", "metaphor_or_style", "roleplay", "emotional_distance"],
+        "explicit_commands": {
+            "control": [
+                "quiet",
+                "response_mute",
+                "reply_depth",
+                "follow_up",
+                "topic_shift",
+                "state_surface",
+                "initiative_lease",
+                "resume",
+                "confirm",
+                "revoke",
+                "status",
+            ],
+            "scope": ["turn", "session", "duration", "persistent"],
+            "confidence": "0..1",
+        },
+        "interruptibility": {
+            "ambiguous_boundary": "boolean",
+            "unresolved_dimensions": [
+                "expansion_permission",
+                "topic_shift_permission",
+                "follow_up_permission",
+                "response_shape",
+            ],
+            "closing_move": "boolean",
+            "control_violation_correction": "boolean",
+        },
     }
 
 
@@ -1736,6 +1960,8 @@ def normalize_turn_interpretation(payload: JsonDict) -> JsonDict:
     domain = payload.get("domain") if isinstance(payload.get("domain"), dict) else {}
     framing = payload.get("framing") if isinstance(payload.get("framing"), dict) else {}
     response_requirements = payload.get("response_requirements") if isinstance(payload.get("response_requirements"), dict) else {}
+    interruptibility = payload.get("interruptibility") if isinstance(payload.get("interruptibility"), dict) else {}
+    explicit_commands = payload.get("explicit_commands") if isinstance(payload.get("explicit_commands"), list) else []
     return {
         "mode": payload.get("mode", "llm"),
         "version": "turn_interpretation_v1",
@@ -1778,6 +2004,22 @@ def normalize_turn_interpretation(payload: JsonDict) -> JsonDict:
             "should_acknowledge_context": bool(response_requirements.get("should_acknowledge_context", False)),
             "should_avoid": [str(item)[:160] for item in response_requirements.get("should_avoid", []) if item][:8],
         },
+        "explicit_commands": normalize_explicit_commands(explicit_commands),
+        "interruptibility": {
+            "ambiguous_boundary": bool(interruptibility.get("ambiguous_boundary", False)),
+            "unresolved_dimensions": [
+                str(item)
+                for item in interruptibility.get("unresolved_dimensions", [])
+                if str(item) in {
+                    "expansion_permission",
+                    "topic_shift_permission",
+                    "follow_up_permission",
+                    "response_shape",
+                }
+            ][:4],
+            "closing_move": bool(interruptibility.get("closing_move", False)),
+            "control_violation_correction": bool(interruptibility.get("control_violation_correction", False)),
+        },
         "confidence": clamp01(payload.get("confidence", intent.get("confidence", 0.5))),
         "fallback_if_uncertain": str(payload.get("fallback_if_uncertain", "briefly clarify before answering"))[:200],
     }
@@ -1786,6 +2028,34 @@ def normalize_turn_interpretation(payload: JsonDict) -> JsonDict:
 def enum_value(value: Any, allowed: list[str], default: str) -> str:
     text = str(value or "")
     return text if text in allowed else default
+
+
+def normalize_explicit_commands(value: Any) -> list[JsonDict]:
+    if not isinstance(value, list):
+        return []
+    allowed_controls = set(turn_interpretation_schema()["explicit_commands"]["control"])
+    allowed_scopes = set(turn_interpretation_schema()["explicit_commands"]["scope"])
+    commands: list[JsonDict] = []
+    for item in value[:8]:
+        if not isinstance(item, dict):
+            continue
+        control = str(item.get("control") or "")
+        if control not in allowed_controls:
+            continue
+        scope = str(item.get("scope") or "turn")
+        try:
+            duration_seconds = max(0, int(item.get("duration_seconds", 0) or 0)) or None
+        except (TypeError, ValueError):
+            duration_seconds = None
+        commands.append({
+            "control": control,
+            "value": item.get("value"),
+            "scope": scope if scope in allowed_scopes else "turn",
+            "duration_seconds": duration_seconds,
+            "requires_confirmation": bool(item.get("requires_confirmation", False)),
+            "confidence": clamp01(item.get("confidence", 0.0)),
+        })
+    return commands
 
 
 def normalize_resolved_targets(value: Any) -> list[JsonDict]:
@@ -1868,6 +2138,22 @@ def rule_turn_interpretation(
             "question_budget": 0 if references_previous else 1,
             "should_acknowledge_context": references_previous,
             "should_avoid": ["ignoring previous context"] if references_previous else [],
+        },
+        "interruptibility": {
+            "ambiguous_boundary": False,
+            "unresolved_dimensions": [],
+            "closing_move": text.lower().strip("。.!！") in {
+                "嗯",
+                "嗯嗯",
+                "知道了",
+                "好吧",
+                "好的",
+                "ok",
+                "okay",
+            },
+            "control_violation_correction": any(
+                term in text for term in ["我说简短点", "我说了别问", "听不懂吗", "不要再追问"]
+            ),
         },
         "confidence": 0.68 if references_previous else 0.55,
     })
@@ -1975,6 +2261,7 @@ def arbitrate_signals(
     turn_frame: JsonDict,
     behavior_frame: JsonDict,
     semantic_judger: ArbitrationJudger | None = None,
+    interruptibility_frame: JsonDict | None = None,
 ) -> JsonDict:
     selected: list[str] = []
     background: list[str] = []
@@ -1991,6 +2278,24 @@ def arbitrate_signals(
         "memory_expression": "implicit",
         "expression_hint": "text",
     }
+    if interruptibility_frame is not None:
+        budgets = interruptibility_frame.get("budgets", {})
+        directives["length"] = {
+            "ack": "short",
+            "brief": "short",
+            "repair_brief": "short",
+            "normal": "medium",
+            "deep": "long",
+            "safety": "medium",
+        }.get(interruptibility_frame.get("response_shape"), "medium")
+        directives["question_budget"] = int(budgets.get("question_budget", 0) or 0)
+        directives["topic_shift_budget"] = int(budgets.get("topic_shift_budget", 0) or 0)
+        directives["state_surface_budget"] = int(budgets.get("state_surface_budget", 0) or 0)
+        directives["interruptibility_ceiling"] = {
+            "expansion_permission": interruptibility_frame.get("expansion_permission"),
+            "topic_shift_permission": interruptibility_frame.get("topic_shift_permission"),
+            "follow_up_permission": interruptibility_frame.get("follow_up_permission"),
+        }
     gray_signals = [
         signal
         for signal in signals
@@ -2009,6 +2314,33 @@ def arbitrate_signals(
     for signal in sorted(signals, key=lambda item: item.get("priority", 0), reverse=True):
         source = signal["source"]
         visibility = signal.get("visibility", "candidate")
+        if interruptibility_frame is not None:
+            surface_permissions = interruptibility_frame.get("state_surface_permission", {})
+            surface_source = {
+                "memory": "memory",
+                "relationship": "relationship",
+                "worldops": "worldops",
+                "affect": "affect",
+            }.get(source)
+            if surface_source and surface_permissions.get(surface_source) == "silent":
+                reason = f"interruptibility_surface_silent:{surface_source}"
+                suppressed.append({"id": signal["id"], "source": source, "type": signal["type"], "reason": reason})
+                score_breakdown.append(score_entry(signal, "suppressed", reason, semantic_scores))
+                continue
+            if source == "initiative" and interruptibility_frame.get("initiative_permission") == "blocked":
+                reason = "interruptibility_initiative_blocked"
+                suppressed.append({"id": signal["id"], "source": source, "type": signal["type"], "reason": reason})
+                score_breakdown.append(score_entry(signal, "suppressed", reason, semantic_scores))
+                continue
+            if (
+                interruptibility_frame.get("expansion_permission") == "blocked"
+                and source in {"memory", "relationship", "worldops", "affect"}
+                and visibility != "active"
+            ):
+                reason = "interruptibility_expansion_blocked"
+                suppressed.append({"id": signal["id"], "source": source, "type": signal["type"], "reason": reason})
+                score_breakdown.append(score_entry(signal, "suppressed", reason, semantic_scores))
+                continue
         if visibility == "active":
             selected.append(signal["id"])
             score_breakdown.append(score_entry(signal, "selected", "active_visibility", semantic_scores))
@@ -2167,6 +2499,7 @@ def finalize_silent_proactive_result(
     timing: dict[str, float],
     trigger: JsonDict,
     start: float,
+    interruptibility: InterruptibilityService | None = None,
 ) -> JsonDict:
     window = context_pack["initiative_window"]
     reason = (
@@ -2181,9 +2514,26 @@ def finalize_silent_proactive_result(
         "payload": {"reason": reason},
     })
     record_proactive_attempt(state, trigger, emitted=False, reason=reason)
+    interruptibility_frame = context_pack.get("interruptibility_frame") or {}
+    if interruptibility is not None and interruptibility_frame.get("trace_id"):
+        enforcement = interruptibility.record_enforcement(
+            state,
+            trace_id=str(interruptibility_frame["trace_id"]),
+            emitted=False,
+            output_text="",
+            response_plan=None,
+            route="silent",
+        )
+        trace.append({
+            "seq": len(trace) + 1,
+            "kind": "interruptibility.enforced",
+            "at": now_ms(),
+            "payload": enforcement,
+        })
     timing["_total"] = _elapsed_since(start)
     result = {
         "user_input": "",
+        "correlation_id": (context_pack.get("interruptibility_frame") or {}).get("correlation_id"),
         "turn_kind": "proactive",
         "proactive_trigger": trigger,
         "emitted": False,
@@ -2211,10 +2561,112 @@ def finalize_silent_proactive_result(
     return result
 
 
+def finalize_silent_reactive_result(
+    state: JsonDict,
+    context_pack: JsonDict,
+    trace: list[JsonDict],
+    timing: dict[str, float],
+    user_input: str,
+    start: float,
+    *,
+    interruptibility: InterruptibilityService | None,
+) -> JsonDict:
+    frame = context_pack.get("interruptibility_frame") or {}
+    reason = "An explicit active response mute forbids output for this turn."
+    trace.append({
+        "seq": len(trace) + 1,
+        "kind": "reactive.silenced",
+        "at": now_ms(),
+        "payload": {"reason": reason, "trace_id": frame.get("trace_id")},
+    })
+    append_recent_turn(state, "user", user_input)
+    state["session"]["dialogue_state"]["active_topic"] = infer_active_topic(user_input)
+    state["session"]["dialogue_state"]["user_goal"] = "honor_explicit_response_mute"
+    enforcement: JsonDict = {}
+    if interruptibility is not None and frame.get("trace_id"):
+        enforcement = interruptibility.record_enforcement(
+            state,
+            trace_id=str(frame["trace_id"]),
+            emitted=False,
+            output_text="",
+            response_plan=None,
+            route="silent",
+        )
+        trace.append({
+            "seq": len(trace) + 1,
+            "kind": "interruptibility.enforced",
+            "at": now_ms(),
+            "payload": enforcement,
+        })
+    timing["_total"] = _elapsed_since(start)
+    state_diff = {
+        "session_changed": True,
+        "interruptibility": {
+            "response_obligation": "forbidden",
+            "trace_id": frame.get("trace_id"),
+            "enforcement": enforcement,
+        },
+        "policy_blocks": [reason],
+    }
+    result = {
+        "user_input": user_input,
+        "correlation_id": frame.get("correlation_id"),
+        "turn_kind": "reactive",
+        "proactive_trigger": None,
+        "emitted": False,
+        "reply": "",
+        "context_pack": context_pack,
+        "context_pack_summary": summarize_context_pack(context_pack),
+        "response_plan": None,
+        "expression_event": {"route": "silent", "reason": reason},
+        "state_diff": state_diff,
+        "trace": trace,
+        "timing": timing,
+        "token_usage": {},
+        "memory_updates": [],
+    }
+    state["observability"]["last_trace"] = trace
+    state["observability"]["last_state_diff"] = state_diff
+    state["observability"]["last_response_plan"] = {}
+    state["observability"]["last_context_pack"] = context_pack
+    state["observability"]["last_run_result"] = result
+    return result
+
+
 def active_micro_quest(worldops: JsonDict, event_id: str) -> JsonDict | None:
     for session in worldops.get("micro_quest_sessions", []):
         if session.get("event_id") == event_id and session.get("status") in {"active", "completed"}:
             return session
+    return None
+
+
+def interruptibility_control_reply(context_pack: JsonDict) -> str | None:
+    frame = context_pack.get("interruptibility_frame") or {}
+    receipts = frame.get("control_receipts", [])
+    if not receipts:
+        return None
+    pending = next(
+        (item for item in receipts if item.get("status") == "pending_confirmation"),
+        None,
+    )
+    if pending:
+        control = pending.get("control", "该设置")
+        token = pending.get("confirmation_token")
+        suffix = f"（确认编号：{token}）" if token else ""
+        return f"这是持久控制，需要你再确认一次。回复“确认设置”即可启用 {control}{suffix}。"
+    for receipt in receipts:
+        action = receipt.get("action")
+        if action == "resume" and receipt.get("status") == "applied":
+            return "已恢复回复。"
+        if action == "confirm":
+            if receipt.get("status") == "applied":
+                return "设置已确认。"
+            if receipt.get("status") == "not_found":
+                return "没有找到仍在有效期内的待确认设置。"
+        if action == "revoke" and receipt.get("status") == "applied":
+            return "相关控制已撤销。"
+        if receipt.get("control") == "quiet" and receipt.get("status") == "applied":
+            return "好，我不会主动开口。"
     return None
 
 
@@ -2235,6 +2687,7 @@ def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
         "worldops_frame": context_pack["worldops_frame"],
         "origin_frame": context_pack["origin_frame"],
         "dialogue_control_frame": context_pack["dialogue_control_frame"],
+        "interruptibility_frame": context_pack.get("interruptibility_frame"),
         "event_bus": context_pack["event_bus"],
         "signals": context_pack["signals"],
         "subsystem_health": context_pack.get("subsystem_health", []),
@@ -2246,6 +2699,18 @@ def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
 
 
 def route_expression(response_plan: JsonDict, context_pack: JsonDict, step) -> JsonDict:
+    interruptibility_frame = context_pack.get("interruptibility_frame") or {}
+    if interruptibility_frame.get("response_obligation") == "forbidden":
+        event = {
+            "route": "silent",
+            "worldops_expression_level": "L0",
+            "worldops_expression": "none",
+            "worldops_event_expression": "none",
+            "sora_world_lore_answer": "none",
+            "reason": "Interruptibility Frame requires silence for this reactive turn.",
+        }
+        step("expression.routed", event)
+        return event
     hint = response_plan.get("expression_hint", "text")
     world_level = context_pack["worldops_frame"].get("expression_level", "L0")
     directives = context_pack.get("arbitration_result", {}).get("response_directives", {})
@@ -2277,6 +2742,13 @@ def build_state_diff(context_pack: JsonDict, response_plan: JsonDict, expression
     active_worldops_event = context_pack["worldops_frame"].get("selected_event_id")
     return {
         "session_changed": True,
+        "interruptibility": {
+            "trace_id": (context_pack.get("interruptibility_frame") or {}).get("trace_id"),
+            "response_shape": (context_pack.get("interruptibility_frame") or {}).get("response_shape"),
+            "response_obligation": (context_pack.get("interruptibility_frame") or {}).get("response_obligation"),
+            "compliance": response_plan.get("interruptibility_compliance", {}),
+            "expression_route": expression_event.get("route"),
+        },
         "turn_interpretation": {
             "conversation_move": context_pack.get("turn_interpretation", {}).get("conversation_move"),
             "intent": context_pack.get("turn_interpretation", {}).get("intent", {}).get("primary"),
@@ -2331,6 +2803,13 @@ def summarize_context_pack(context_pack: JsonDict) -> JsonDict:
         "dialogue_control": {
             "question_budget": context_pack["dialogue_control_frame"]["question_budget"],
             "recent_sora_question_streak": context_pack["dialogue_control_frame"]["recent_sora_question_streak"],
+        },
+        "interruptibility": {
+            "response_obligation": (context_pack.get("interruptibility_frame") or {}).get("response_obligation"),
+            "response_shape": (context_pack.get("interruptibility_frame") or {}).get("response_shape"),
+            "initiative_permission": (context_pack.get("interruptibility_frame") or {}).get("initiative_permission"),
+            "decision_path": (context_pack.get("interruptibility_frame") or {}).get("decision_path"),
+            "trace_id": (context_pack.get("interruptibility_frame") or {}).get("trace_id"),
         },
         "turn_frame": {
             "conversation_move": context_pack.get("turn_interpretation", {}).get("conversation_move"),

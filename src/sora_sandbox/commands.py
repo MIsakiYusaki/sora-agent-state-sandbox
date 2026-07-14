@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,8 @@ def handle_command(
     line: str,
     state: JsonDict,
     memory_admin: Any | None = None,
+    interruptibility_admin: Any | None = None,
+    persona_admin: Any | None = None,
 ) -> tuple[str, bool]:
     parts = shlex.split(line, posix=False)
     if not parts:
@@ -66,6 +69,10 @@ def handle_command(
         return dump(state["observability"].get("last_context_pack", {}).get("turn_interpretation", {})), False
     if command == "/context-pack":
         return dump(state["observability"].get("last_context_pack", {})), False
+    if command == "/interruptibility":
+        if interruptibility_admin is None:
+            return dump(state.get("interruptibility", {})), False
+        return dump(handle_interruptibility_command(args, state, interruptibility_admin)), False
     if command == "/turn-debug":
         mode = arg_value(args[0]).lower() if args else "summary"
         return dump(build_turn_debug_snapshot(state, mode=mode)), False
@@ -576,12 +583,20 @@ def handle_command(
         return reject_memory_hook_command(args, state, memory_admin), False
 
     if command == "/persona":
+        if persona_admin is not None:
+            return dump(persona_admin.export_state()), False
         return dump(state["persona"]), False
     if command == "/persona-core":
+        if persona_admin is not None:
+            return dump(persona_admin.store.definition()), False
         return dump(state["persona"]["persona_core"]), False
     if command == "/traits":
+        if persona_admin is not None:
+            return dump({"snapshot": persona_admin.store.active_snapshot(), "definitions": persona_admin.store.trait_definitions()}), False
         return dump(state["persona"]["persona_traits"]), False
     if command == "/set-trait":
+        if persona_admin is not None:
+            raise CommandError("Direct trait mutation is disabled. Use reviewed Persona candidates or a versioned definition release.")
         return set_trait(args, state), False
     if command == "/short-state":
         return dump(state["persona"]["short_term_state"]), False
@@ -598,11 +613,49 @@ def handle_command(
     if command == "/set-judgment":
         return set_judgment(args, state), False
     if command == "/growth-events":
+        if persona_admin is not None:
+            status = arg_value(args[0]) if args else None
+            return dump(persona_admin.store.list_candidates(status=status, limit=100)), False
         return dump(state["persona"].get("growth_events", [])), False
     if command == "/apply-growth-event":
+        if persona_admin is not None:
+            return dump(persona_admin.approve_candidate(required_arg(args, "/apply-growth-event <candidate_id>"))), False
         return apply_growth_event_command(args, state), False
     if command == "/reject-growth-event":
+        if persona_admin is not None:
+            return dump(persona_admin.reject_candidate(required_arg(args, "/reject-growth-event <candidate_id>"))), False
         return reject_growth_event_command(args, state), False
+    if command == "/persona-health":
+        require_persona_admin(persona_admin)
+        return dump(persona_admin.health()), False
+    if command == "/persona-worker":
+        require_persona_admin(persona_admin)
+        return dump(persona_admin.process_pending(limit=_int_arg(args, "--limit", default=20))), False
+    if command == "/persona-contributions":
+        require_persona_admin(persona_admin)
+        return dump(persona_admin.store.list_contributions(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/persona-rollback":
+        require_persona_admin(persona_admin)
+        contribution_id = required_arg(args, "/persona-rollback <contribution_id> [reason]")
+        reason = arg_value(" ".join(args[1:])) if len(args) > 1 else "manual_rollback"
+        return dump(persona_admin.rollback_contribution(contribution_id, reason=reason)), False
+    if command == "/persona-rebuild":
+        require_persona_admin(persona_admin)
+        reason = arg_value(" ".join(args)) if args else "manual_rebuild"
+        return dump(persona_admin.rebuild(reason=reason)), False
+    if command == "/persona-forget-source":
+        require_persona_admin(persona_admin)
+        return dump(persona_admin.forget_source(required_arg(args, "/persona-forget-source <source_ref>"))), False
+    if command == "/persona-growth":
+        require_persona_admin(persona_admin)
+        action = required_arg(args, "/persona-growth <pause|resume>").lower()
+        if action not in {"pause", "resume"}:
+            raise CommandError("Usage: /persona-growth <pause|resume>")
+        return dump(persona_admin.set_growth_paused(action == "pause")), False
+    if command == "/persona-self-reference":
+        require_persona_admin(persona_admin)
+        permission = required_arg(args, "/persona-self-reference <silent|implicit|explicit>").lower()
+        return dump(persona_admin.set_self_reference_permission(permission)), False
 
     if command == "/worldops":
         return dump({k: v for k, v in state["worldops"].items() if k != "content_pack"} | {"content_pack_summary": {"world_name": state["worldops"]["content_pack"]["world_name"], "events": len(state["worldops"]["content_pack"].get("events", []))}}), False
@@ -669,6 +722,7 @@ def build_turn_debug_snapshot(state: JsonDict, *, mode: str = "summary") -> Json
         "origin_frame": context_pack.get("origin_frame", {}),
         "worldops_frame": context_pack.get("worldops_frame", {}),
         "dialogue_control_frame": context_pack.get("dialogue_control_frame", {}),
+        "interruptibility_frame": context_pack.get("interruptibility_frame", {}),
         "signals": context_pack.get("signals", []),
         "subsystem_health": context_pack.get("subsystem_health", []),
         "initiative_window": context_pack.get("initiative_window", {}),
@@ -738,6 +792,68 @@ def _csv_arg(args: list[str], flag: str) -> list[str] | None:
     return values or None
 
 
+def handle_interruptibility_command(args: list[str], state: JsonDict, service: Any) -> JsonDict:
+    action = arg_value(args[0]).lower() if args else "status"
+    if action == "status":
+        return service.status(state)
+    if action == "set":
+        if len(args) < 3:
+            raise CommandError(
+                "用法：/interruptibility set <control> <value> [--scope session|duration|persistent] [--duration 15m]"
+            )
+        control = arg_value(args[1])
+        value = _control_value(arg_value(args[2]))
+        scope = _value_after(args, "--scope") or "session"
+        duration = _duration_seconds(_value_after(args, "--duration"))
+        if duration is not None:
+            scope = "duration"
+        return service.set_control(
+            state,
+            control=control,
+            value=value,
+            scope=scope,
+            duration_seconds=duration,
+        )
+    if action == "confirm":
+        token = arg_value(args[1]) if len(args) > 1 else None
+        return service.confirm(state, token)
+    if action == "revoke":
+        control = arg_value(args[1]) if len(args) > 1 else "all"
+        return service.revoke(state, control)
+    if action == "traces":
+        limit = int(arg_value(args[1])) if len(args) > 1 else 50
+        return {"traces": service.list_traces(state, limit=limit)}
+    if action == "export":
+        output_path = arg_value(args[1]) if len(args) > 1 else None
+        return service.export_traces(state, output_path=output_path)
+    if action == "feedback":
+        kind = required_arg(args[1:], "/interruptibility feedback <kind>")
+        last_frame = state.get("interruptibility", {}).get("last_frame", {})
+        return service.record_feedback(state, kind=kind, trace_id=last_frame.get("trace_id"))
+    raise CommandError(
+        "用法：/interruptibility [status|set|confirm|revoke|traces|export|feedback]"
+    )
+
+
+def _control_value(value: str) -> Any:
+    normalized = value.lower()
+    if normalized in {"true", "on", "yes", "1"}:
+        return True
+    if normalized in {"false", "off", "no", "0"}:
+        return False
+    return value
+
+
+def _duration_seconds(value: str | None) -> int | None:
+    if value is None:
+        return None
+    match = re.fullmatch(r"(?P<number>\d+)(?P<unit>[smhd]?)", value.strip().lower())
+    if not match:
+        raise CommandError("--duration 支持 30s、15m、2h、1d")
+    multipliers = {"": 60, "s": 1, "m": 60, "h": 3600, "d": 86400}
+    return int(match.group("number")) * multipliers[match.group("unit")]
+
+
 def _positional_args(args: list[str]) -> list[str]:
     values: list[str] = []
     skip_next = False
@@ -755,6 +871,11 @@ def _positional_args(args: list[str]) -> list[str]:
 def require_memory_admin(memory_admin: Any | None) -> None:
     if memory_admin is None:
         raise CommandError("Memory Runtime 未启用。")
+
+
+def require_persona_admin(persona_admin: Any | None) -> None:
+    if persona_admin is None:
+        raise CommandError("Persona System is not enabled.")
 
 
 def help_text() -> str:
@@ -786,6 +907,8 @@ def help_text() -> str:
       查看上一轮 Turn Interpreter 的意图、指代消解、领域风险和世界观框架判断。
   /context-pack
       查看上一轮完整 context_pack；适合一次性检查所有注入给 LLM 的运行时上下文。
+  /interruptibility [status|set|confirm|revoke|traces|export|feedback]
+      查看或管理回应深度、追问、切题、quiet、response mute、state surface consent 与 activity lease。
   /turn-debug [summary|full]
       按流水线查看上一轮输入后的中间结果：意图识别、turn_frame、signals、Arbiter、response_plan、state_diff 等。
   /arbitration

@@ -4,8 +4,10 @@ import threading
 
 from .agent import AgentRunner
 from .commands import CommandError, handle_command
+from .interruptibility import InterruptibilityService
 from .memory_console import MemoryConsole
 from .memory_system import MemorySystem
+from .persona.system import PersonaSystem
 from .proactive import ProactiveScheduler, ProactiveTrigger
 from .render import render_trace_panel
 from .state import StateStore
@@ -18,16 +20,22 @@ class SoraRepl:
         runner: AgentRunner,
         show_trace_panel: bool = True,
         memory_runtime: MemorySystem | None = None,
+        interruptibility_runtime: InterruptibilityService | None = None,
+        persona_runtime: PersonaSystem | None = None,
     ) -> None:
         self.store = store
         self.runner = runner
         self.state = store.load()
         self.show_trace_panel = show_trace_panel
         self.memory_runtime = memory_runtime
+        self.interruptibility_runtime = interruptibility_runtime
+        self.persona_runtime = persona_runtime
         if self.memory_runtime is not None:
             self.memory_runtime.import_legacy_memories(self.state["memory"].get("items", []))
             self.memory_runtime.sync_state_cache(self.state)
             self.store.save(self.state)
+        if self.persona_runtime is not None:
+            self.persona_runtime.migrate_legacy(self.state.get("persona"))
         self._runtime_lock = threading.RLock()
         self.scheduler = ProactiveScheduler(
             self._on_proactive_trigger,
@@ -65,6 +73,8 @@ class SoraRepl:
                                 line,
                                 self.state,
                                 memory_admin=self.memory_runtime,
+                                interruptibility_admin=self.interruptibility_runtime,
+                                persona_admin=self.persona_runtime,
                             )
                             if self.memory_runtime is not None:
                                 self.memory_runtime.import_legacy_memories(

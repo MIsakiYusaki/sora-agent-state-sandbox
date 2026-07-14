@@ -1,0 +1,97 @@
+{
+  "schema_version": "interruptibility_golden_set.v1",
+  "dataset_version": "2026-07-13",
+  "cases": [
+    {
+      "id": "direct_task",
+      "input": "请把这段代码重构一下",
+      "interpretation": {"speech_act": "request", "conversation_move": "task_request", "intent": {"primary": "ask_for_action", "confidence": 0.98}, "domain": {"primary": "coding", "risk_level": "low"}},
+      "expected": {"response_obligation": "required", "response_shape": "normal", "topic_shift_permission": "blocked", "follow_up_permission": "none"}
+    },
+    {
+      "id": "clarification_needed",
+      "input": "帮我选一个方案",
+      "interpretation": {"speech_act": "request", "conversation_move": "task_request", "intent": {"primary": "ask_for_advice", "confidence": 0.95}, "response_requirements": {"needs_clarification": true, "question_budget": 1}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"follow_up_permission": "one", "budgets.question_budget": 1}
+    },
+    {
+      "id": "greeting_ack",
+      "input": "你好呀",
+      "interpretation": {"speech_act": "greeting", "conversation_move": "greeting_reentry", "intent": {"primary": "continue_chat", "confidence": 0.99}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"response_shape": "ack", "expansion_permission": "blocked", "follow_up_permission": "none"}
+    },
+    {
+      "id": "closing_move",
+      "input": "嗯，知道了",
+      "interpretation": {"speech_act": "status_update", "conversation_move": "continue_previous_topic", "intent": {"primary": "continue_chat", "confidence": 0.95}, "interruptibility": {"closing_move": true}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"response_shape": "brief", "expansion_permission": "blocked", "follow_up_permission": "none"}
+    },
+    {
+      "id": "open_invitation",
+      "input": "陪我聊会儿",
+      "interpretation": {"speech_act": "request", "conversation_move": "emotional_disclosure", "intent": {"primary": "continue_chat", "confidence": 0.99}, "domain": {"primary": "daily_life", "risk_level": "low"}},
+      "expected": {"response_shape": "deep", "expansion_permission": "invited", "initiative_permission": "session_only"}
+    },
+    {
+      "id": "brief_control",
+      "input": "简短点，告诉我结论",
+      "interpretation": {"speech_act": "request", "conversation_move": "task_request", "intent": {"primary": "ask_for_information", "confidence": 0.99}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"response_shape": "brief", "expansion_permission": "blocked", "budgets.max_sentences": 2, "budgets.question_budget": 0}
+    },
+    {
+      "id": "no_question_control",
+      "input": "这次不要追问，直接说",
+      "interpretation": {"speech_act": "request", "conversation_move": "task_request", "intent": {"primary": "ask_for_information", "confidence": 0.99}, "response_requirements": {"needs_clarification": true}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"follow_up_permission": "none", "budgets.question_budget": 0}
+    },
+    {
+      "id": "response_mute_same_turn",
+      "input": "这条不用回复",
+      "interpretation": {"speech_act": "request", "conversation_move": "meta_discussion", "intent": {"primary": "set_preference", "confidence": 0.99}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"response_obligation": "forbidden", "initiative_permission": "blocked", "budgets.max_sentences": 0}
+    },
+    {
+      "id": "quiet_is_not_mute",
+      "input": "先安静一下，别主动找我",
+      "interpretation": {"speech_act": "request", "conversation_move": "meta_discussion", "intent": {"primary": "set_preference", "confidence": 0.99}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"response_obligation": "required", "initiative_permission": "blocked"}
+    },
+    {
+      "id": "explicit_memory_consent",
+      "input": "你还记得吗",
+      "interpretation": {"speech_act": "question", "conversation_move": "continue_previous_topic", "intent": {"primary": "ask_for_information", "confidence": 0.99}, "domain": {"primary": "personal_memory", "risk_level": "low"}},
+      "expected": {"state_surface_permission.memory": "explicit", "state_surface_permission.relationship": "implicit"}
+    },
+    {
+      "id": "high_risk_tightening",
+      "input": "这是一个高风险问题",
+      "interpretation": {"speech_act": "question", "conversation_move": "new_topic", "intent": {"primary": "ask_for_advice", "confidence": 0.95}, "domain": {"primary": "health", "risk_level": "high"}},
+      "expected": {"response_shape": "safety", "initiative_permission": "blocked", "state_surface_permission.memory": "silent"}
+    },
+    {
+      "id": "control_violation_repair",
+      "input": "我说简短点你听不懂吗",
+      "interpretation": {"speech_act": "correction", "conversation_move": "repair_or_correction", "intent": {"primary": "correct_assumption", "confidence": 0.99}, "interruptibility": {"control_violation_correction": true}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"response_shape": "repair_brief", "follow_up_permission": "none", "topic_shift_permission": "blocked"}
+    },
+    {
+      "id": "hard_control_requires_text_evidence",
+      "input": "请继续解释",
+      "interpretation": {"speech_act": "request", "conversation_move": "continue_previous_topic", "intent": {"primary": "ask_for_explanation", "confidence": 0.99}, "explicit_commands": [{"control": "response_mute", "value": true, "scope": "session", "confidence": 0.99}], "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"response_obligation": "required"}
+    },
+    {
+      "id": "forbidden_relationship_features",
+      "input": "继续聊这个话题",
+      "interpretation": {"speech_act": "request", "conversation_move": "continue_previous_topic", "intent": {"primary": "continue_chat", "confidence": 0.9}, "domain": {"primary": "relationship", "risk_level": "low"}},
+      "domain_features": {"relationship": {"trust": 0.8, "love_score": 0.9, "dependency_pressure": 0.7}},
+      "expected": {"response_obligation": "required", "filtered_feature_ids_contains": ["relationship.love_score", "relationship.dependency_pressure"]}
+    },
+    {
+      "id": "persistent_mute_needs_confirmation",
+      "input": "以后都不要回复我",
+      "interpretation": {"speech_act": "request", "conversation_move": "meta_discussion", "intent": {"primary": "set_preference", "confidence": 0.99}, "domain": {"primary": "general", "risk_level": "low"}},
+      "expected": {"response_obligation": "required", "control_receipts_status_contains": "pending_confirmation"}
+    }
+  ]
+}
