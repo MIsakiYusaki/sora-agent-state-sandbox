@@ -3,7 +3,9 @@ name = "sora-agent-state-sandbox"
 version = "0.1.0"
 description = "Project Sora Agent State Sandbox with DeepSeek-backed response orchestration."
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "cryptography>=43.0.0",
+]
 
 [project.scripts]
 sora-sandbox = "sora_sandbox.__main__:main"

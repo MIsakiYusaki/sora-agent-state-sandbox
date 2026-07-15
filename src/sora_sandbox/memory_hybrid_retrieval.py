@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .memory_context_packer import MemoryContextPacker, PackedMemory
+from .memory_contextual_recall import BoundedContextualRecallPolicy
 from .memory_graph_lite import graph_search
 from .memory_index_fts import fts_search, temporal_search
 from .memory_index_fts import search_tokens
@@ -34,6 +35,7 @@ class MemoryRetrievalService:
     packer: MemoryContextPacker
     reranker: MemoryReranker
     surface_policy: SurfacePolicyEngine = field(default_factory=SurfacePolicyEngine)
+    contextual_policy: BoundedContextualRecallPolicy = field(default_factory=BoundedContextualRecallPolicy)
 
     def recall(
         self,
@@ -41,6 +43,7 @@ class MemoryRetrievalService:
         *,
         turn_frame: JsonDict | None = None,
         context_use_policy: JsonDict | None = None,
+        context_features: JsonDict | None = None,
         top_k: int = 3,
         token_budget: int | None = None,
     ) -> JsonDict:
@@ -66,7 +69,13 @@ class MemoryRetrievalService:
             groups, retrieval_errors = self._candidate_groups(plan)
             fused = self._fuse(groups, plan)
             reranked, rerank_metadata = self._rerank(fused, plan)
-            governed, filtered = self._govern(reranked, plan, context_use_policy=context_use_policy)
+            contextual, contextual_metadata = self.contextual_policy.apply(
+                reranked,
+                context_features=context_features,
+                top_k=top_k,
+            )
+            rerank_metadata = dict(rerank_metadata) | {"contextual_policy": contextual_metadata}
+            governed, filtered = self._govern(contextual, plan, context_use_policy=context_use_policy)
             packed_candidates = [
                 PackedMemory(
                     score=hit.score,
@@ -99,7 +108,7 @@ class MemoryRetrievalService:
         items = packed["items"][:top_k]
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
         reason = surface_decision.decision_reason
-        trace_items = self._trace_items(groups, fused, reranked, governed, filtered)
+        trace_items = self._trace_items(groups, fused, contextual, governed, filtered)
         degraded = bool(retrieval_errors) or bool(rerank_metadata.get("degraded"))
         trace_id = self._record_trace(
             query_text,
@@ -140,6 +149,7 @@ class MemoryRetrievalService:
             "backend": "hybrid_rrf",
             "recall_plan": self._plan_json(plan),
             "rerank": _public_rerank_metadata(rerank_metadata),
+            "contextual_recall": _public_contextual_metadata(contextual_metadata),
             "packing": {
                 "strategy": packed["packing_strategy"],
                 "token_budget": packed["token_budget"],
@@ -473,6 +483,7 @@ class MemoryRetrievalService:
                     "vector_backend": self.vector_index.backend_name,
                     "retrieval_errors": retrieval_errors or [],
                     "reranker": _public_rerank_metadata(rerank_metadata or {}),
+                    "contextual_recall": (rerank_metadata or {}).get("contextual_policy", {}),
                     "surface_policy": surface_decision.public_dict() if surface_decision else {},
                     "surface_provider_usage": surface_provider_usage or [],
                 },
@@ -763,6 +774,24 @@ def _public_rerank_metadata(metadata: JsonDict) -> JsonDict:
         "fallback_provider": metadata.get("fallback_provider"),
         "usage": metadata.get("usage", {}),
         "error": metadata.get("error"),
+    }
+
+
+def _public_contextual_metadata(metadata: JsonDict) -> JsonDict:
+    diversity = dict(metadata.get("diversity") or {})
+    return {
+        "policy_version": metadata.get("policy_version"),
+        "applied": bool(metadata.get("applied")),
+        "reason": metadata.get("reason"),
+        "source": metadata.get("source"),
+        "source_revision": metadata.get("source_revision"),
+        "max_relative_boost": metadata.get("max_relative_boost"),
+        "diversity": {
+            "applied": bool(diversity.get("applied")),
+            "reason": diversity.get("reason"),
+            "top_k": diversity.get("top_k"),
+            "swap_count": len(diversity.get("swaps") or []),
+        },
     }
 
 

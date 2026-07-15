@@ -106,6 +106,7 @@ class MemoryRuntime:
     def __post_init__(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self._memory_change_listeners: dict[str, Callable[..., Any]] = {}
         self.gate = self.gate or MemoryGate()
         self.recall_planner = self.recall_planner or create_recall_planner_from_env()
         self.embedding_provider = self.embedding_provider or create_embedding_provider_from_env()
@@ -2103,6 +2104,36 @@ class MemoryRuntime:
         if drain:
             self.index_outbox.process_pending(commit=False)
             self.projector_bus.process_pending(commit=False)
+        for listener_name, listener in list(self._memory_change_listeners.items()):
+            try:
+                listener(
+                    memory,
+                    action=action,
+                    reason=reason,
+                    source_ref=source_ref,
+                )
+            except Exception as exc:
+                self.ingestion.record_delete_propagation(
+                    source_ref=source_ref or memory["id"],
+                    source_type="memory_record",
+                    target_type=f"{listener_name}_change_listener",
+                    target_id=memory["id"],
+                    action="listener_failed",
+                    reason=reason,
+                    metadata={"error": f"{type(exc).__name__}: {exc}", "memory_action": action},
+                )
+
+    def register_memory_change_listener(
+        self,
+        name: str,
+        listener: Callable[..., Any],
+    ) -> None:
+        if not name.strip():
+            raise ValueError("memory change listener name is required")
+        self._memory_change_listeners[name] = listener
+
+    def unregister_memory_change_listener(self, name: str) -> None:
+        self._memory_change_listeners.pop(name, None)
 
     def _restore_memory_for_rollback(self, memory_id: str, *, reason: str, actor: str) -> JsonDict:
         before = self.get_memory(memory_id)
@@ -2272,6 +2303,7 @@ class MemoryRuntime:
         *,
         turn_frame: JsonDict | None = None,
         context_use_policy: JsonDict | None = None,
+        context_features: JsonDict | None = None,
         top_k: int = 3,
         token_budget: int | None = None,
     ) -> JsonDict:
@@ -2279,6 +2311,7 @@ class MemoryRuntime:
             query_text,
             turn_frame=turn_frame,
             context_use_policy=context_use_policy,
+            context_features=context_features,
             top_k=top_k,
             token_budget=token_budget,
         )

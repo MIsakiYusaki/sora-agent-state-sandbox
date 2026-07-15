@@ -34,6 +34,7 @@ class MemorySystem:
         *,
         turn_frame: JsonDict | None = None,
         context_use_policy: JsonDict | None = None,
+        context_features: JsonDict | None = None,
         top_k: int = 3,
         token_budget: int | None = None,
     ) -> JsonDict:
@@ -41,6 +42,7 @@ class MemorySystem:
             query_text,
             turn_frame=turn_frame,
             context_use_policy=context_use_policy,
+            context_features=context_features,
             top_k=top_k,
             token_budget=token_budget,
         )

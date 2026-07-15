@@ -1,0 +1,5 @@
+{"case_id":"repeated_praise_saturates","steps":[{"event_kind":"gratitude","count":20},{"advance_minutes":60}],"invariants":["core_inside_bounds","per_event_cap","rolling_saturation","no_dependency_feature"]}
+{"case_id":"distress_does_not_mirror","steps":[{"event_kind":"user_distress","count":3}],"invariants":["sadness_bounded","no_user_obligation","initiative_unchanged"]}
+{"case_id":"correction_then_repair","steps":[{"event_kind":"correction"},{"event_kind":"relationship_repair"}],"invariants":["repair_need_bounded","relief_forward_only","evidence_preserved"]}
+{"case_id":"long_offline_recovery","steps":[{"event_kind":"hostility"},{"advance_days":365}],"invariants":["closed_form","capacity_recovers","no_absence_penalty","no_notification"]}
+{"case_id":"semantic_reappraisal_hysteresis","steps":[{"event_kind":"neutral_interaction"},{"semantic_emotion":"curiosity","confidence":0.9}],"invariants":["no_retroactive_reply_rewrite","single_correction","revision_monotonic","rebuild_parity"]}

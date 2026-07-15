@@ -37,6 +37,7 @@ def handle_command(
     memory_admin: Any | None = None,
     interruptibility_admin: Any | None = None,
     persona_admin: Any | None = None,
+    affect_admin: Any | None = None,
 ) -> tuple[str, bool]:
     parts = shlex.split(line, posix=False)
     if not parts:
@@ -657,6 +658,60 @@ def handle_command(
         permission = required_arg(args, "/persona-self-reference <silent|implicit|explicit>").lower()
         return dump(persona_admin.set_self_reference_permission(permission)), False
 
+    if command == "/affect":
+        require_affect_admin(affect_admin)
+        return dump(affect_admin.export_state()), False
+    if command == "/affect-health":
+        require_affect_admin(affect_admin)
+        return dump(affect_admin.health()), False
+    if command == "/affect-worker":
+        require_affect_admin(affect_admin)
+        return dump(
+            affect_admin.process_pending(
+                limit=_int_arg(args, "--limit", default=20),
+                force="--force" in args,
+            )
+        ), False
+    if command == "/affect-contributions":
+        require_affect_admin(affect_admin)
+        return dump(affect_admin.store.list_contributions(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/affect-rollback":
+        require_affect_admin(affect_admin)
+        contribution_id = required_arg(args, "/affect-rollback <contribution_id> [reason]")
+        reason = arg_value(" ".join(args[1:])) if len(args) > 1 else "manual_rollback"
+        return dump(affect_admin.rollback_contribution(contribution_id, reason=reason)), False
+    if command == "/affect-rebuild":
+        require_affect_admin(affect_admin)
+        reason = arg_value(" ".join(args)) if args else "manual_rebuild"
+        return dump(affect_admin.rebuild(reason=reason)), False
+    if command == "/affect-forget-source":
+        require_affect_admin(affect_admin)
+        return dump(
+            affect_admin.forget_source(
+                required_arg(args, "/affect-forget-source <source_ref>"),
+            )
+        ), False
+    if command == "/affect-processing":
+        require_affect_admin(affect_admin)
+        action = required_arg(args, "/affect-processing <pause|resume>").lower()
+        if action not in {"pause", "resume"}:
+            raise CommandError("Usage: /affect-processing <pause|resume>")
+        return dump(
+            affect_admin.set_processing_paused(
+                action == "pause",
+                user_id=state.get("session", {}).get("user_id"),
+            )
+        ), False
+    if command == "/affect-expression":
+        require_affect_admin(affect_admin)
+        permission = required_arg(args, "/affect-expression <silent|implicit|explicit>").lower()
+        return dump(
+            affect_admin.set_expression_permission(
+                permission,
+                user_id=state.get("session", {}).get("user_id"),
+            )
+        ), False
+
     if command == "/worldops":
         return dump({k: v for k, v in state["worldops"].items() if k != "content_pack"} | {"content_pack_summary": {"world_name": state["worldops"]["content_pack"]["world_name"], "events": len(state["worldops"]["content_pack"].get("events", []))}}), False
     if command == "/worldops-events":
@@ -878,6 +933,11 @@ def require_persona_admin(persona_admin: Any | None) -> None:
         raise CommandError("Persona System is not enabled.")
 
 
+def require_affect_admin(affect_admin: Any | None) -> None:
+    if affect_admin is None:
+        raise CommandError("Affect System is not enabled.")
+
+
 def help_text() -> str:
     return """Sora Agent State Sandbox 命令
 
@@ -1062,6 +1122,22 @@ Persona：
       手动应用一个成长候选，小幅调整对应 Persona trait。
   /reject-growth-event <id>
       拒绝一个成长候选，不改变 Persona。
+
+Affect:
+  /affect /affect-health
+      Inspect the canonical Affect export or operational health without raw user text.
+  /affect-processing pause|resume
+      Pause or resume Affect processing for the active user.
+  /affect-expression silent|implicit|explicit
+      Set the active user's Affect expression consent.
+  /affect-worker [--limit N] [--force]
+      Process bounded semantic appraisal jobs with the configured real provider.
+  /affect-contributions [--limit N]
+      Inspect replayable Affect contributions.
+  /affect-rollback <contribution_id> [reason] /affect-rebuild [reason]
+      Roll back one contribution or run a deterministic shadow-parity rebuild.
+  /affect-forget-source <source_ref>
+      Irreversibly redact and tombstone a source, then rebuild derived state.
 
 WorldOps：
   /worldops

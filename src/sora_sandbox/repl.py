@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 
 from .agent import AgentRunner
+from .affect.system import AffectSystem
 from .commands import CommandError, handle_command
 from .interruptibility import InterruptibilityService
 from .memory_console import MemoryConsole
@@ -22,6 +23,7 @@ class SoraRepl:
         memory_runtime: MemorySystem | None = None,
         interruptibility_runtime: InterruptibilityService | None = None,
         persona_runtime: PersonaSystem | None = None,
+        affect_runtime: AffectSystem | None = None,
     ) -> None:
         self.store = store
         self.runner = runner
@@ -30,6 +32,7 @@ class SoraRepl:
         self.memory_runtime = memory_runtime
         self.interruptibility_runtime = interruptibility_runtime
         self.persona_runtime = persona_runtime
+        self.affect_runtime = affect_runtime
         if self.memory_runtime is not None:
             self.memory_runtime.import_legacy_memories(self.state["memory"].get("items", []))
             self.memory_runtime.sync_state_cache(self.state)
@@ -75,6 +78,7 @@ class SoraRepl:
                                 memory_admin=self.memory_runtime,
                                 interruptibility_admin=self.interruptibility_runtime,
                                 persona_admin=self.persona_runtime,
+                                affect_admin=self.affect_runtime,
                             )
                             if self.memory_runtime is not None:
                                 self.memory_runtime.import_legacy_memories(

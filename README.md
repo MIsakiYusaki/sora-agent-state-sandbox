@@ -294,3 +294,55 @@ DeepSeek client.
 
 报告输出到 `evals/reports/sqlite_fts/`。评测使用
 `.sandbox/evals/memory_eval.db`，不会污染日常 `.sandbox/memory.db`。
+
+## Affect & Internal State System v2
+
+Affect is an independent canonical subsystem backed by `.sandbox/affect.db`.
+The synchronous lane is deterministic and makes no model call. Ambiguous
+semantics are refined asynchronously by `LLMAffectAppraisalProvider` using the
+configured real DeepSeek client with thinking disabled, strict JSON validation,
+one repair attempt, evidence allowlisting, retry backoff, and dead-letter state.
+
+```text
+AffectStimulusEvent.v2
+  -> deterministic fast appraisal (response hot path)
+  -> append-only contribution + global AffectSnapshot.v2
+  -> sanitized AffectFrame.v2 (bands only; no raw values or evidence refs)
+  -> optional bounded RecallContextFeatures.v1 (<= 10% relative boost)
+
+encrypted transient text
+  -> async semantic proposal
+  -> deterministic hysteresis and correction delta
+  -> forward-only snapshot update
+
+qualified emotion episode
+  -> MemoryCandidateProposal.v1
+  -> Module 03 Gate
+  -> Module 04 canonical memory
+```
+
+Short-lived mood is not long-term memory. Only high-salience, repeated and
+persistent, user-requested, relationship repair/rupture, shared milestone, or
+WorldOps episodes can produce a governed memory candidate. Shared episode,
+relationship, WorldOps, and Persona candidates never auto-commit.
+
+Transient text uses Windows DPAPI on Windows and standard AES-GCM with a
+process-lifetime key on other platforms. Evidence and merged-episode source
+lookups use normalized hash indexes, so Forget and source invalidation do not
+scan JSON payloads. SQLite keeps one serialized writer while runtime reads use
+thread-local query-only WAL connections. Dynamics hardening parameters
+(`factor_zero_policy`, mood residual caps, capacity-to-need coupling, and input
+limits) live in the versioned Affect profile.
+
+Set `SORA_AFFECT_MODE=active|shadow|disabled` for production rollout. `shadow`
+persists and evaluates Affect state for comparison but does not influence the
+prompt, Signals, recall, or memory writes. User and operator controls are
+available through `/affect-*` commands and the Module 10 admin action registry.
+
+Run deterministic and real-provider verification with:
+
+```powershell
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest tests.test_affect_system -q
+$env:PYTHONPATH="src"
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" scripts/eval_affect_live.py
+```

@@ -164,6 +164,7 @@ class AgentRunner:
     turn_interpreter: TurnInterpreter | None = None
     interruptibility: InterruptibilityService | None = None
     persona_runtime: Any | None = None
+    affect_runtime: Any | None = None
 
     def run(self, state: JsonDict, user_input: str) -> JsonDict:
         return self._run(state, user_input=user_input, proactive_trigger=None)
@@ -205,6 +206,7 @@ class AgentRunner:
             turn_interpreter=self.turn_interpreter or LLMTurnInterpreter(self.llm),
             interruptibility=self.interruptibility,
             persona_runtime=self.persona_runtime,
+            affect_runtime=self.affect_runtime,
             correlation_id=correlation_id,
         )
         mark_behavior_observed(state)
@@ -377,6 +379,7 @@ class AgentRunner:
             "background_signal_ids": context_pack["arbitration_result"]["background_signals"],
             "used_memory_ids": context_pack["recollection_frame"]["retrieved_ids"],
             "persona_influences": context_pack["persona_frame"]["influence_summary"],
+            "affect_influences": (context_pack.get("affect_frame") or {}).get("prompt_view", {}),
             "worldops_influences": context_pack["worldops_frame"]["influence_summary"],
             "expression_hint": context_pack["arbitration_result"]["response_directives"].get("expression_hint") or context_pack["worldops_frame"].get("expression_hint") or "text",
             "growth_event_candidate": growth_candidate,
@@ -403,6 +406,7 @@ def build_context_pack(
     turn_interpreter: TurnInterpreter | None = None,
     interruptibility: InterruptibilityService | None = None,
     persona_runtime: Any | None = None,
+    affect_runtime: Any | None = None,
     correlation_id: str | None = None,
 ) -> JsonDict:
     context_start = _timer()
@@ -493,28 +497,6 @@ def build_context_pack(
     origin_frame = build_origin_frame(state)
     step("origin.frame.provided", {"template_id": origin_frame.get("template_id"), "name": origin_frame.get("name")})
 
-    memory_surface = (interruptibility_frame or {}).get("state_surface_permission", {}).get("memory")
-    if memory_surface == "silent":
-        recollection_frame = {
-            "surface_action": "none",
-            "retrieved_ids": [],
-            "memory_summaries": [],
-            "evidence_level": "none",
-            "decision_reason": "Interruptibility state-surface policy suppressed memory injection.",
-            "forbidden_disclosures": ["memory_surface_silent"],
-            "latency_ms": 0.0,
-        }
-    elif memory_runtime is None:
-        recollection_frame = retrieve_memories(state, user_input)
-    else:
-        recollection_frame = memory_runtime.recall(
-            user_input,
-            turn_frame=turn_frame,
-            context_use_policy=context_use_policy,
-        )
-        timing["memory_recall"] = recollection_frame.get("latency_ms", 0.0)
-    step("memory.recollection.provided", {"ids": recollection_frame["retrieved_ids"], "surface_action": recollection_frame["surface_action"]})
-
     if persona_runtime is None:
         persona_frame = build_persona_frame(state)
         persona_frame["runtime_mode"] = "legacy_fallback"
@@ -532,6 +514,100 @@ def build_context_pack(
             "snapshot_version": persona_frame.get("snapshot_version"),
             "cache_status": persona_frame.get("cache_status"),
             "use_policy": persona_frame.get("use_policy", {}),
+        },
+    )
+
+    t0 = _timer()
+    active_user_id = state.get("session", {}).get("user_id")
+    relationship_state = (
+        state.get("relationship")
+        or state.get("persona", {}).get("relationship_state")
+        or {}
+    )
+    try:
+        if affect_runtime is None:
+            affect_frame = build_neutral_affect_frame(
+                user_id=active_user_id,
+                interruptibility_frame=interruptibility_frame,
+                correlation_id=correlation_id,
+            )
+        elif proactive_trigger:
+            affect_frame = affect_runtime.frame(
+                user_id=active_user_id,
+                interruptibility_frame=interruptibility_frame,
+                correlation_id=correlation_id,
+            )
+        else:
+            affect_frame = affect_runtime.observe_user_turn(
+                user_input,
+                turn_id=state["session"]["turn_id"],
+                correlation_id=correlation_id or f"corr_{uuid.uuid4().hex}",
+                turn_interpretation=turn_interpretation,
+                user_id=active_user_id,
+                conversation_scope=str(state["session"].get("session_id") or "default"),
+                relationship_ref=(
+                    str(relationship_state.get("relationship_id"))
+                    if relationship_state.get("relationship_id")
+                    else None
+                ),
+                relationship_state=relationship_state,
+                persona_frame=persona_frame,
+                interruptibility_frame=interruptibility_frame,
+            )
+    except Exception as exc:
+        affect_frame = build_neutral_affect_frame(
+            user_id=active_user_id,
+            interruptibility_frame=interruptibility_frame,
+            correlation_id=correlation_id,
+        )
+        affect_frame["degraded_reasons"] = [
+            f"AFF-INGEST-001:{type(exc).__name__}",
+            "neutral_safe_frame",
+        ]
+    timing["affect"] = _elapsed_since(t0)
+    step(
+        "affect.frame.provided",
+        {
+            "runtime_mode": affect_frame.get("runtime_mode"),
+            "state_revision": affect_frame.get("state_revision"),
+            "dominant_emotion": (affect_frame.get("dominant_emotion") or {}).get("emotion_type"),
+            "surface_permission": affect_frame.get("state_surface_permission"),
+            "degraded_reasons": affect_frame.get("degraded_reasons", []),
+        },
+    )
+
+    memory_surface = (interruptibility_frame or {}).get("state_surface_permission", {}).get("memory")
+    if memory_surface == "silent":
+        recollection_frame = {
+            "surface_action": "none",
+            "retrieved_ids": [],
+            "memory_summaries": [],
+            "evidence_level": "none",
+            "decision_reason": "Interruptibility state-surface policy suppressed memory injection.",
+            "forbidden_disclosures": ["memory_surface_silent"],
+            "latency_ms": 0.0,
+        }
+    elif memory_runtime is None:
+        recollection_frame = retrieve_memories(state, user_input)
+    else:
+        context_features = (
+            affect_runtime.recall_context(affect_frame)
+            if affect_runtime is not None and hasattr(affect_runtime, "recall_context")
+            else None
+        )
+        recollection_frame = memory_runtime.recall(
+            user_input,
+            turn_frame=turn_frame,
+            context_use_policy=context_use_policy,
+            context_features=context_features,
+        )
+        timing["memory_recall"] = recollection_frame.get("latency_ms", 0.0)
+    step(
+        "memory.recollection.provided",
+        {
+            "ids": recollection_frame["retrieved_ids"],
+            "surface_action": recollection_frame["surface_action"],
+            "contextual_policy": (recollection_frame.get("contextual_recall") or {}).get("policy_version"),
         },
     )
 
@@ -570,6 +646,7 @@ def build_context_pack(
         behavior_frame,
         recollection_frame,
         persona_frame,
+        affect_frame,
         worldops_frame,
         origin_frame,
         turn_frame,
@@ -625,6 +702,7 @@ def build_context_pack(
         "behavior_frame": behavior_frame,
         "recollection_frame": recollection_frame,
         "persona_frame": persona_frame,
+        "affect_frame": affect_frame,
         "worldops_frame": worldops_frame,
         "origin_frame": origin_frame,
         "turn_frame": turn_frame,
@@ -1209,6 +1287,53 @@ def build_persona_frame(state: JsonDict) -> JsonDict:
     }
 
 
+def build_neutral_affect_frame(
+    *,
+    user_id: str | None,
+    interruptibility_frame: JsonDict | None,
+    correlation_id: str | None,
+) -> JsonDict:
+    interrupt = dict(interruptibility_frame or {})
+    obligation = str(interrupt.get("response_obligation") or "required")
+    response_shape = str(interrupt.get("response_shape") or "normal")
+    permission = str((interrupt.get("state_surface_permission") or {}).get("affect") or "implicit")
+    budget = {"ack": 64, "brief": 64, "repair_brief": 64, "deep": 160}.get(response_shape, 128)
+    visible = permission != "silent" and obligation != "forbidden"
+    return {
+        "schema_version": "AffectFrame.v2",
+        "frame_id": f"aframe_fallback_{uuid.uuid4().hex}",
+        "sora_id": None,
+        "user_id": user_id,
+        "snapshot_id": None,
+        "state_revision": 0,
+        "observed_at": None,
+        "core_band": "neutral",
+        "mood_band": "neutral",
+        "dominant_emotion": None,
+        "capacity_bands": {},
+        "need_bands": {},
+        "regulation": {"active_limits": []},
+        "target_contexts": [],
+        "expression_bias": {},
+        "state_surface_permission": permission,
+        "use_policy": {
+            "surface_permission": permission,
+            "include_state_expression": False,
+            "include_self_reference": False,
+            "reason_codes": ["canonical_affect_runtime_unavailable"],
+        },
+        "prompt_budget_tokens": budget,
+        "prompt_view": {
+            "state_expression": "neutral_fallback" if visible else "silent",
+            "regulation_limits": [],
+        },
+        "correlation_id": correlation_id,
+        "degraded_reasons": ["canonical_affect_runtime_unavailable"],
+        "runtime_mode": "neutral_safe_fallback",
+        "processing_paused": False,
+    }
+
+
 def build_worldops_frame(state: JsonDict, behavior_frame: JsonDict, persona_frame: JsonDict) -> JsonDict:
     worldops = state["worldops"]
     event = find_world_event(worldops, worldops.get("active_event_id"))
@@ -1310,6 +1435,7 @@ def collect_subsystem_signals(
     behavior_frame: JsonDict,
     recollection_frame: JsonDict,
     persona_frame: JsonDict,
+    affect_frame: JsonDict,
     worldops_frame: JsonDict,
     origin_frame: JsonDict,
     turn_frame: JsonDict,
@@ -1328,6 +1454,7 @@ def collect_subsystem_signals(
             "behavior": behavior_frame,
             "recollection": recollection_frame,
             "persona": persona_frame,
+            "affect": affect_frame,
             "worldops": worldops_frame,
             "origin": origin_frame,
             "dialogue_control": dialogue_control_frame,
@@ -1362,6 +1489,10 @@ def build_default_subsystem_registry() -> SubsystemRegistry:
             FunctionSubsystemAdapter(
                 "persona",
                 lambda ctx: [persona_signal(ctx.event_bus, ctx.frame("persona"))],
+            ),
+            FunctionSubsystemAdapter(
+                "affect",
+                lambda ctx: optional(affect_signal(ctx.event_bus, ctx.frame("affect"))),
             ),
             FunctionSubsystemAdapter(
                 "origin",
@@ -1511,6 +1642,38 @@ def persona_signal(event_bus: JsonDict, persona_frame: JsonDict) -> JsonDict:
             "playfulness": traits.get("playfulness"),
             "caution": traits.get("caution"),
         },
+    )
+
+
+def affect_signal(event_bus: JsonDict, affect_frame: JsonDict) -> JsonDict | None:
+    dominant = dict(affect_frame.get("dominant_emotion") or {})
+    regulation = dict(affect_frame.get("regulation") or {})
+    if not dominant and not regulation.get("active_limits"):
+        return None
+    intensity = {
+        "none": 0.0,
+        "low": 0.15,
+        "medium": 0.40,
+        "high": 0.66,
+        "very_high": 0.84,
+    }.get(str(dominant.get("intensity_band") or "none"), 0.0)
+    return build_signal(
+        event_bus,
+        "affect",
+        "internal_state",
+        priority=round(min(0.78, 0.34 + intensity * 0.45), 4),
+        confidence=1.0,
+        visibility="background" if intensity < 0.58 else "candidate",
+        interrupt_level="none",
+        emotional_weight=round(intensity, 4),
+        relation_weight=0.0,
+        reason="Use internal state only as a bounded expression and regulation signal.",
+        contract="AffectSignal.v1",
+        emotion_type=dominant.get("emotion_type"),
+        target_ref=dominant.get("target_ref"),
+        tone_hint=(affect_frame.get("expression_bias") or {}).get("tone"),
+        regulation_limits=regulation.get("active_limits") or [],
+        state_revision=affect_frame.get("state_revision"),
     )
 
 
@@ -2348,6 +2511,8 @@ def arbitrate_signals(
                 directives["worldops_expression"] = "active"
                 directives["worldops_event_expression"] = "active"
                 directives["expression_hint"] = "bubble"
+            if source == "affect" and signal.get("tone_hint"):
+                directives["tone"] = signal["tone_hint"]
             continue
         if source == "initiative" and initiative_window_frame.get("allowed") and signal.get("type") in initiative_window_frame.get("allowed_types", []):
             if semantic_blocks_signal(signal, semantic_scores):
@@ -2367,6 +2532,8 @@ def arbitrate_signals(
             if source == "worldops":
                 directives["worldops_expression"] = "active"
                 directives["worldops_event_expression"] = "active"
+            if source == "affect" and signal.get("tone_hint"):
+                directives["tone"] = signal["tone_hint"]
             continue
         if semantic_backgrounds_signal(signal, semantic_scores):
             background.append(signal["id"])
@@ -2649,6 +2816,8 @@ def interruptibility_control_reply(context_pack: JsonDict) -> str | None:
         (item for item in receipts if item.get("status") == "pending_confirmation"),
         None,
     )
+
+
     if pending:
         control = pending.get("control", "该设置")
         token = pending.get("confirmation_token")
@@ -2676,6 +2845,7 @@ def build_system_prompt(context_pack: JsonDict) -> str:
 
 
 def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
+    affect_frame = context_pack.get("affect_frame") or {}
     safe_pack = {
         "turn_interpretation": context_pack.get("turn_interpretation", {}),
         "turn_frame": context_pack["turn_frame"],
@@ -2684,6 +2854,14 @@ def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
         "behavior_frame": context_pack["behavior_frame"],
         "recollection_frame": context_pack["recollection_frame"],
         "persona_frame": context_pack["persona_frame"],
+        "affect_frame": {
+            "schema_version": affect_frame.get("schema_version"),
+            "state_revision": affect_frame.get("state_revision"),
+            "prompt_view": affect_frame.get("prompt_view", {}),
+            "use_policy": affect_frame.get("use_policy", {}),
+            "degraded_reasons": affect_frame.get("degraded_reasons", []),
+            "provenance": affect_frame.get("provenance", {}),
+        },
         "worldops_frame": context_pack["worldops_frame"],
         "origin_frame": context_pack["origin_frame"],
         "dialogue_control_frame": context_pack["dialogue_control_frame"],
@@ -2721,6 +2899,8 @@ def route_expression(response_plan: JsonDict, context_pack: JsonDict, step) -> J
         hint = "bubble"
     event = {
         "route": hint,
+        "affect_tone": directives.get("tone"),
+        "affect_state_revision": (context_pack.get("affect_frame") or {}).get("state_revision"),
         "worldops_expression_level": world_level,
         "worldops_expression": worldops_expression,
         "worldops_event_expression": worldops_event_expression,
@@ -2758,6 +2938,13 @@ def build_state_diff(context_pack: JsonDict, response_plan: JsonDict, expression
         },
         "memories_used": response_plan["used_memory_ids"],
         "persona_debug_overrides_used": [item.get("target") for item in context_pack["persona_frame"].get("debug_overrides", [])],
+        "affect": {
+            "snapshot_id": (context_pack.get("affect_frame") or {}).get("snapshot_id"),
+            "state_revision": (context_pack.get("affect_frame") or {}).get("state_revision"),
+            "surface_permission": (context_pack.get("affect_frame") or {}).get("state_surface_permission"),
+            "dominant_emotion": ((context_pack.get("affect_frame") or {}).get("dominant_emotion") or {}).get("emotion_type"),
+            "expression_tone": expression_event.get("affect_tone"),
+        },
         "active_worldops_event": active_worldops_event,
         "worldops_event_available": active_worldops_event,
         "worldops_event_expressed": expression_event.get("worldops_event_expression") not in {None, "none"},
@@ -2792,6 +2979,14 @@ def summarize_context_pack(context_pack: JsonDict) -> JsonDict:
             "latency_ms": context_pack["recollection_frame"].get("latency_ms"),
         },
         "persona_influences": context_pack["persona_frame"]["influence_summary"],
+        "affect": {
+            "runtime_mode": (context_pack.get("affect_frame") or {}).get("runtime_mode"),
+            "state_revision": (context_pack.get("affect_frame") or {}).get("state_revision"),
+            "mood_band": (context_pack.get("affect_frame") or {}).get("mood_band"),
+            "dominant_emotion": ((context_pack.get("affect_frame") or {}).get("dominant_emotion") or {}).get("emotion_type"),
+            "capacity_bands": (context_pack.get("affect_frame") or {}).get("capacity_bands", {}),
+            "surface_permission": (context_pack.get("affect_frame") or {}).get("state_surface_permission"),
+        },
         "worldops": {
             "event": context_pack["worldops_frame"].get("selected_event_id"),
             "level": context_pack["worldops_frame"].get("expression_level"),

@@ -135,3 +135,40 @@ Runtime reads use `PersonaFrame.v1`. `PersonaUsePolicy.v1` applies the most
 restrictive Interruptibility and consent constraints before the frame reaches
 the response planner. Relationship, Affect, WorldOps, and user-specific
 adaptation remain separate ownership domains.
+
+## Affect Runtime Boundary
+
+Affect owns one global internal state per Sora instance. Per-user and per-topic
+differences live in typed emotion episodes and target contexts; they do not
+fork the canonical core state. Runtime integration uses four contracts:
+
+| Contract | Direction | Semantics |
+| --- | --- | --- |
+| `AffectStimulusEvent.v2` | Orchestrator/structured systems -> Affect | Evidence-bearing stimulus; raw text is transient and encrypted. |
+| `AffectFrame.v2` | Affect -> Agent Runtime | Sanitized bands, expression bias, regulation limits, and consent policy. |
+| `AffectSignal.v1` | Affect -> Arbiter | Bounded expression/regulation candidate; never an interruption permission. |
+| `MemoryCandidateProposal.v1` | Affect -> Memory Gate | Qualified episode proposal only; never a direct canonical write or Module 09 projection. |
+
+The synchronous lane contains deterministic classification, bounded dynamics,
+SQLite commit, and frame generation only. Semantic LLM appraisal is asynchronous
+and forward-only: it cannot rewrite an emitted response, calculate canonical
+intensity, mutate policy, or invent evidence. Failure keeps the deterministic
+state and degrades to the last verified or neutral-safe frame.
+
+The persistence contract is `affect_schema.v4`: a single serialized writer owns
+canonical transactions, thread-local query-only connections serve runtime reads,
+and opaque evidence-reference indexes support bounded Forget/source lookups.
+Transient semantic text is protected with DPAPI or AES-GCM and is removed after
+terminal processing. Provider traces may contain enum-only content risk
+indicators, but never the source text.
+
+`AffectFrame.v2` deliberately omits exact intensity, VAD values, capacity values,
+and evidence references. If memory recall receives Affect context, it receives
+the domain-neutral `RecallContextFeatures.v1` contract. Memory applies at most a
+10% relative score boost and a diversity guard at `top_k >= 4`; base semantic
+relevance and governance remain authoritative.
+
+Forget and rollback deactivate append-only contributions and deterministically
+rebuild snapshots. Affect-generated memory candidates are rejected or forgotten
+when their source is forgotten. Memory tombstones can also notify Affect through
+the registered memory-change listener when that memory was an Affect source.

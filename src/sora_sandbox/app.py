@@ -6,6 +6,8 @@ import os
 import sys
 
 from .agent import AgentRunner
+from .affect.provider import LLMAffectAppraisalProvider
+from .affect.system import AffectSystem
 from .credentials import CredentialError, CredentialManager
 from .interruptibility import InterruptibilityService, LLMInterruptibilityResolutionProvider
 from .interruptibility_eval import run_interruptibility_eval
@@ -75,8 +77,19 @@ def main(argv: list[str] | None = None) -> int:
         provider=LLMPersonaCandidateProvider(llm),
         start_worker=True,
     )
+    affect_runtime = AffectSystem.default(
+        provider=LLMAffectAppraisalProvider(llm),
+        memory_runtime=memory_runtime,
+        start_worker=True,
+        rollout_mode=os.environ.get("SORA_AFFECT_MODE", "active").strip().lower(),
+    )
+    memory_runtime.register_memory_change_listener(
+        "affect",
+        affect_runtime.handle_memory_change,
+    )
     if args.reset_state:
         persona_runtime.reset()
+        affect_runtime.reset()
     memory_runtime.projector_bus.register_adapter(
         "persona",
         persona_runtime.projection_adapter,
@@ -86,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
         memory_runtime=memory_runtime,
         interruptibility=interruptibility,
         persona_runtime=persona_runtime,
+        affect_runtime=affect_runtime,
     )
     repl = SoraRepl(
         store,
@@ -94,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         memory_runtime=memory_runtime,
         interruptibility_runtime=interruptibility,
         persona_runtime=persona_runtime,
+        affect_runtime=affect_runtime,
     )
     memory_runtime.register_quality_eval_suite(
         "interruptibility",
@@ -105,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         lambda: interruptibility.export_traces(repl.state, limit=500),
     )
     persona_runtime.register_quality_ops(memory_runtime)
+    affect_runtime.register_quality_ops(memory_runtime)
 
     try:
         if args.once:
@@ -121,6 +137,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     finally:
         try:
-            persona_runtime.close()
+            affect_runtime.close()
         finally:
-            memory_runtime.close()
+            try:
+                persona_runtime.close()
+            finally:
+                memory_runtime.close()
