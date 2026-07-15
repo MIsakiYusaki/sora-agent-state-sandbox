@@ -16,6 +16,14 @@ CREATE TABLE IF NOT EXISTS persona_schema_migration (
     checksum TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS persona_instance (
+    agent_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK(status IN ('active','paused','retired')),
+    active_definition_version INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS persona_definition (
     agent_id TEXT NOT NULL,
     version INTEGER NOT NULL,
@@ -134,6 +142,37 @@ CREATE TABLE IF NOT EXISTS persona_user_adaptation (
     PRIMARY KEY(agent_id, user_id, trait_key)
 );
 
+CREATE TABLE IF NOT EXISTS persona_interest_state (
+    agent_id TEXT NOT NULL,
+    user_id TEXT NOT NULL DEFAULT '',
+    topic_key TEXT NOT NULL,
+    user_interest_ref TEXT,
+    shared_density REAL NOT NULL,
+    sora_interest REAL NOT NULL,
+    reason_refs_json TEXT NOT NULL,
+    attitude TEXT NOT NULL CHECK(attitude IN ('curious','engaged','neutral','cautious','avoided')),
+    version INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(agent_id, user_id, topic_key)
+);
+CREATE INDEX IF NOT EXISTS idx_persona_interest_rank
+ON persona_interest_state(agent_id, user_id, sora_interest DESC, shared_density DESC);
+
+CREATE TABLE IF NOT EXISTS persona_ephemeral_state (
+    agent_id TEXT NOT NULL,
+    user_id TEXT NOT NULL DEFAULT '',
+    state_key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    source_ref TEXT,
+    confidence REAL NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(agent_id, user_id, state_key)
+);
+CREATE INDEX IF NOT EXISTS idx_persona_ephemeral_expiry
+ON persona_ephemeral_state(expires_at);
+
 CREATE TABLE IF NOT EXISTS persona_frame (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
@@ -198,6 +237,15 @@ CREATE TABLE IF NOT EXISTS persona_outbox (
     UNIQUE(event_type, aggregate_ref, payload_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_persona_outbox_pending ON persona_outbox(status, created_at);
+
+CREATE TABLE IF NOT EXISTS persona_dead_letter_resolution (
+    event_id TEXT PRIMARY KEY,
+    resolution TEXT NOT NULL CHECK(resolution IN ('retry','resolved','exported')),
+    export_ref TEXT,
+    actor TEXT NOT NULL,
+    resolved_at TEXT NOT NULL,
+    FOREIGN KEY(event_id) REFERENCES persona_outbox(id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS persona_rebuild_run (
     id TEXT PRIMARY KEY,

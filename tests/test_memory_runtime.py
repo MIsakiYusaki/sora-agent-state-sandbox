@@ -2236,6 +2236,31 @@ class MemoryRuntimeTests(unittest.TestCase):
             self.runtime.recall("rollback 测试记忆")["retrieved_ids"],
         )
 
+    def test_rollback_publishes_memory_rollback_to_persona_without_forget_semantics(self) -> None:
+        memory = self.runtime.add_manual(
+            "Sora used a reviewed bounded Persona behavior.",
+            memory_type="persona_delta",
+        )
+        candidate = next(
+            item
+            for item in self.runtime.list_candidates("committed")
+            if item["committed_memory_id"] == memory["id"]
+        )
+
+        self.runtime.rollback_committed_candidate(
+            candidate["candidate_id"],
+            reason="persona_projection_test",
+        )
+
+        events = [
+            item
+            for item in self.runtime.list_projector_outbox(limit=100)
+            if item["memory_id"] == memory["id"] and item["projector_name"] == "persona"
+        ]
+        rollback = next(item for item in events if item["action"] == "rollback")
+        self.assertEqual(rollback["event_type"], "memory_rollback")
+        self.assertNotEqual(rollback["event_type"], "memory_tombstone")
+
     def test_rollback_committed_update_restores_previous_memory(self) -> None:
         previous = self.runtime.add_manual(
             "用户偏好旧版记忆方案",

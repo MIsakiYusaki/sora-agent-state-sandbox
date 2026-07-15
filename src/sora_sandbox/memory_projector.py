@@ -952,6 +952,7 @@ class MemoryProjectorBus:
             "importance": memory.get("importance"),
             "sensitivity": memory.get("sensitivity"),
             "evidence_ids": memory.get("evidence_ids", []),
+            "evidence_episode_ids": memory.get("evidence_episode_ids", []),
             "supersedes_id": memory.get("supersedes_id"),
             "valid_from": memory.get("valid_from"),
             "valid_until": memory.get("valid_until"),

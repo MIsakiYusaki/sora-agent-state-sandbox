@@ -4,6 +4,8 @@ import hashlib
 import json
 import sqlite3
 import threading
+import time
+from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
@@ -18,6 +20,8 @@ from .contracts import (
     JsonDict,
     PersonaGrowthCandidate,
     TraitDefinition,
+    normalize_persona_value,
+    trait_band,
 )
 from .coordinator import PersonaWriteCoordinator
 from .schema import DDL, initialize_schema
@@ -33,6 +37,16 @@ def _hash_text(value: str) -> str:
 
 def _parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value)
+
+
+def _delete_ids(conn: sqlite3.Connection, table: str, ids: list[str]) -> None:
+    if not ids:
+        return
+    allowed = {"persona_outbox", "persona_metric"}
+    if table not in allowed:
+        raise ValueError(f"unsupported Persona cleanup table: {table}")
+    placeholders = ",".join("?" for _ in ids)
+    conn.execute(f"DELETE FROM {table} WHERE id IN ({placeholders})", ids)
 
 
 class PersonaStore:
@@ -89,11 +103,14 @@ class PersonaStore:
             "persona_metric",
             "persona_audit",
             "persona_rebuild_run",
+            "persona_dead_letter_resolution",
             "persona_outbox",
             "persona_tombstone",
             "persona_reflection",
             "persona_control",
             "persona_frame",
+            "persona_ephemeral_state",
+            "persona_interest_state",
             "persona_user_adaptation",
             "persona_snapshot",
             "persona_contribution",
@@ -101,6 +118,7 @@ class PersonaStore:
             "persona_inbox",
             "persona_trait_definition",
             "persona_definition",
+            "persona_instance",
         )
 
         def operation(conn: sqlite3.Connection) -> None:
@@ -123,6 +141,19 @@ class PersonaStore:
             "version": row["version"],
             "schema_version": row["schema_version"],
             **json_loads(row["definition_json"], {}),
+        }
+
+    def instance(self, agent_id: str | None = None) -> JsonDict:
+        selected = agent_id or self.agent_id
+        row = self._read_one("SELECT * FROM persona_instance WHERE agent_id=?", (selected,))
+        if row is None:
+            raise RuntimeError(f"Persona instance not found for {selected}")
+        return {
+            "agent_id": row["agent_id"],
+            "status": row["status"],
+            "active_definition_version": row["active_definition_version"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
         }
 
     def release_definition(
@@ -177,6 +208,10 @@ class PersonaStore:
                     now,
                     now,
                 ),
+            )
+            conn.execute(
+                "UPDATE persona_instance SET active_definition_version=?, updated_at=? WHERE agent_id=?",
+                (version, now, self.agent_id),
             )
             for item in proposed_traits:
                 conn.execute(
@@ -252,6 +287,10 @@ class PersonaStore:
             conn.execute(
                 "UPDATE persona_definition SET status='active', activated_at=? WHERE agent_id=? AND version=?",
                 (utc_now(), self.agent_id, target_version),
+            )
+            conn.execute(
+                "UPDATE persona_instance SET active_definition_version=?, updated_at=? WHERE agent_id=?",
+                (target_version, utc_now(), self.agent_id),
             )
             snapshot = self._rebuild_snapshot(conn, reason=f"definition_rollback:{reason}")
             self._insert_audit(
@@ -398,6 +437,27 @@ class PersonaStore:
                     (event_id, payload_hash, source_ref, inbox_status, json_dumps(event), utc_now(), utc_now()),
                 )
                 return {"status": inbox_status, "candidate_id": None, "source_ref": source_ref, "payload_hash": payload_hash}
+            if action == "rollback" or str(event.get("event_type")) == "memory_rollback":
+                conn.execute(
+                    "INSERT INTO persona_inbox VALUES (?, ?, ?, 'accepted', ?, ?, ?)",
+                    (event_id, payload_hash, source_ref, json_dumps(event), utc_now(), utc_now()),
+                )
+                result = self._rollback_source(conn, source_ref, reason=f"projection:{action}")
+                self._insert_audit(
+                    conn,
+                    action="projection_source_rolled_back",
+                    entity_type="source_ref",
+                    entity_id=source_ref,
+                    details={"event_id": event_id, **result},
+                    correlation_id=str(event.get("correlation_id") or "") or None,
+                )
+                return {
+                    "status": "rolled_back",
+                    "candidate_id": None,
+                    "source_ref": source_ref,
+                    "payload_hash": payload_hash,
+                    **result,
+                }
             if action in {"delete", "tombstone", "forget"} or str(event.get("event_type")) in {"memory_tombstone", "memory_delete"}:
                 conn.execute(
                     "INSERT INTO persona_inbox VALUES (?, ?, ?, 'tombstoned', ?, ?, ?)",
@@ -405,14 +465,8 @@ class PersonaStore:
                 )
                 result = self._forget_source(conn, source_ref, reason=f"projection:{action}")
                 return {"status": "tombstoned", "candidate_id": None, "source_ref": source_ref, "payload_hash": payload_hash, **result}
-            idempotency_key = _hash_json(
-                {
-                    "source_ref": source_ref,
-                    "memory_type": memory.get("type"),
-                    "summary": memory.get("summary"),
-                    "action": action,
-                }
-            )
+            event_key = str((event.get("idempotency") or {}).get("event_key") or event_id)
+            idempotency_key = f"persona.ingest.v2:{event_key}"
             duplicate = conn.execute(
                 "SELECT id FROM persona_candidate WHERE agent_id=? AND idempotency_key=? AND payload_hash=?",
                 (self.agent_id, idempotency_key, payload_hash),
@@ -500,16 +554,85 @@ class PersonaStore:
         *,
         status: str,
         gate_reason: str,
+        gate_decision: str | None = None,
         model_trace: Mapping[str, Any],
     ) -> JsonDict:
         payload = candidate.to_dict()
 
         def operation(conn: sqlite3.Connection) -> JsonDict:
+            source_row = conn.execute(
+                "SELECT source_payload_json,payload_hash FROM persona_candidate WHERE id=?",
+                (candidate_id,),
+            ).fetchone()
+            if source_row is None:
+                raise ValueError(f"Persona candidate not found: {candidate_id}")
+            source_payload = json_loads(source_row["source_payload_json"], {})
+            memory = dict(source_payload.get("memory") or {})
+            source_revision = str(
+                memory.get("updated_at")
+                or memory.get("created_at")
+                or (source_payload.get("idempotency") or {}).get("payload_hash")
+                or source_row["payload_hash"]
+            )
+            target_idempotency_key = (
+                f"persona.v2:{candidate.agent_id}:{candidate.source_ref}:{source_revision}:"
+                f"trait:{candidate.target_scope}:{candidate.target_key}:{PERSONA_POLICY_VERSION}"
+            )
+            duplicate = conn.execute(
+                """
+                SELECT id,status FROM persona_candidate
+                WHERE agent_id=? AND idempotency_key=? AND id!=?
+                ORDER BY created_at LIMIT 1
+                """,
+                (candidate.agent_id, target_idempotency_key, candidate_id),
+            ).fetchone()
+            if duplicate is not None:
+                duplicate_payload = dict(payload)
+                duplicate_payload["metadata"] = {
+                    **dict(duplicate_payload.get("metadata") or {}),
+                    "gate_decision": gate_decision or status,
+                    "duplicate_of": duplicate["id"],
+                }
+                conn.execute(
+                    """
+                    UPDATE persona_candidate
+                    SET user_id=?, target_scope=?, target_key=?, direction=?, status='rejected',
+                        candidate_json=?, gate_reason='duplicate_target_candidate',
+                        model_trace_json=?, updated_at=?, decided_at=?
+                    WHERE id=?
+                    """,
+                    (
+                        candidate.user_id,
+                        candidate.target_scope,
+                        candidate.target_key,
+                        candidate.direction,
+                        json_dumps(duplicate_payload),
+                        json_dumps(model_trace),
+                        utc_now(),
+                        utc_now(),
+                        candidate_id,
+                    ),
+                )
+                self._insert_audit(
+                    conn,
+                    action="candidate_rejected",
+                    entity_type="candidate",
+                    entity_id=candidate_id,
+                    details={"gate_reason": "duplicate_target_candidate", "duplicate_of": duplicate["id"]},
+                )
+                return self._candidate_from_row(
+                    conn.execute("SELECT * FROM persona_candidate WHERE id=?", (candidate_id,)).fetchone()
+                )
+            payload["metadata"] = {
+                **dict(payload.get("metadata") or {}),
+                "gate_decision": gate_decision or status,
+                "target_idempotency_key": target_idempotency_key,
+            }
             conn.execute(
                 """
                 UPDATE persona_candidate
                 SET user_id=?, target_scope=?, target_key=?, direction=?, status=?,
-                    candidate_json=?, gate_reason=?, model_trace_json=?, updated_at=?,
+                    idempotency_key=?, candidate_json=?, gate_reason=?, model_trace_json=?, updated_at=?,
                     decided_at=CASE WHEN ? IN ('rejected','quarantined') THEN ? ELSE decided_at END
                 WHERE id=?
                 """,
@@ -519,6 +642,7 @@ class PersonaStore:
                     candidate.target_key,
                     candidate.direction,
                     status,
+                    target_idempotency_key,
                     json_dumps(payload),
                     gate_reason,
                     json_dumps(model_trace),
@@ -533,10 +657,15 @@ class PersonaStore:
                 conn.execute("UPDATE persona_inbox SET processed_at=? WHERE event_id=?", (utc_now(), source_event_id))
             self._insert_audit(
                 conn,
-                action=f"candidate_{status}",
+                action=f"candidate_{gate_decision or status}",
                 entity_type="candidate",
                 entity_id=candidate_id,
-                details={"gate_reason": gate_reason, "support": candidate.support()},
+                details={
+                    "gate_reason": gate_reason,
+                    "gate_decision": gate_decision or status,
+                    "support": candidate.support(),
+                    "target_idempotency_key": target_idempotency_key,
+                },
             )
             row = conn.execute("SELECT * FROM persona_candidate WHERE id=?", (candidate_id,)).fetchone()
             if row is None:
@@ -745,6 +874,21 @@ class PersonaStore:
 
         return self._write(operation, priority=0, name="forget_source")
 
+    def rollback_source(self, source_ref: str, *, reason: str, actor: str = "system") -> JsonDict:
+        def operation(conn: sqlite3.Connection) -> JsonDict:
+            result = self._rollback_source(conn, source_ref, reason=reason)
+            self._insert_audit(
+                conn,
+                actor=actor,
+                action="source_rolled_back",
+                entity_type="source_ref",
+                entity_id=source_ref,
+                details={"reason": reason, **result},
+            )
+            return result
+
+        return self._write(operation, priority=0, name="rollback_source")
+
     def rebuild(self, *, reason: str, actor: str = "system") -> JsonDict:
         def operation(conn: sqlite3.Connection) -> JsonDict:
             before = self._active_snapshot_conn(conn)
@@ -855,6 +999,250 @@ class PersonaStore:
                 "updated_at": row["updated_at"],
             }
             for row in rows
+        }
+
+    def upsert_interest_state(
+        self,
+        topic_key: str,
+        *,
+        sora_interest: float,
+        shared_density: float = 0.0,
+        user_interest_ref: str | None = None,
+        reason_refs: Iterable[str] = (),
+        attitude: str = "curious",
+        user_id: str | None = None,
+        actor: str = "system",
+    ) -> JsonDict:
+        topic = topic_key.strip()
+        refs = sorted({str(item) for item in reason_refs if str(item)})
+        if not topic:
+            raise ValueError("Persona interest topic_key is required")
+        if not 0.0 <= sora_interest <= 1.0 or not 0.0 <= shared_density <= 1.0:
+            raise ValueError("Persona interest scores must be in [0, 1]")
+        if attitude not in {"curious", "engaged", "neutral", "cautious", "avoided"}:
+            raise ValueError("unsupported Persona interest attitude")
+        if not refs:
+            raise ValueError("Persona self-interest requires reason refs")
+
+        def operation(conn: sqlite3.Connection) -> JsonDict:
+            current = conn.execute(
+                "SELECT version FROM persona_interest_state WHERE agent_id=? AND user_id=? AND topic_key=?",
+                (self.agent_id, user_id or "", topic),
+            ).fetchone()
+            version = int(current["version"] if current else 0) + 1
+            now = utc_now()
+            conn.execute(
+                """
+                INSERT INTO persona_interest_state(
+                    agent_id,user_id,topic_key,user_interest_ref,shared_density,
+                    sora_interest,reason_refs_json,attitude,version,updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(agent_id,user_id,topic_key) DO UPDATE SET
+                    user_interest_ref=excluded.user_interest_ref,
+                    shared_density=excluded.shared_density,
+                    sora_interest=excluded.sora_interest,
+                    reason_refs_json=excluded.reason_refs_json,
+                    attitude=excluded.attitude,
+                    version=excluded.version,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    self.agent_id,
+                    user_id or "",
+                    topic,
+                    user_interest_ref,
+                    normalize_persona_value(shared_density),
+                    normalize_persona_value(sora_interest),
+                    json_dumps(refs),
+                    attitude,
+                    version,
+                    now,
+                ),
+            )
+            if user_id is None:
+                conn.execute(
+                    "UPDATE persona_frame SET status='superseded' WHERE agent_id=? AND status='active'",
+                    (self.agent_id,),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE persona_frame SET status='superseded'
+                    WHERE agent_id=? AND user_id=? AND status='active'
+                    """,
+                    (self.agent_id, user_id),
+                )
+            self._insert_outbox(
+                conn,
+                event_type="persona_interest_updated",
+                aggregate_ref=f"{user_id or 'global'}:{topic}",
+                payload={"topic_key": topic, "user_id": user_id, "version": version},
+            )
+            self._insert_audit(
+                conn,
+                actor=actor,
+                action="interest_state_updated",
+                entity_type="interest_state",
+                entity_id=f"{user_id or 'global'}:{topic}",
+                details={"version": version, "reason_ref_count": len(refs)},
+            )
+            return self._interest_from_row(
+                conn.execute(
+                    "SELECT * FROM persona_interest_state WHERE agent_id=? AND user_id=? AND topic_key=?",
+                    (self.agent_id, user_id or "", topic),
+                ).fetchone()
+            )
+
+        return self._write(operation, priority=2, name="upsert_persona_interest")
+
+    def list_interest_states(self, *, user_id: str | None = None, limit: int = 20) -> list[JsonDict]:
+        if user_id:
+            rows = self._read_all(
+                """
+                SELECT * FROM persona_interest_state
+                WHERE agent_id=? AND user_id IN ('', ?)
+                ORDER BY sora_interest DESC, shared_density DESC, topic_key
+                LIMIT ?
+                """,
+                (self.agent_id, user_id, limit),
+            )
+        else:
+            rows = self._read_all(
+                """
+                SELECT * FROM persona_interest_state
+                WHERE agent_id=? AND user_id=''
+                ORDER BY sora_interest DESC, shared_density DESC, topic_key
+                LIMIT ?
+                """,
+                (self.agent_id, limit),
+            )
+        return [self._interest_from_row(row) for row in rows]
+
+    def set_ephemeral_state(
+        self,
+        state_key: str,
+        value: Any,
+        *,
+        ttl_seconds: int,
+        user_id: str | None = None,
+        source_ref: str | None = None,
+        confidence: float = 1.0,
+        actor: str = "system",
+    ) -> JsonDict:
+        if state_key not in {"mood", "energy", "focus", "silence_preference"}:
+            raise ValueError("unsupported Persona ephemeral state key")
+        if not 30 <= ttl_seconds <= 86400:
+            raise ValueError("Persona ephemeral state TTL must be between 30 and 86400 seconds")
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError("Persona ephemeral confidence must be in [0, 1]")
+
+        def operation(conn: sqlite3.Connection) -> JsonDict:
+            now_dt = datetime.now(timezone.utc)
+            now = now_dt.isoformat()
+            expires_at = (now_dt + timedelta(seconds=ttl_seconds)).isoformat()
+            conn.execute(
+                """
+                INSERT INTO persona_ephemeral_state(
+                    agent_id,user_id,state_key,value_json,source_ref,confidence,
+                    expires_at,created_at,updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(agent_id,user_id,state_key) DO UPDATE SET
+                    value_json=excluded.value_json,
+                    source_ref=excluded.source_ref,
+                    confidence=excluded.confidence,
+                    expires_at=excluded.expires_at,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    self.agent_id,
+                    user_id or "",
+                    state_key,
+                    json_dumps(value),
+                    source_ref,
+                    normalize_persona_value(confidence),
+                    expires_at,
+                    now,
+                    now,
+                ),
+            )
+            if user_id is None:
+                conn.execute(
+                    "UPDATE persona_frame SET status='superseded' WHERE agent_id=? AND status='active'",
+                    (self.agent_id,),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE persona_frame SET status='superseded'
+                    WHERE agent_id=? AND user_id=? AND status='active'
+                    """,
+                    (self.agent_id, user_id),
+                )
+            self._insert_audit(
+                conn,
+                actor=actor,
+                action="ephemeral_state_updated",
+                entity_type="ephemeral_state",
+                entity_id=f"{user_id or 'global'}:{state_key}",
+                details={"ttl_seconds": ttl_seconds, "source_ref": source_ref},
+            )
+            return self._ephemeral_from_row(
+                conn.execute(
+                    "SELECT * FROM persona_ephemeral_state WHERE agent_id=? AND user_id=? AND state_key=?",
+                    (self.agent_id, user_id or "", state_key),
+                ).fetchone()
+            )
+
+        return self._write(operation, priority=2, name="set_persona_ephemeral_state")
+
+    def active_ephemeral_state(self, *, user_id: str | None = None) -> JsonDict:
+        now = utc_now()
+        if user_id:
+            rows = self._read_all(
+                """
+                SELECT * FROM persona_ephemeral_state
+                WHERE agent_id=? AND user_id IN ('', ?) AND expires_at>?
+                ORDER BY CASE WHEN user_id=? THEN 0 ELSE 1 END, updated_at DESC
+                """,
+                (self.agent_id, user_id, now, user_id),
+            )
+        else:
+            rows = self._read_all(
+                """
+                SELECT * FROM persona_ephemeral_state
+                WHERE agent_id=? AND user_id='' AND expires_at>?
+                ORDER BY updated_at DESC
+                """,
+                (self.agent_id, now),
+            )
+        selected: JsonDict = {}
+        for row in rows:
+            selected.setdefault(row["state_key"], self._ephemeral_from_row(row))
+        return selected
+
+    def self_reference_readiness(self) -> JsonDict:
+        reflection = self.active_reflection()
+        if reflection is None:
+            return {"ready": False, "reason": "reflection_absent", "reflection_id": None}
+        refs = {str(item) for item in reflection.get("evidence_refs") or [] if item}
+        if not refs:
+            return {"ready": False, "reason": "reflection_has_no_evidence", "reflection_id": reflection["id"]}
+        rows = self._read_all(
+            "SELECT evidence_refs_json FROM persona_contribution WHERE agent_id=? AND active=1",
+            (self.agent_id,),
+        )
+        active_refs = {
+            str(ref)
+            for row in rows
+            for ref in json_loads(row["evidence_refs_json"], [])
+            if ref
+        }
+        ready = refs <= active_refs
+        return {
+            "ready": ready,
+            "reason": "evidence_active" if ready else "reflection_evidence_inactive",
+            "reflection_id": reflection["id"],
+            "evidence_ref_count": len(refs),
         }
 
     def save_reflection(
@@ -978,6 +1366,61 @@ class PersonaStore:
 
         return self._write(operation, priority=2, name="acknowledge_persona_outbox")
 
+    def resolve_dead_letter(
+        self,
+        event_id: str,
+        *,
+        resolution: str,
+        actor: str,
+        export_ref: str | None = None,
+    ) -> JsonDict:
+        if resolution not in {"retry", "resolved", "exported"}:
+            raise ValueError("unsupported Persona dead-letter resolution")
+        if resolution == "exported" and not export_ref:
+            raise ValueError("exported dead-letter resolution requires export_ref")
+
+        def operation(conn: sqlite3.Connection) -> JsonDict:
+            row = conn.execute("SELECT * FROM persona_outbox WHERE id=?", (event_id,)).fetchone()
+            if row is None:
+                raise ValueError(f"Persona outbox event not found: {event_id}")
+            if row["status"] != "dead_letter":
+                raise ValueError(f"Persona outbox event is not dead-lettered: {event_id}")
+            now = utc_now()
+            conn.execute(
+                """
+                INSERT INTO persona_dead_letter_resolution(event_id,resolution,export_ref,actor,resolved_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(event_id) DO UPDATE SET
+                    resolution=excluded.resolution,
+                    export_ref=excluded.export_ref,
+                    actor=excluded.actor,
+                    resolved_at=excluded.resolved_at
+                """,
+                (event_id, resolution, export_ref, actor, now),
+            )
+            if resolution == "retry":
+                conn.execute(
+                    "UPDATE persona_outbox SET status='pending', last_error=NULL WHERE id=?",
+                    (event_id,),
+                )
+            self._insert_audit(
+                conn,
+                actor=actor,
+                action="dead_letter_resolved",
+                entity_type="outbox_event",
+                entity_id=event_id,
+                details={"resolution": resolution, "export_ref": export_ref},
+            )
+            return {
+                "event_id": event_id,
+                "status": "pending" if resolution == "retry" else "dead_letter",
+                "resolution": resolution,
+                "export_ref": export_ref,
+                "resolved_at": now,
+            }
+
+        return self._write(operation, priority=0, name="resolve_persona_dead_letter")
+
     def record_metric(self, metric_name: str, value: float, *, labels: Mapping[str, Any] | None = None) -> None:
         def operation(conn: sqlite3.Connection) -> None:
             conn.execute(
@@ -1011,29 +1454,98 @@ class PersonaStore:
 
         self._write(operation, priority=priority, name=f"audit_{action}")
 
-    def cleanup(self, *, now: datetime | None = None) -> JsonDict:
+    def cleanup(self, *, now: datetime | None = None, batch_size: int = 500) -> JsonDict:
+        if not 1 <= batch_size <= 500:
+            raise ValueError("Persona cleanup batch_size must be in [1, 500]")
         selected = now or datetime.now(timezone.utc)
         delivered_cutoff = (selected - timedelta(days=7)).isoformat()
+        dead_letter_cutoff = (selected - timedelta(days=90)).isoformat()
         metric_cutoff = (selected - timedelta(days=30)).isoformat()
 
         def operation(conn: sqlite3.Connection) -> JsonDict:
-            delivered = conn.execute(
-                "DELETE FROM persona_outbox WHERE status='delivered' AND delivered_at<?",
-                (delivered_cutoff,),
-            ).rowcount
-            metrics = conn.execute("DELETE FROM persona_metric WHERE created_at<?", (metric_cutoff,)).rowcount
-            return {"delivered_outbox_deleted": delivered, "metrics_deleted": metrics, "dead_letter_retention_days": 90}
+            delivered_ids = [
+                row["id"]
+                for row in conn.execute(
+                    """
+                    SELECT id FROM persona_outbox
+                    WHERE status='delivered' AND delivered_at<?
+                    ORDER BY delivered_at LIMIT ?
+                    """,
+                    (delivered_cutoff, batch_size),
+                ).fetchall()
+            ]
+            metric_ids = [
+                row["id"]
+                for row in conn.execute(
+                    "SELECT id FROM persona_metric WHERE created_at<? ORDER BY created_at LIMIT ?",
+                    (metric_cutoff, batch_size),
+                ).fetchall()
+            ]
+            ephemeral_keys = [
+                (row["agent_id"], row["user_id"], row["state_key"])
+                for row in conn.execute(
+                    """
+                    SELECT agent_id,user_id,state_key FROM persona_ephemeral_state
+                    WHERE expires_at<=? ORDER BY expires_at LIMIT ?
+                    """,
+                    (selected.isoformat(), batch_size),
+                ).fetchall()
+            ]
+            resolved_dead_letters = [
+                row["id"]
+                for row in conn.execute(
+                    """
+                    SELECT o.id FROM persona_outbox o
+                    JOIN persona_dead_letter_resolution r ON r.event_id=o.id
+                    WHERE o.status='dead_letter' AND o.created_at<?
+                      AND r.resolution IN ('resolved','exported')
+                    ORDER BY o.created_at LIMIT ?
+                    """,
+                    (dead_letter_cutoff, batch_size),
+                ).fetchall()
+            ]
+            unresolved_over_retention = int(
+                conn.execute(
+                    """
+                    SELECT COUNT(*) FROM persona_outbox o
+                    LEFT JOIN persona_dead_letter_resolution r ON r.event_id=o.id
+                    WHERE o.status='dead_letter' AND o.created_at<? AND r.event_id IS NULL
+                    """,
+                    (dead_letter_cutoff,),
+                ).fetchone()[0]
+            )
+            _delete_ids(conn, "persona_outbox", delivered_ids)
+            _delete_ids(conn, "persona_metric", metric_ids)
+            _delete_ids(conn, "persona_outbox", resolved_dead_letters)
+            for agent_id, user_id, state_key in ephemeral_keys:
+                conn.execute(
+                    "DELETE FROM persona_ephemeral_state WHERE agent_id=? AND user_id=? AND state_key=?",
+                    (agent_id, user_id, state_key),
+                )
+            return {
+                "batch_size": batch_size,
+                "delivered_outbox_deleted": len(delivered_ids),
+                "resolved_dead_letters_deleted": len(resolved_dead_letters),
+                "unresolved_dead_letters_over_retention": unresolved_over_retention,
+                "expired_ephemeral_states_deleted": len(ephemeral_keys),
+                "metrics_deleted": len(metric_ids),
+                "dead_letter_retention_days": 90,
+            }
 
         return self._write(operation, priority=3, name="cleanup_persona")
 
     def table_counts(self) -> JsonDict:
         tables = (
+            "persona_instance",
             "persona_candidate",
             "persona_contribution",
             "persona_snapshot",
             "persona_user_adaptation",
+            "persona_interest_state",
+            "persona_ephemeral_state",
             "persona_reflection",
             "persona_outbox",
+            "persona_dead_letter_resolution",
             "persona_tombstone",
             "persona_audit",
         )
@@ -1061,6 +1573,19 @@ class PersonaStore:
             (self.agent_id,),
         ).fetchone()
         if existing is not None:
+            active_version = conn.execute(
+                "SELECT version FROM persona_definition WHERE agent_id=? AND status='active'",
+                (self.agent_id,),
+            ).fetchone()[0]
+            now = utc_now()
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO persona_instance(
+                    agent_id,status,active_definition_version,created_at,updated_at
+                ) VALUES (?, 'active', ?, ?, ?)
+                """,
+                (self.agent_id, active_version, now, now),
+            )
             return
         now = utc_now()
         definition_version = 1
@@ -1074,6 +1599,10 @@ class PersonaStore:
                 now,
                 now,
             ),
+        )
+        conn.execute(
+            "INSERT INTO persona_instance(agent_id,status,active_definition_version,created_at,updated_at) VALUES (?, 'active', ?, ?, ?)",
+            (self.agent_id, definition_version, now, now),
         )
         for item in self._trait_seed:
             conn.execute(
@@ -1106,14 +1635,22 @@ class PersonaStore:
     def _write(self, operation: Callable[[sqlite3.Connection], Any], *, priority: int, name: str) -> Any:
         def transaction() -> Any:
             with self._lock:
-                self._conn.execute("BEGIN IMMEDIATE")
-                try:
-                    result = operation(self._conn)
-                    self._conn.commit()
-                    return result
-                except BaseException:
-                    self._conn.rollback()
-                    raise
+                for attempt in range(4):
+                    try:
+                        self._conn.execute("BEGIN IMMEDIATE")
+                        result = operation(self._conn)
+                        self._conn.commit()
+                        return result
+                    except sqlite3.OperationalError as exc:
+                        self._conn.rollback()
+                        locked = "locked" in str(exc).lower() or "busy" in str(exc).lower()
+                        if not locked or attempt == 3:
+                            raise
+                        time.sleep(0.01 * (2**attempt))
+                    except BaseException:
+                        self._conn.rollback()
+                        raise
+                raise RuntimeError(f"Persona write retry exhausted: {name}")
 
         return self._coordinator.submit(transaction, priority=priority, name=name)
 
@@ -1143,8 +1680,11 @@ class PersonaStore:
             """,
             (self.agent_id,),
         ).fetchall()
-        values = {row["trait_key"]: float(row["initial_value"]) for row in definitions}
-        bounds = {row["trait_key"]: (float(row["min_bound"]), float(row["max_bound"])) for row in definitions}
+        values = {row["trait_key"]: Decimal(str(row["initial_value"])) for row in definitions}
+        bounds = {
+            row["trait_key"]: (Decimal(str(row["min_bound"])), Decimal(str(row["max_bound"])))
+            for row in definitions
+        }
         rows = conn.execute(
             """
             SELECT target_key, delta FROM persona_contribution
@@ -1158,8 +1698,8 @@ class PersonaStore:
             if key not in values:
                 continue
             low, high = bounds[key]
-            values[key] = max(low, min(high, values[key] + float(row["delta"])))
-        return {key: round(value, 6) for key, value in sorted(values.items())}
+            values[key] = max(low, min(high, values[key] + Decimal(str(row["delta"]))))
+        return {key: normalize_persona_value(value) for key, value in sorted(values.items())}
 
     def _rebuild_snapshot(self, conn: sqlite3.Connection, *, reason: str) -> JsonDict:
         values = self._calculate_agent_values(conn)
@@ -1233,8 +1773,14 @@ class PersonaStore:
             """,
             (self.agent_id, user_id, target_key),
         ).fetchone()
-        canonical = self._calculate_agent_values(conn)[target_key]
-        value = max(float(definition["min_bound"]), min(float(definition["max_bound"]), canonical + float(delta_sum or 0.0)))
+        canonical = Decimal(str(self._calculate_agent_values(conn)[target_key]))
+        value = max(
+            Decimal(str(definition["min_bound"])),
+            min(
+                Decimal(str(definition["max_bound"])),
+                canonical + Decimal(str(delta_sum or 0.0)),
+            ),
+        )
         current = conn.execute(
             "SELECT version FROM persona_user_adaptation WHERE agent_id=? AND user_id=? AND trait_key=?",
             (self.agent_id, user_id, target_key),
@@ -1248,7 +1794,7 @@ class PersonaStore:
                 value=excluded.value, version=excluded.version,
                 evidence_count=excluded.evidence_count, updated_at=excluded.updated_at
             """,
-            (self.agent_id, user_id, target_key, round(value, 6), version, int(count), utc_now()),
+            (self.agent_id, user_id, target_key, normalize_persona_value(value), version, int(count), utc_now()),
         )
 
     def _forget_source(self, conn: sqlite3.Connection, source_ref: str, *, reason: str) -> JsonDict:
@@ -1280,6 +1826,34 @@ class PersonaStore:
                 self._rebuild_user_adaptation(conn, row["user_id"], row["target_key"])
         snapshot = self._rebuild_snapshot(conn, reason="forget")
         return {"source_ref_hash": source_hash, "candidates_forgotten": candidates, "contributions_deactivated": contributions, "snapshot": snapshot}
+
+    def _rollback_source(self, conn: sqlite3.Connection, source_ref: str, *, reason: str) -> JsonDict:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT user_id,target_key,target_scope
+            FROM persona_contribution
+            WHERE agent_id=? AND source_ref=? AND active=1
+            """,
+            (self.agent_id, source_ref),
+        ).fetchall()
+        contributions = conn.execute(
+            """
+            UPDATE persona_contribution
+            SET active=0, deactivated_at=?, deactivation_reason=?
+            WHERE agent_id=? AND source_ref=? AND active=1
+            """,
+            (utc_now(), f"source_rollback:{reason}", self.agent_id, source_ref),
+        ).rowcount
+        for row in rows:
+            if row["target_scope"] == "per_user" and row["user_id"]:
+                self._rebuild_user_adaptation(conn, row["user_id"], row["target_key"])
+        snapshot = self._rebuild_snapshot(conn, reason="source_rollback")
+        return {
+            "source_ref": source_ref,
+            "contributions_deactivated": contributions,
+            "snapshot": snapshot,
+            "tombstone_created": False,
+        }
 
     def _is_tombstoned(self, conn: sqlite3.Connection, source_ref: str) -> bool:
         row = conn.execute(
@@ -1325,11 +1899,40 @@ class PersonaStore:
             "version": row["version"],
             "definition_version": row["definition_version"],
             "trait_values": values,
-            "trait_bands": {key: _trait_band(float(value)) for key, value in values.items()},
+            "trait_bands": {key: trait_band(float(value)) for key, value in values.items()},
             "source_contribution_count": row["source_contribution_count"],
             "checksum": row["checksum"],
             "generation": row["generation"],
             "created_at": row["created_at"],
+        }
+
+    @staticmethod
+    def _interest_from_row(row: sqlite3.Row) -> JsonDict:
+        return {
+            "agent_id": row["agent_id"],
+            "user_id": row["user_id"] or None,
+            "topic_key": row["topic_key"],
+            "user_interest_ref": row["user_interest_ref"],
+            "shared_density": row["shared_density"],
+            "sora_interest": row["sora_interest"],
+            "reason_refs": json_loads(row["reason_refs_json"], []),
+            "attitude": row["attitude"],
+            "version": row["version"],
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _ephemeral_from_row(row: sqlite3.Row) -> JsonDict:
+        return {
+            "agent_id": row["agent_id"],
+            "user_id": row["user_id"] or None,
+            "state_key": row["state_key"],
+            "value": json_loads(row["value_json"], None),
+            "source_ref": row["source_ref"],
+            "confidence": row["confidence"],
+            "expires_at": row["expires_at"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
         }
 
     @staticmethod
@@ -1344,6 +1947,7 @@ class PersonaStore:
             "source_kind": row["source_kind"],
             "source_ref": row["source_ref"],
             "status": row["status"],
+            "idempotency_key": row["idempotency_key"],
             "candidate": json_loads(row["candidate_json"], {}),
             "source_payload": json_loads(row["source_payload_json"], {}),
             "gate_reason": row["gate_reason"],
@@ -1376,11 +1980,3 @@ class PersonaStore:
             "deactivated_at": row["deactivated_at"],
             "deactivation_reason": row["deactivation_reason"],
         }
-
-
-def _trait_band(value: float) -> str:
-    if value < 0.35:
-        return "low"
-    if value < 0.65:
-        return "medium"
-    return "high"

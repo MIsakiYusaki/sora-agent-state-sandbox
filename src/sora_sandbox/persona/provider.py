@@ -71,6 +71,7 @@ class LLMPersonaCandidateProvider:
                     "confidence": memory.get("confidence"),
                     "sensitivity": memory.get("sensitivity"),
                     "evidence_ids": memory.get("evidence_ids") or [],
+                    "evidence_episode_ids": memory.get("evidence_episode_ids") or [],
                     "lifecycle": source_payload.get("lifecycle") or {},
                 },
                 "identity_scope": {
@@ -124,6 +125,8 @@ class LLMPersonaCandidateProvider:
                     "projection_event_id": source_payload.get("event_id"),
                     "memory_type": memory.get("type"),
                     "model_provider": self.provider_name,
+                    "episode_refs": list(memory.get("evidence_episode_ids") or []),
+                    "source_revision": memory.get("updated_at") or memory.get("created_at"),
                 },
             }
         )

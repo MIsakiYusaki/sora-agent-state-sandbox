@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -16,11 +16,14 @@ from ..memory_projector import (
 from ..memory_schema import JsonDict, new_id, utc_now
 from ..paths import workspace_state_dir
 from .contracts import (
+    PERSONA_DELTA_ALGORITHM_VERSION,
     PERSONA_FRAME_CONTRACT,
     PERSONA_POLICY_VERSION,
     PERSONA_PROJECTION_ADAPTER_VERSION,
     PersonaGrowthCandidate,
     PersonaUsePolicy,
+    normalize_persona_value,
+    trait_band,
 )
 from .provider import PersonaCandidateProvider
 from .store import PersonaStore
@@ -35,12 +38,19 @@ FORBIDDEN_GROWTH_TARGETS = {
     "obedience",
 }
 
+HIGH_RISK_TRAITS = {"judgment", "autonomy", "affiliation"}
+CONTEXT_ONLY_GENERALIZABILITY_THRESHOLD = 0.50
+AGENT_AUTO_MIN_EVIDENCE = 3
+AGENT_AUTO_MIN_EPISODES = 2
+
 
 @dataclass(frozen=True)
 class GateDecision:
     status: str
     reason: str
     support: float
+    resolved_scope: str | None = None
+    auto_commit: bool = False
 
 
 class PersonaProjectionAdapter:
@@ -228,6 +238,16 @@ class PersonaSystem:
     def set_self_reference_permission(self, permission: str, *, user_id: str | None = None) -> JsonDict:
         return self.store.set_control(user_id=user_id, self_reference_permission=permission)
 
+    def upsert_interest_state(self, topic_key: str, **kwargs: Any) -> JsonDict:
+        result = self.store.upsert_interest_state(topic_key, **kwargs)
+        self._build_and_save_base_frame(user_id=kwargs.get("user_id"))
+        return result
+
+    def set_ephemeral_state(self, state_key: str, value: Any, **kwargs: Any) -> JsonDict:
+        result = self.store.set_ephemeral_state(state_key, value, **kwargs)
+        self._build_and_save_base_frame(user_id=kwargs.get("user_id"))
+        return result
+
     def frame(
         self,
         *,
@@ -241,11 +261,18 @@ class PersonaSystem:
         if cached is None or cached.get("snapshot_id") != snapshot["snapshot_id"]:
             cached = self._build_and_save_base_frame(user_id=user_id)
             cache_status = "rebuilt"
+        elif cached.get("runtime_mode") == "base_definition_fallback":
+            cached = self._build_and_save_base_frame(user_id=user_id)
+            cache_status = "fallback_revalidated"
         else:
             now = datetime.now(timezone.utc)
             if _parse_time(str(cached["stale_until"])) <= now:
-                cached = self._build_and_save_base_frame(user_id=user_id)
-                cache_status = "expired_rebuilt"
+                cached = self._build_and_save_base_frame(
+                    user_id=user_id,
+                    include_growth=False,
+                    fallback_reason="stale_window_exceeded",
+                )
+                cache_status = "expired_base_fallback"
                 self.store.record_audit(
                     action="frame_stale_window_exceeded",
                     entity_type="frame",
@@ -276,6 +303,7 @@ class PersonaSystem:
         surface = dict(interrupt.get("state_surface_permission") or {})
         surface_permission = str(surface.get("persona") or surface.get("affect") or "implicit")
         control = self.store.get_control(user_id=user_id)
+        self_reference_readiness = self.store.self_reference_readiness()
         reasons: list[str] = []
         if obligation == "forbidden":
             return PersonaUsePolicy(False, False, False, False, False, 0, ("response_forbidden",))
@@ -288,12 +316,18 @@ class PersonaSystem:
         explicit_self_reference = surface_permission == "explicit" and self_reference_permission == "explicit"
         if not explicit_self_reference:
             reasons.append("self_reference_not_explicitly_permitted")
+        if not self_reference_readiness["ready"]:
+            reasons.append(str(self_reference_readiness["reason"]))
         return PersonaUsePolicy(
             include_core=True,
             include_traits=True,
             include_expression_bias=surface_permission != "silent",
             include_narrative_gist=(not compact and surface_permission in {"implicit", "explicit"}),
-            include_self_reference=(not compact and explicit_self_reference),
+            include_self_reference=(
+                not compact
+                and explicit_self_reference
+                and bool(self_reference_readiness["ready"])
+            ),
             max_trait_count=4 if compact else 10,
             reason_codes=tuple(reasons or ["normal_persona_use"]),
         )
@@ -416,15 +450,56 @@ class PersonaSystem:
             },
         }
 
+    def quality_metrics(self) -> JsonDict:
+        contributions = self.store.list_contributions(active=None, limit=10000)
+        candidates = {
+            item["candidate_id"]: item
+            for item in self.store.list_candidates(limit=10000)
+        }
+        rolled_back = [
+            item
+            for item in contributions
+            if not item["active"]
+            and str(item.get("deactivation_reason") or "").startswith(("rollback", "source_rollback"))
+        ]
+        agent_contributions = [item for item in contributions if item["target_scope"] == "agent"]
+        overgeneralized = []
+        for contribution in agent_contributions:
+            candidate = candidates.get(str(contribution["candidate_id"])) or {}
+            payload = dict(candidate.get("candidate") or {})
+            if float(payload.get("generalizability", 1.0)) < CONTEXT_ONLY_GENERALIZABILITY_THRESHOLD:
+                overgeneralized.append(contribution)
+        unsafe_core_mutations = [
+            item
+            for item in self.store.list_audit(limit=10000)
+            if item["action"] in {"definition_released", "definition_rolled_back"}
+            and item["actor"] in {"persona_worker", "persona_policy"}
+        ]
+        total = max(1, len(contributions))
+        agent_total = max(1, len(agent_contributions))
+        return {
+            "false_growth_rate": len(rolled_back) / total,
+            "core_mutation_rate": len(unsafe_core_mutations) / max(1, len(candidates)),
+            "context_overgeneralization_rate": len(overgeneralized) / agent_total,
+            "rolled_back_contribution_count": len(rolled_back),
+            "unsafe_core_mutation_count": len(unsafe_core_mutations),
+            "context_overgeneralization_count": len(overgeneralized),
+        }
+
     def export_state(self) -> JsonDict:
         return {
             "schema_version": "PersonaSystemExport.v1",
             "exported_at": utc_now(),
+            "instance": self.store.instance(),
             "definition": self.store.definition(),
             "trait_definitions": self.store.trait_definitions(),
             "snapshot": self.store.active_snapshot(),
+            "interests": self.store.list_interest_states(limit=100),
+            "ephemeral_state": self.store.active_ephemeral_state(),
             "reflection": self.store.active_reflection(),
             "controls": self.store.get_control(),
+            "quality_metrics": self.quality_metrics(),
+            "delta_algorithm_version": PERSONA_DELTA_ALGORITHM_VERSION,
             "counts": self.store.table_counts(),
             "health": self.health(),
             "recent_audit": self.store.list_audit(limit=100),
@@ -524,6 +599,31 @@ class PersonaSystem:
                 description="Forget a Persona source and prevent projection replay from relearning it.",
             )
         )
+        memory_runtime.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="persona_resolve_dead_letter",
+                risk_level="high",
+                preview=lambda params: {
+                    "impact_summary": {
+                        "mutates": ["persona_outbox", "persona_dead_letter_resolution"],
+                        "event_id": params.get("event_id"),
+                        "resolution": params.get("resolution"),
+                        "requires_export_ref": params.get("resolution") == "exported",
+                    }
+                },
+                execute=lambda params: self.store.resolve_dead_letter(
+                    str(params["event_id"]),
+                    resolution=str(params["resolution"]),
+                    export_ref=(str(params["export_ref"]) if params.get("export_ref") else None),
+                    actor="module10_admin",
+                ),
+                rollback_plan=lambda params: {
+                    "type": "retry_if_payload_retained",
+                    "note": "Resolved dead letters remain retained for 90 days before bounded cleanup.",
+                },
+                description="Resolve, retry, or record export of a Persona dead-letter event.",
+            )
+        )
 
     def _worker_loop(self) -> None:
         while not self._worker_stop.is_set():
@@ -558,14 +658,28 @@ class PersonaSystem:
             candidate = PersonaGrowthCandidate.from_dict(proposed)
             candidate.validate({item["key"] for item in self.store.trait_definitions()})
             decision = self._gate(candidate)
+            if decision.resolved_scope and decision.resolved_scope != candidate.target_scope:
+                candidate = replace(
+                    candidate,
+                    target_scope=decision.resolved_scope,
+                    metadata={
+                        **dict(candidate.metadata),
+                        "original_target_scope": candidate.target_scope,
+                        "gate_decision": decision.status,
+                    },
+                )
+            persisted_status = "approved" if decision.auto_commit else (
+                "pending_review" if decision.status == "context_only" else decision.status
+            )
             materialized = self.store.materialize_candidate(
                 candidate_id,
                 candidate,
-                status=decision.status,
+                status=persisted_status,
                 gate_reason=decision.reason,
+                gate_decision=decision.status,
                 model_trace=trace,
             )
-            if decision.status != "approved":
+            if materialized["status"] != "approved" or not decision.auto_commit:
                 return materialized
             result = self._commit(candidate, actor="persona_worker")
             self._refresh_reflection(result)
@@ -597,7 +711,38 @@ class PersonaSystem:
             return GateDecision("rejected", "insufficient_multiplicative_support", support)
         if candidate.conflict_score >= 0.50 or candidate.risk_penalty >= 0.50:
             return GateDecision("pending_review", "conflict_or_risk_requires_review", support)
+        if candidate.generalizability < CONTEXT_ONLY_GENERALIZABILITY_THRESHOLD:
+            if not candidate.user_id:
+                return GateDecision(
+                    "pending_review",
+                    "context_only_signal_missing_user_scope",
+                    support,
+                )
+            context_auto = (
+                candidate.confidence >= 0.85
+                and candidate.evidence_strength >= 0.70
+                and candidate.consistency >= 0.70
+                and candidate.source_reliability >= 0.80
+                and candidate.conflict_score <= 0.20
+                and candidate.risk_penalty <= 0.20
+                and candidate.target_key not in HIGH_RISK_TRAITS
+            )
+            return GateDecision(
+                "context_only",
+                "low_generalizability_routed_to_per_user",
+                support,
+                resolved_scope="per_user",
+                auto_commit=context_auto,
+            )
+        if candidate.target_key in HIGH_RISK_TRAITS:
+            return GateDecision("pending_review", "high_risk_trait_requires_review", support)
         if candidate.target_scope == "agent":
+            episode_refs = {
+                str(item)
+                for item in candidate.metadata.get("episode_refs", [])
+                if str(item)
+            }
+            evidence_count = len(set(candidate.evidence_refs))
             auto = (
                 candidate.confidence >= 0.92
                 and candidate.evidence_strength >= 0.80
@@ -606,8 +751,20 @@ class PersonaSystem:
                 and candidate.source_reliability >= 0.90
                 and candidate.conflict_score <= 0.10
                 and candidate.risk_penalty <= 0.10
+                and evidence_count >= AGENT_AUTO_MIN_EVIDENCE
+                and len(episode_refs) >= AGENT_AUTO_MIN_EPISODES
             )
-            return GateDecision("approved" if auto else "pending_review", "agent_auto_commit_threshold_met" if auto else "agent_scope_requires_review", support)
+            reason = "agent_auto_commit_threshold_met" if auto else "agent_scope_requires_review"
+            if not auto and evidence_count < AGENT_AUTO_MIN_EVIDENCE:
+                reason = "agent_scope_insufficient_independent_evidence"
+            elif not auto and len(episode_refs) < AGENT_AUTO_MIN_EPISODES:
+                reason = "agent_scope_insufficient_episode_diversity"
+            return GateDecision(
+                "approved" if auto else "pending_review",
+                reason,
+                support,
+                auto_commit=auto,
+            )
         auto = (
             candidate.confidence >= 0.85
             and candidate.evidence_strength >= 0.70
@@ -616,7 +773,12 @@ class PersonaSystem:
             and candidate.conflict_score <= 0.20
             and candidate.risk_penalty <= 0.20
         )
-        return GateDecision("approved" if auto else "pending_review", "per_user_auto_commit_threshold_met" if auto else "per_user_scope_requires_review", support)
+        return GateDecision(
+            "approved" if auto else "pending_review",
+            "per_user_auto_commit_threshold_met" if auto else "per_user_scope_requires_review",
+            support,
+            auto_commit=auto,
+        )
 
     def _commit(self, candidate: PersonaGrowthCandidate, *, actor: str) -> JsonDict:
         definition = next(item for item in self.store.trait_definitions() if item["key"] == candidate.target_key)
@@ -628,8 +790,18 @@ class PersonaSystem:
         midpoint = (float(definition["min_bound"]) + float(definition["max_bound"])) / 2.0
         half_range = max(0.000001, (float(definition["max_bound"]) - float(definition["min_bound"])) / 2.0)
         boundary_factor = max(0.10, 1.0 - abs(current - midpoint) / half_range)
-        raw_delta = candidate.direction * 0.10 * candidate.support() * (1.0 - float(definition["inertia"])) * boundary_factor
         event_limit = float(definition["per_event_limit"])
+        inertia_factor = max(
+            0.25,
+            min(1.0, (1.0 - float(definition["inertia"])) / 0.14),
+        )
+        raw_delta = (
+            candidate.direction
+            * event_limit
+            * candidate.support()
+            * inertia_factor
+            * boundary_factor
+        )
         magnitude = min(abs(raw_delta), event_limit)
         consumed = self.store.contribution_budget(
             target_scope=candidate.target_scope,
@@ -661,7 +833,7 @@ class PersonaSystem:
                 "reason": "window_or_trait_bound_exhausted",
                 "window_usage": consumed,
             }
-        delta = round(candidate.direction * magnitude, 8)
+        delta = normalize_persona_value(candidate.direction * magnitude)
         return self.store.commit_candidate(
             candidate.candidate_id,
             delta=delta,
@@ -717,17 +889,30 @@ class PersonaSystem:
             return self._build_and_save_base_frame(user_id=None)
         return current
 
-    def _build_and_save_base_frame(self, *, user_id: str | None) -> JsonDict:
+    def _build_and_save_base_frame(
+        self,
+        *,
+        user_id: str | None,
+        include_growth: bool = True,
+        fallback_reason: str | None = None,
+    ) -> JsonDict:
         definition = self.store.definition()
         snapshot = self.store.active_snapshot()
-        traits = dict(snapshot["trait_values"])
+        trait_definitions = self.store.trait_definitions()
+        traits = (
+            dict(snapshot["trait_values"])
+            if include_growth
+            else {item["key"]: item["initial_value"] for item in trait_definitions}
+        )
         adaptation_refs: list[str] = []
-        if user_id:
+        if include_growth and user_id:
             adaptations = self.store.user_adaptations(user_id)
             for key, value in adaptations.items():
                 traits[key] = float(value["value"])
                 adaptation_refs.append(key)
-        reflection = self.store.active_reflection()
+        reflection = self.store.active_reflection() if include_growth else None
+        interests = self.store.list_interest_states(user_id=user_id, limit=10)
+        ephemeral = self.store.active_ephemeral_state(user_id=user_id)
         influence = [
             f"{key}={snapshot['trait_bands'].get(key, 'medium')}"
             for key in ("warmth", "caution", "curiosity", "playfulness", "autonomy")
@@ -740,6 +925,9 @@ class PersonaSystem:
             "snapshot_id": snapshot["snapshot_id"],
             "snapshot_version": snapshot["version"],
             "definition_version": definition["version"],
+            "runtime_mode": "canonical_persona_system" if include_growth else "base_definition_fallback",
+            "snapshot_applied": include_growth,
+            "fallback_reason": fallback_reason,
             "core": {
                 "name": definition.get("name", "Sora"),
                 "species": definition.get("species", "digital companion"),
@@ -748,7 +936,7 @@ class PersonaSystem:
                 "hard_boundaries": definition.get("hard_boundaries", []),
             },
             "traits": traits,
-            "trait_bands": {key: _trait_band(float(value)) for key, value in traits.items()},
+            "trait_bands": {key: trait_band(float(value)) for key, value in traits.items()},
             "expression_bias": {
                 "warmth": traits.get("warmth"),
                 "expressiveness": traits.get("expressiveness"),
@@ -760,6 +948,25 @@ class PersonaSystem:
             "narrative_gist": (reflection or {}).get("summary"),
             "self_reference_candidate": (reflection or {}).get("summary"),
             "reflection_evidence_refs": (reflection or {}).get("evidence_refs", []),
+            "judgment_directives": _judgment_directives(definition, traits),
+            "self_interests": [
+                {
+                    "topic_key": item["topic_key"],
+                    "sora_interest": item["sora_interest"],
+                    "shared_density": item["shared_density"],
+                    "attitude": item["attitude"],
+                    "reason_refs": item["reason_refs"],
+                }
+                for item in interests
+            ],
+            "ephemeral_state": {
+                key: {
+                    "value": item["value"],
+                    "confidence": item["confidence"],
+                    "expires_at": item["expires_at"],
+                }
+                for key, item in ephemeral.items()
+            },
             "adaptation_refs": adaptation_refs,
             "growth_paused": self.store.get_control(user_id=user_id)["growth_paused"],
             "influence_summary": influence,
@@ -768,6 +975,7 @@ class PersonaSystem:
                 "snapshot_checksum": snapshot["checksum"],
                 "source_contribution_count": snapshot["source_contribution_count"],
                 "reflection_id": (reflection or {}).get("id"),
+                "delta_algorithm_version": PERSONA_DELTA_ALGORITHM_VERSION,
             },
         }
         return self.store.save_frame(frame, user_id=user_id)
@@ -798,9 +1006,15 @@ def _parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def _trait_band(value: float) -> str:
-    if value < 0.35:
-        return "low"
-    if value < 0.65:
-        return "medium"
-    return "high"
+def _judgment_directives(definition: Mapping[str, Any], traits: Mapping[str, Any]) -> list[str]:
+    directives = [
+        "preserve independent judgment instead of mirroring user preference as identity truth",
+        "treat uncertain evidence as a reason to defer durable Persona growth",
+    ]
+    if float(traits.get("caution", 0.0)) >= 0.65:
+        directives.append("prefer reversible actions when consequences are uncertain")
+    if float(traits.get("autonomy", 0.0)) >= 0.50:
+        directives.append("state respectful disagreement when evidence or boundaries require it")
+    if definition.get("hard_boundaries"):
+        directives.append("apply hard boundaries before expression preferences")
+    return directives

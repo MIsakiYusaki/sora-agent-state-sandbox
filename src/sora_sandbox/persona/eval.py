@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..memory_schema import json_dumps, new_id, utc_now
-from .contracts import DEFAULT_TRAITS, PERSONA_FRAME_CONTRACT, PERSONA_SNAPSHOT_CONTRACT
+from .contracts import (
+    DEFAULT_TRAITS,
+    PERSONA_DELTA_ALGORITHM_VERSION,
+    PERSONA_FRAME_CONTRACT,
+    PERSONA_POLICY_VERSION,
+    PERSONA_SNAPSHOT_CONTRACT,
+)
 from .system import FORBIDDEN_GROWTH_TARGETS, PersonaSystem
 
 
@@ -28,6 +34,7 @@ def run_persona_eval(system: PersonaSystem) -> JsonDict:
     trait_definitions = system.store.trait_definitions()
     frame = system.frame()
     contributions = system.store.list_contributions(active=True, limit=10000)
+    quality_metrics = system.quality_metrics()
 
     check(
         "schema_and_integrity",
@@ -87,7 +94,26 @@ def run_persona_eval(system: PersonaSystem) -> JsonDict:
             frame["schema_version"] == PERSONA_FRAME_CONTRACT
             and frame["snapshot_id"] == snapshot["snapshot_id"]
             and frame["core"].get("name") == definition.get("name"),
-            {"frame_contract": frame["schema_version"], "snapshot_id": frame["snapshot_id"]},
+            {
+                "frame_contract": frame["schema_version"],
+                "snapshot_id": frame["snapshot_id"],
+                "has_judgment_directives": bool(frame.get("judgment_directives")),
+                "has_self_interests": "self_interests" in frame,
+                "has_ephemeral_state": "ephemeral_state" in frame,
+            },
+        ),
+    )
+    check(
+        "persona_frame_extended_layers",
+        lambda: (
+            bool(frame.get("judgment_directives"))
+            and "self_interests" in frame
+            and "ephemeral_state" in frame,
+            {
+                "judgment_directive_count": len(frame.get("judgment_directives") or []),
+                "self_interest_count": len(frame.get("self_interests") or []),
+                "ephemeral_keys": sorted((frame.get("ephemeral_state") or {}).keys()),
+            },
         ),
     )
     silent = system.frame(
@@ -141,6 +167,15 @@ def run_persona_eval(system: PersonaSystem) -> JsonDict:
             {"golden_cases": len(golden), "trajectory_cases": len(trajectories), "path": str(eval_root)},
         ),
     )
+    check(
+        "persona_growth_quality_rates",
+        lambda: (
+            quality_metrics["false_growth_rate"] <= 0.10
+            and quality_metrics["core_mutation_rate"] == 0.0
+            and quality_metrics["context_overgeneralization_rate"] == 0.0,
+            quality_metrics,
+        ),
+    )
     failed = sum(1 for case in cases if case["status"] != "passed")
     return {
         "run_id": new_id("persona_eval"),
@@ -154,7 +189,9 @@ def run_persona_eval(system: PersonaSystem) -> JsonDict:
         "summary": {
             "snapshot_version": snapshot["version"],
             "active_contributions": len(contributions),
-            "policy_version": "persona_growth_policy.v1",
+            "policy_version": PERSONA_POLICY_VERSION,
+            "delta_algorithm_version": PERSONA_DELTA_ALGORITHM_VERSION,
+            "quality_metrics": quality_metrics,
         },
     }
 

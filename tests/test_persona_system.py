@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -22,9 +24,17 @@ JsonDict = dict[str, Any]
 class DeterministicProvider:
     provider_name = "test_deterministic_persona_provider"
 
-    def __init__(self, *, scope: str = "agent", target: str = "warmth", fail: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        scope: str = "agent",
+        target: str = "warmth",
+        generalizability: float = 0.96,
+        fail: bool = False,
+    ) -> None:
         self.scope = scope
         self.target = target
+        self.generalizability = generalizability
         self.fail = fail
 
     def evaluate(
@@ -52,12 +62,16 @@ class DeterministicProvider:
             "confidence": 0.97,
             "evidence_strength": 0.95,
             "consistency": 0.95,
-            "generalizability": 0.96,
+            "generalizability": self.generalizability,
             "source_reliability": 0.97,
             "conflict_score": 0.02,
             "risk_penalty": 0.02,
             "sensitivity": memory.get("sensitivity", "low"),
             "explicit_feedback": True,
+            "metadata": {
+                "episode_refs": list(memory.get("evidence_episode_ids") or []),
+                "source_revision": memory.get("updated_at") or source_payload.get("event_id"),
+            },
         }, {"provider": self.provider_name, "status": "ok", "usage": {}}
 
     def summarize_reflection(
@@ -85,7 +99,10 @@ def projection_event(
         "contract": "ProjectionEvent.v1",
         "event_id": event_id,
         "target_subsystem": "persona",
-        "event_type": "memory_upsert" if action == "upsert" else "memory_tombstone",
+        "event_type": {
+            "upsert": "memory_upsert",
+            "rollback": "memory_rollback",
+        }.get(action, "memory_tombstone"),
         "action": action,
         "source": {"source_ref": memory_id, "committed_only": True},
         "memory": {
@@ -97,7 +114,9 @@ def projection_event(
             "tags": ["persona", "reviewed"],
             "confidence": 0.97,
             "sensitivity": sensitivity,
-            "evidence_ids": [f"evidence-{memory_id}"],
+            "evidence_ids": [f"evidence-{memory_id}-{index}" for index in range(3)],
+            "evidence_episode_ids": [f"episode-{memory_id}-a", f"episode-{memory_id}-b"],
+            "updated_at": f"revision-{event_id}",
         },
         "lifecycle": {"tier": "hot", "heat_score": 0.9},
         "idempotency": {
@@ -300,6 +319,9 @@ class PersonaSystemTests(unittest.TestCase):
             projection = memory.list_projector_outbox(limit=20)
             self.assertTrue(any(item["status"] == "processed" for item in projection))
             system.process_pending(limit=20)
+            candidate = system.store.list_candidates(limit=1)[0]
+            self.assertEqual(candidate["status"], "pending_review")
+            system.approve_candidate(candidate["candidate_id"], reason="integration_review")
             self.assertGreater(system.store.active_snapshot()["trait_values"]["warmth"], 0.64)
             suites = {item["name"] for item in memory.list_quality_eval_suites()}
             actions = {item["action_name"] for item in memory.list_admin_action_specs()}
@@ -345,6 +367,185 @@ class PersonaSystemTests(unittest.TestCase):
             self.assertTrue(second["idempotent"])
         finally:
             system.close()
+
+    def test_low_generalizability_is_context_only_and_cannot_mutate_global_persona(self) -> None:
+        system = self.make_system(DeterministicProvider(generalizability=0.40))
+        try:
+            before = system.store.active_snapshot()["trait_values"]
+            system.ingest_projection(projection_event("event-context", "memory-context"))
+            result = system.process_pending()
+            self.assertIsNotNone(result["results"][0]["contribution"])
+            contribution = system.store.list_contributions(active=True)[0]
+            self.assertEqual(contribution["target_scope"], "per_user")
+            self.assertEqual(before, system.store.active_snapshot()["trait_values"])
+            candidate = system.store.list_candidates(limit=1)[0]
+            self.assertEqual(candidate["candidate"]["metadata"]["gate_decision"], "context_only")
+        finally:
+            system.close()
+
+    def test_agent_auto_commit_requires_independent_evidence_and_episode_diversity(self) -> None:
+        system = self.make_system(DeterministicProvider())
+        try:
+            event = projection_event("event-thin", "memory-thin")
+            event["memory"]["evidence_ids"] = ["evidence-thin"]
+            event["memory"]["evidence_episode_ids"] = ["episode-thin"]
+            system.ingest_projection(event)
+            system.process_pending()
+            candidate = system.store.list_candidates(limit=1)[0]
+            self.assertEqual(candidate["status"], "pending_review")
+            self.assertEqual(candidate["gate_reason"], "agent_scope_insufficient_independent_evidence")
+            self.assertEqual(system.store.list_contributions(active=True), [])
+        finally:
+            system.close()
+
+    def test_high_risk_traits_always_require_review(self) -> None:
+        system = self.make_system(DeterministicProvider(target="autonomy"))
+        try:
+            system.ingest_projection(projection_event("event-autonomy", "memory-autonomy"))
+            system.process_pending()
+            candidate = system.store.list_candidates(limit=1)[0]
+            self.assertEqual(candidate["status"], "pending_review")
+            self.assertEqual(candidate["gate_reason"], "high_risk_trait_requires_review")
+        finally:
+            system.close()
+
+    def test_target_aware_idempotency_allows_distinct_traits_for_same_memory_revision(self) -> None:
+        provider = DeterministicProvider(target="warmth")
+        system = self.make_system(provider)
+        try:
+            first = projection_event("event-target-warmth", "memory-multi")
+            first["memory"]["updated_at"] = "revision-shared"
+            system.ingest_projection(first)
+            system.process_pending()
+            provider.target = "playfulness"
+            second = projection_event("event-target-play", "memory-multi")
+            second["memory"]["updated_at"] = "revision-shared"
+            system.ingest_projection(second)
+            system.process_pending()
+            contributions = system.store.list_contributions(active=True)
+            self.assertEqual({item["target_key"] for item in contributions}, {"warmth", "playfulness"})
+            keys = {item["idempotency_key"] for item in system.store.list_candidates()}
+            self.assertEqual(len(keys), 2)
+        finally:
+            system.close()
+
+    def test_memory_rollback_deactivates_without_tombstone_and_accepts_new_revision(self) -> None:
+        system = self.make_system(DeterministicProvider())
+        try:
+            system.ingest_projection(projection_event("event-source", "memory-source"))
+            system.process_pending()
+            rollback = system.ingest_projection(
+                projection_event("event-source-rollback", "memory-source", action="rollback")
+            )
+            self.assertEqual(rollback["status"], "rolled_back")
+            self.assertFalse(system.store.list_contributions()[0]["active"])
+            replay = system.ingest_projection(projection_event("event-source-v2", "memory-source"))
+            self.assertEqual(replay["status"], "accepted")
+        finally:
+            system.close()
+
+    def test_expired_frame_uses_base_definition_before_revalidation(self) -> None:
+        system = self.make_system(DeterministicProvider())
+        try:
+            system.ingest_projection(projection_event("event-frame", "memory-frame"))
+            system.process_pending()
+            self.assertGreater(system.store.active_snapshot()["trait_values"]["warmth"], 0.64)
+            past = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+            system.store._write(  # noqa: SLF001 - controlled expiry fault injection.
+                lambda conn: conn.execute(
+                    "UPDATE persona_frame SET expires_at=?, stale_until=? WHERE status='active'",
+                    (past, past),
+                ),
+                priority=0,
+                name="test_expire_frame",
+            )
+            fallback = system.frame()
+            self.assertEqual(fallback["runtime_mode"], "base_definition_fallback")
+            self.assertFalse(fallback["snapshot_applied"])
+            self.assertEqual(fallback["traits"]["warmth"], 0.64)
+            revalidated = system.frame()
+            self.assertEqual(revalidated["runtime_mode"], "canonical_persona_system")
+            self.assertGreater(revalidated["traits"]["warmth"], 0.64)
+        finally:
+            system.close()
+
+    def test_interest_and_ephemeral_layers_are_typed_ttl_bound_and_framed(self) -> None:
+        system = self.make_system()
+        try:
+            system.upsert_interest_state(
+                "distributed-systems",
+                sora_interest=0.82,
+                shared_density=0.35,
+                reason_refs=["evidence-interest"],
+                attitude="engaged",
+            )
+            system.set_ephemeral_state(
+                "focus",
+                "careful_review",
+                ttl_seconds=300,
+                source_ref="turn-1",
+            )
+            frame = system.frame()
+            self.assertEqual(frame["self_interests"][0]["topic_key"], "distributed-systems")
+            self.assertEqual(frame["ephemeral_state"]["focus"]["value"], "careful_review")
+            self.assertTrue(frame["judgment_directives"])
+            self.assertEqual(system.store.instance()["active_definition_version"], 1)
+        finally:
+            system.close()
+
+    def test_dead_letter_requires_resolution_before_bounded_cleanup(self) -> None:
+        system = self.make_system()
+        try:
+            event = system.store.list_outbox(status="pending", limit=1)[0]
+            system.store.acknowledge_outbox(
+                event["event_id"],
+                delivered=False,
+                error="terminal test failure",
+                terminal=True,
+            )
+            old = (datetime.now(timezone.utc) - timedelta(days=100)).isoformat()
+            system.store._write(  # noqa: SLF001 - controlled retention fault injection.
+                lambda conn: conn.execute(
+                    "UPDATE persona_outbox SET created_at=? WHERE id=?",
+                    (old, event["event_id"]),
+                ),
+                priority=0,
+                name="test_age_dead_letter",
+            )
+            before = system.store.cleanup(batch_size=1)
+            self.assertEqual(before["unresolved_dead_letters_over_retention"], 1)
+            self.assertEqual(len(system.store.list_outbox(status="dead_letter")), 1)
+            system.store.resolve_dead_letter(
+                event["event_id"],
+                resolution="exported",
+                export_ref="audit-export-1",
+                actor="test-admin",
+            )
+            after = system.store.cleanup(batch_size=1)
+            self.assertEqual(after["resolved_dead_letters_deleted"], 1)
+            self.assertEqual(system.store.list_outbox(status="dead_letter"), [])
+        finally:
+            system.close()
+
+    def test_schema_v1_database_is_upgraded_and_instance_is_backfilled(self) -> None:
+        system = self.make_system()
+        system.close()
+        conn = sqlite3.connect(self.path)
+        try:
+            conn.execute("DROP TABLE persona_instance")
+            conn.execute("PRAGMA user_version=1")
+            conn.commit()
+        finally:
+            conn.close()
+        upgraded = self.make_system()
+        try:
+            self.assertEqual(upgraded.store.pragma_health()["schema_version"], 2)
+            self.assertEqual(upgraded.store.instance()["status"], "active")
+            counts = upgraded.store.table_counts()
+            self.assertIn("persona_interest_state", counts)
+            self.assertIn("persona_ephemeral_state", counts)
+        finally:
+            upgraded.close()
 
 
 if __name__ == "__main__":

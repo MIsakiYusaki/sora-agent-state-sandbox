@@ -1835,7 +1835,7 @@ class MemoryRuntime:
                 )
                 self._publish_memory_change(
                     after_new,
-                    action="tombstone",
+                    action="rollback",
                     reason=f"{reason}:{candidate_id}",
                     source_ref=candidate_id,
                 )
@@ -1867,7 +1867,7 @@ class MemoryRuntime:
                 )
                 self._publish_memory_change(
                     after,
-                    action="tombstone",
+                    action="rollback",
                     reason=f"{reason}:{candidate_id}",
                     source_ref=candidate_id,
                 )
@@ -3573,12 +3573,26 @@ class MemoryRuntime:
     def _memory_from_row(self, row: sqlite3.Row) -> JsonDict:
         with self._lock:
             evidence_rows = self._conn.execute(
-                "SELECT evidence_id FROM memory_evidence WHERE memory_id = ? ORDER BY evidence_id",
+                """
+                SELECT me.evidence_id, e.metadata_json
+                FROM memory_evidence me
+                JOIN evidence e ON e.id=me.evidence_id
+                WHERE me.memory_id = ?
+                ORDER BY me.evidence_id
+                """,
                 (row["id"],),
             ).fetchall()
             surface_feedback = self._surface_feedback_for_memory(row["id"])
             surface_consent = self._surface_consent_for_memory(row["id"])
             lifecycle = self.lifecycle.get_lifecycle_state(row["id"], missing_ok=True)
+        evidence_episode_ids = sorted(
+            {
+                str(metadata["episode_id"])
+                for item in evidence_rows
+                for metadata in [_loads(item["metadata_json"], {})]
+                if metadata.get("episode_id")
+            }
+        )
         return {
             "id": row["id"],
             "owner_user_id": row["owner_user_id"],
@@ -3592,6 +3606,7 @@ class MemoryRuntime:
             "importance": row["importance"],
             "sensitivity": row["sensitivity"],
             "evidence_ids": [item["evidence_id"] for item in evidence_rows],
+            "evidence_episode_ids": evidence_episode_ids,
             "supersedes_id": row["supersedes_id"],
             "valid_from": row["valid_from"],
             "valid_until": row["valid_until"],

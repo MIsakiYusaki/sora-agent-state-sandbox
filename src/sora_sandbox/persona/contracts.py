@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from decimal import Decimal, ROUND_HALF_EVEN
 from typing import Any, Mapping
 
 
@@ -11,11 +12,26 @@ PERSONA_SNAPSHOT_CONTRACT = "PersonaSnapshot.v1"
 PERSONA_FRAME_CONTRACT = "PersonaFrame.v1"
 PERSONA_USE_POLICY_CONTRACT = "PersonaUsePolicy.v1"
 PERSONA_PROJECTION_ADAPTER_VERSION = "persona_projection_adapter.v1"
-PERSONA_POLICY_VERSION = "persona_growth_policy.v1"
-PERSONA_SCHEMA_VERSION = 1
+PERSONA_POLICY_VERSION = "persona_growth_policy.v2"
+PERSONA_DELTA_ALGORITHM_VERSION = "bounded_delta.v2"
+PERSONA_SCHEMA_VERSION = 2
+PERSONA_VALUE_DECIMALS = 8
 
 TARGET_SCOPES = {"agent", "per_user"}
 DIRECTIONS = {-1, 1}
+
+
+def normalize_persona_value(value: float | Decimal) -> float:
+    quantum = Decimal(1).scaleb(-PERSONA_VALUE_DECIMALS)
+    return float(Decimal(str(value)).quantize(quantum, rounding=ROUND_HALF_EVEN))
+
+
+def trait_band(value: float) -> str:
+    if value < 0.35:
+        return "low"
+    if value < 0.65:
+        return "medium"
+    return "high"
 
 
 @dataclass(frozen=True, slots=True)
