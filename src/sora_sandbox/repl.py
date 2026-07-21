@@ -9,6 +9,7 @@ from .interruptibility import InterruptibilityService
 from .memory_console import MemoryConsole
 from .memory_system import MemorySystem
 from .persona.system import PersonaSystem
+from .relationship.system import RelationshipSystem
 from .proactive import ProactiveScheduler, ProactiveTrigger
 from .render import render_trace_panel
 from .state import StateStore
@@ -24,6 +25,7 @@ class SoraRepl:
         interruptibility_runtime: InterruptibilityService | None = None,
         persona_runtime: PersonaSystem | None = None,
         affect_runtime: AffectSystem | None = None,
+        relationship_runtime: RelationshipSystem | None = None,
     ) -> None:
         self.store = store
         self.runner = runner
@@ -33,12 +35,18 @@ class SoraRepl:
         self.interruptibility_runtime = interruptibility_runtime
         self.persona_runtime = persona_runtime
         self.affect_runtime = affect_runtime
+        self.relationship_runtime = relationship_runtime
         if self.memory_runtime is not None:
             self.memory_runtime.import_legacy_memories(self.state["memory"].get("items", []))
             self.memory_runtime.sync_state_cache(self.state)
             self.store.save(self.state)
         if self.persona_runtime is not None:
             self.persona_runtime.migrate_legacy(self.state.get("persona"))
+        if self.relationship_runtime is not None:
+            self.relationship_runtime.migrate_legacy(
+                self.state.get("relationship") or self.state.get("persona", {}).get("relationship_state"),
+                user_id=str(self.state.get("session", {}).get("user_id") or "default-user"),
+            )
         self._runtime_lock = threading.RLock()
         self.scheduler = ProactiveScheduler(
             self._on_proactive_trigger,
@@ -79,6 +87,7 @@ class SoraRepl:
                                 interruptibility_admin=self.interruptibility_runtime,
                                 persona_admin=self.persona_runtime,
                                 affect_admin=self.affect_runtime,
+                                relationship_admin=self.relationship_runtime,
                             )
                             if self.memory_runtime is not None:
                                 self.memory_runtime.import_legacy_memories(

@@ -15,6 +15,8 @@ from .llm import DeepSeekClient
 from .memory_system import MemorySystem
 from .persona.provider import LLMPersonaCandidateProvider
 from .persona.system import PersonaSystem
+from .relationship.provider import LLMRelationshipEvidenceProvider
+from .relationship.system import RelationshipAffectAdapter, RelationshipSystem
 from .render import render_trace_panel
 from .repl import SoraRepl
 from .state import StateStore
@@ -83,6 +85,15 @@ def main(argv: list[str] | None = None) -> int:
         start_worker=True,
         rollout_mode=os.environ.get("SORA_AFFECT_MODE", "active").strip().lower(),
     )
+    relationship_runtime = RelationshipSystem.default(
+        provider=LLMRelationshipEvidenceProvider(llm),
+        start_worker=True,
+        rollout_mode=os.environ.get("SORA_RELATIONSHIP_MODE", "active").strip().lower(),
+    )
+    relationship_runtime.register_domain_event_consumer(
+        "affect",
+        RelationshipAffectAdapter(affect_runtime, relationship_runtime).deliver,
+    )
     memory_runtime.register_memory_change_listener(
         "affect",
         affect_runtime.handle_memory_change,
@@ -90,9 +101,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.reset_state:
         persona_runtime.reset()
         affect_runtime.reset()
+        relationship_runtime.reset()
     memory_runtime.projector_bus.register_adapter(
         "persona",
         persona_runtime.projection_adapter,
+    )
+    memory_runtime.projector_bus.register_adapter(
+        "relationship",
+        relationship_runtime.projection_adapter,
     )
     runner = AgentRunner(
         llm,
@@ -100,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         interruptibility=interruptibility,
         persona_runtime=persona_runtime,
         affect_runtime=affect_runtime,
+        relationship_runtime=relationship_runtime,
     )
     repl = SoraRepl(
         store,
@@ -109,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
         interruptibility_runtime=interruptibility,
         persona_runtime=persona_runtime,
         affect_runtime=affect_runtime,
+        relationship_runtime=relationship_runtime,
     )
     memory_runtime.register_quality_eval_suite(
         "interruptibility",
@@ -121,6 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     persona_runtime.register_quality_ops(memory_runtime)
     affect_runtime.register_quality_ops(memory_runtime)
+    relationship_runtime.register_quality_ops(memory_runtime)
 
     try:
         if args.once:
@@ -137,9 +156,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     finally:
         try:
-            affect_runtime.close()
+            relationship_runtime.close()
         finally:
             try:
-                persona_runtime.close()
+                affect_runtime.close()
             finally:
-                memory_runtime.close()
+                try:
+                    persona_runtime.close()
+                finally:
+                    memory_runtime.close()

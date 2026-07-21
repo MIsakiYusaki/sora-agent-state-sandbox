@@ -274,9 +274,66 @@ $env:PYTHONPATH="src"
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" scripts/eval_persona_live.py
 ```
 
-`FakeLLMClient` remains a deterministic test fixture only. The application
-bootstrap always attaches `LLMPersonaCandidateProvider` to the configured real
-DeepSeek client.
+## Relationship System
+
+Relationship is a pair-isolated canonical subsystem backed by
+`.sandbox/relationship.db`. It owns Sora-to-user relationship state,
+epistemically labeled user-to-Sora estimates, mutual Agreement, and explicit
+Repair episodes. Memory, Persona, Affect, WorldOps, and Interruptibility remain
+separate owners and communicate through typed frames and domain events.
+
+Committed Memory `ProjectionEvent.v1`, `InteractionOutcome.v1`,
+`WorldOpsOutcome.v1`, and externally grounded `AffectOutcomeEvidence.v1` enter
+an idempotent inbox. Typed evidence is handled deterministically; ambiguous
+conversation evidence is processed by an asynchronous real DeepSeek extractor.
+The model can only propose evidence candidates and Agreement amendments. Actor
+scope, proposal paths, high-intensity semantics, Gate admission, confirmation,
+novelty, conflict, bounded deltas, stage hysteresis, snapshots, and frames remain
+deterministic. Agreement proposals expire after 15 minutes and never mutate
+canonical state without the one-time confirmation challenge.
+
+The response hot path reads a last-known-good `RelationshipFrame.v1` and makes
+zero Relationship model calls. Relationship values never grant initiative,
+memory disclosure, or permission to override quiet and other user controls.
+High-intensity dimensions such as romantic love, attachment, dependency,
+loyalty, jealousy, and possessiveness are modeled as state, not product targets.
+
+Operational commands include:
+
+```text
+/relationship
+/relationship-health
+/relationship-worker --limit 20
+/relationship-candidates
+/relationship-contributions
+/relationship-approve <candidate_id>
+/relationship-rollback <contribution_id>
+/relationship-rebuild
+/relationship-learning pause|resume
+/relationship-surface silent|implicit|explicit
+/relationship-forget-source <source_ref>
+/relationship-agreement-propose <term_path> <json_value>
+/relationship-agreement-confirm <candidate_id> <token>
+/relationship-consent-requests
+/relationship-repair-open <trigger_ref> [dimension,...]
+/relationship-repair-transition <state> [reason]
+/relationship-dead-letters
+/relationship-dead-letter-resolve <event_id> <retry|discarded|exported> [reason]
+```
+
+Run deterministic, live-provider, and 10k-ledger verification with:
+
+```powershell
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest tests.test_relationship_system -v
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" scripts/eval_relationship_live.py
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" scripts/eval_relationship_live.py --category agreement
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" scripts/benchmark_relationship.py
+```
+
+`FakeLLMClient` remains a deterministic test fixture only. Application bootstrap
+attaches the Relationship, Persona, Affect, Interpreter, and Arbiter providers to
+the configured real DeepSeek client; the Relationship hot path still performs no
+model call.
 
 ## 记忆召回评测
 

@@ -38,6 +38,7 @@ def handle_command(
     interruptibility_admin: Any | None = None,
     persona_admin: Any | None = None,
     affect_admin: Any | None = None,
+    relationship_admin: Any | None = None,
 ) -> tuple[str, bool]:
     parts = shlex.split(line, posix=False)
     if not parts:
@@ -712,6 +713,92 @@ def handle_command(
             )
         ), False
 
+    if command == "/relationship":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.export_state(user_id=_active_user_id(state))), False
+    if command == "/relationship-health":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.health()), False
+    if command == "/relationship-worker":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.process_pending(limit=_int_arg(args, "--limit", default=20), force="--force" in args)), False
+    if command == "/relationship-candidates":
+        require_relationship_admin(relationship_admin)
+        status = arg_value(args[0]) if args and not args[0].startswith("--") else None
+        return dump(relationship_admin.list_candidates(user_id=_active_user_id(state), status=status, limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/relationship-contributions":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.list_contributions(user_id=_active_user_id(state), limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/relationship-approve":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.approve_candidate(required_arg(args, "/relationship-approve <candidate_id>"))), False
+    if command == "/relationship-reject":
+        require_relationship_admin(relationship_admin)
+        candidate_id = required_arg(args, "/relationship-reject <candidate_id> [reason]")
+        reason = arg_value(" ".join(args[1:])) if len(args) > 1 else "manual_rejection"
+        return dump(relationship_admin.reject_candidate(candidate_id, reason=reason)), False
+    if command == "/relationship-rollback":
+        require_relationship_admin(relationship_admin)
+        contribution_id = required_arg(args, "/relationship-rollback <contribution_id> [reason]")
+        reason = arg_value(" ".join(args[1:])) if len(args) > 1 else "manual_rollback"
+        return dump(relationship_admin.rollback_contribution(contribution_id, reason=reason)), False
+    if command == "/relationship-rebuild":
+        require_relationship_admin(relationship_admin)
+        reason = arg_value(" ".join(args)) if args else "manual_rebuild"
+        return dump(relationship_admin.rebuild(user_id=_active_user_id(state), reason=reason)), False
+    if command == "/relationship-forget-source":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.forget_source(user_id=_active_user_id(state), source_ref=required_arg(args, "/relationship-forget-source <source_ref>"))), False
+    if command == "/relationship-learning":
+        require_relationship_admin(relationship_admin)
+        action = required_arg(args, "/relationship-learning <pause|resume>").lower()
+        if action not in {"pause", "resume"}:
+            raise CommandError("Usage: /relationship-learning <pause|resume>")
+        return dump(relationship_admin.set_learning_paused(user_id=_active_user_id(state), paused=action == "pause")), False
+    if command == "/relationship-surface":
+        require_relationship_admin(relationship_admin)
+        permission = required_arg(args, "/relationship-surface <silent|implicit|explicit>").lower()
+        return dump(relationship_admin.set_surface_permission(user_id=_active_user_id(state), permission=permission)), False
+    if command == "/relationship-agreement-propose":
+        require_relationship_admin(relationship_admin)
+        term_path = required_arg(args, "/relationship-agreement-propose <term_path> <json_value>")
+        raw_value = required_arg(args[1:], "/relationship-agreement-propose <term_path> <json_value>")
+        try:
+            value = json.loads(arg_value(raw_value))
+        except json.JSONDecodeError:
+            value = arg_value(raw_value)
+        return dump(relationship_admin.propose_agreement(user_id=_active_user_id(state), term_path=term_path, proposed_value=value)), False
+    if command == "/relationship-agreement-confirm":
+        require_relationship_admin(relationship_admin)
+        candidate_id = required_arg(args, "/relationship-agreement-confirm <candidate_id> <token>")
+        token = required_arg(args[1:], "/relationship-agreement-confirm <candidate_id> <token>")
+        return dump(relationship_admin.confirm_agreement(user_id=_active_user_id(state), candidate_id=candidate_id, confirmation_token=token)), False
+    if command == "/relationship-agreement-revoke":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.revoke_agreement(user_id=_active_user_id(state))), False
+    if command == "/relationship-consent-requests":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.consent_requests(user_id=_active_user_id(state), limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/relationship-repair-open":
+        require_relationship_admin(relationship_admin)
+        trigger_ref = required_arg(args, "/relationship-repair-open <trigger_ref> [dimension,...]")
+        dimensions = [item.strip() for item in (arg_value(args[1]) if len(args) > 1 else "trust,psychological_safety").split(",") if item.strip()]
+        return dump(relationship_admin.open_repair_episode(user_id=_active_user_id(state), trigger_ref=trigger_ref, affected_dimensions=dimensions)), False
+    if command == "/relationship-repair-transition":
+        require_relationship_admin(relationship_admin)
+        to_state = required_arg(args, "/relationship-repair-transition <state> [reason]")
+        reason = arg_value(" ".join(args[1:])) if len(args) > 1 else "manual_transition"
+        return dump(relationship_admin.transition_repair(user_id=_active_user_id(state), to_state=to_state, actor="user", reason=reason)), False
+    if command == "/relationship-dead-letters":
+        require_relationship_admin(relationship_admin)
+        return dump(relationship_admin.store.list_outbox(status="dead_letter", limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/relationship-dead-letter-resolve":
+        require_relationship_admin(relationship_admin)
+        event_id = required_arg(args, "/relationship-dead-letter-resolve <event_id> <retry|discarded|exported> [reason]")
+        resolution = required_arg(args[1:], "/relationship-dead-letter-resolve <event_id> <retry|discarded|exported> [reason]").lower()
+        reason = arg_value(" ".join(args[2:])) if len(args) > 2 else "manual_dead_letter_resolution"
+        return dump(relationship_admin.resolve_dead_letter(event_id, resolution=resolution, reason=reason)), False
+
     if command == "/worldops":
         return dump({k: v for k, v in state["worldops"].items() if k != "content_pack"} | {"content_pack_summary": {"world_name": state["worldops"]["content_pack"]["world_name"], "events": len(state["worldops"]["content_pack"].get("events", []))}}), False
     if command == "/worldops-events":
@@ -938,6 +1025,15 @@ def require_affect_admin(affect_admin: Any | None) -> None:
         raise CommandError("Affect System is not enabled.")
 
 
+def require_relationship_admin(relationship_admin: Any | None) -> None:
+    if relationship_admin is None:
+        raise CommandError("Relationship System is not enabled.")
+
+
+def _active_user_id(state: JsonDict) -> str:
+    return str(state.get("session", {}).get("user_id") or "default-user")
+
+
 def help_text() -> str:
     return """Sora Agent State Sandbox 命令
 
@@ -1138,6 +1234,31 @@ Affect:
       Roll back one contribution or run a deterministic shadow-parity rebuild.
   /affect-forget-source <source_ref>
       Irreversibly redact and tombstone a source, then rebuild derived state.
+
+Relationship:
+  /relationship /relationship-health /relationship-worker [--limit N] [--force]
+      Inspect the canonical pair export and health, or drain the asynchronous evidence inbox.
+  /relationship-candidates [status] [--limit N] /relationship-contributions [--limit N]
+      Inspect governed candidates and the replayable contribution ledger for the active user only.
+  /relationship-approve <candidate_id> /relationship-reject <candidate_id> [reason]
+      Review a candidate without bypassing deterministic aggregation.
+  /relationship-rollback <contribution_id> [reason] /relationship-rebuild [reason]
+      Append a deactivation event or run shadow parity before rebuilding derived state.
+  /relationship-learning pause|resume /relationship-surface silent|implicit|explicit
+      Control learning and relationship-state expression independently.
+  /relationship-forget-source <source_ref>
+      Tombstone one source against relearning and remove its active effects.
+  /relationship-agreement-propose <term_path> <json_value>
+  /relationship-agreement-confirm <candidate_id> <token> /relationship-agreement-revoke
+      Apply the explicit two-step Agreement protocol.
+  /relationship-consent-requests [--limit N]
+      List pending semantic Agreement proposals and their short-lived confirmation challenge.
+  /relationship-repair-open <trigger_ref> [dimension,...]
+  /relationship-repair-transition <state> [reason]
+      Operate the explicit repair finite-state machine; time passage alone never closes repair.
+  /relationship-dead-letters [--limit N]
+  /relationship-dead-letter-resolve <event_id> <retry|discarded|exported> [reason]
+      Inspect or explicitly resolve at-least-once delivery failures; exported requires the secure admin API with an export reference.
 
 WorldOps：
   /worldops

@@ -165,6 +165,7 @@ class AgentRunner:
     interruptibility: InterruptibilityService | None = None
     persona_runtime: Any | None = None
     affect_runtime: Any | None = None
+    relationship_runtime: Any | None = None
 
     def run(self, state: JsonDict, user_input: str) -> JsonDict:
         return self._run(state, user_input=user_input, proactive_trigger=None)
@@ -207,6 +208,7 @@ class AgentRunner:
             interruptibility=self.interruptibility,
             persona_runtime=self.persona_runtime,
             affect_runtime=self.affect_runtime,
+            relationship_runtime=self.relationship_runtime,
             correlation_id=correlation_id,
         )
         mark_behavior_observed(state)
@@ -294,6 +296,20 @@ class AgentRunner:
                 reply=reply,
                 topic_id=selected_proactive_topic_id(context_pack),
             )
+        relationship_update: JsonDict | None = None
+        if self.relationship_runtime is not None and not proactive_trigger:
+            explicit_outcome = build_explicit_relationship_outcome(
+                user_input,
+                turn_id=state["session"]["turn_id"],
+                correlation_id=correlation_id,
+                relationship_frame=context_pack.get("relationship_frame") or {},
+            )
+            if explicit_outcome is not None:
+                relationship_update = self.relationship_runtime.observe_interaction_outcome(
+                    explicit_outcome,
+                    user_id=str(state.get("session", {}).get("user_id") or "default-user"),
+                )
+                step("relationship.outcome.observed", {"outcome_type": explicit_outcome["outcome_type"], "status": relationship_update.get("status")})
         timing["state_commit"] = _elapsed_since(t0)
 
         state_diff = build_state_diff(context_pack, response_plan, expression_event)
@@ -315,6 +331,7 @@ class AgentRunner:
             "timing": timing,
             "token_usage": response_plan.get("token_usage", {}),
             "memory_updates": memory_updates,
+            "relationship_update": relationship_update,
         }
 
         state["observability"]["last_trace"] = trace
@@ -380,6 +397,13 @@ class AgentRunner:
             "used_memory_ids": context_pack["recollection_frame"]["retrieved_ids"],
             "persona_influences": context_pack["persona_frame"]["influence_summary"],
             "affect_influences": (context_pack.get("affect_frame") or {}).get("prompt_view", {}),
+            "relationship_influences": {
+                "bond_stage": (context_pack.get("relationship_frame") or {}).get("bond_stage"),
+                "surface_summary": (context_pack.get("relationship_frame") or {}).get("surface_summary"),
+                "expression_hints": (context_pack.get("relationship_frame") or {}).get("expression_hints", []),
+                "repair": (context_pack.get("relationship_frame") or {}).get("repair", {}),
+                "agreement": (context_pack.get("relationship_frame") or {}).get("agreement", {}),
+            },
             "worldops_influences": context_pack["worldops_frame"]["influence_summary"],
             "expression_hint": context_pack["arbitration_result"]["response_directives"].get("expression_hint") or context_pack["worldops_frame"].get("expression_hint") or "text",
             "growth_event_candidate": growth_candidate,
@@ -407,6 +431,7 @@ def build_context_pack(
     interruptibility: InterruptibilityService | None = None,
     persona_runtime: Any | None = None,
     affect_runtime: Any | None = None,
+    relationship_runtime: Any | None = None,
     correlation_id: str | None = None,
 ) -> JsonDict:
     context_start = _timer()
@@ -451,6 +476,31 @@ def build_context_pack(
     context_use_policy = build_context_use_policy(turn_frame)
     step("context.use_policy.built", {"allowed": context_use_policy["allowed_context_sources"], "blocked": context_use_policy["blocked_context_sources"]})
 
+    active_user_id = state.get("session", {}).get("user_id")
+    relationship_frame: JsonDict
+    t0 = _timer()
+    try:
+        if relationship_runtime is None:
+            relationship_frame = build_legacy_relationship_frame(state)
+        elif proactive_trigger:
+            relationship_frame = relationship_runtime.frame(
+                user_id=active_user_id,
+                correlation_id=correlation_id,
+            )
+        else:
+            relationship_observation = relationship_runtime.observe_user_turn(
+                user_input,
+                user_id=active_user_id,
+                turn_id=state["session"]["turn_id"],
+                correlation_id=correlation_id or f"corr_{uuid.uuid4().hex}",
+                turn_interpretation=turn_interpretation,
+            )
+            relationship_frame = dict(relationship_observation["frame"])
+    except Exception as exc:
+        relationship_frame = build_legacy_relationship_frame(state)
+        relationship_frame["degraded_reasons"] = [f"REL-INGEST-001:{type(exc).__name__}", "legacy_safe_frame"]
+    timing["relationship"] = _elapsed_since(t0)
+
     interruptibility_frame: JsonDict | None = None
     if interruptibility is not None:
         t0 = _timer()
@@ -465,7 +515,11 @@ def build_context_pack(
                 "risk_level": turn_interpretation.get("domain", {}).get("risk_level", "low"),
             },
             domain_features={
-                "relationship": state.get("relationship", {}),
+                "relationship": (
+                    relationship_runtime.interruptibility_context(relationship_frame)
+                    if relationship_runtime is not None
+                    else relationship_frame
+                ),
                 "affect": state.get("affect", {}),
             },
         )
@@ -490,6 +544,23 @@ def build_context_pack(
                 "decision_path": interruptibility_frame.get("decision_path"),
             },
         )
+
+    if relationship_runtime is not None:
+        relationship_frame = relationship_runtime.frame(
+            user_id=active_user_id,
+            interruptibility_frame=interruptibility_frame,
+            correlation_id=correlation_id,
+        )
+    step(
+        "relationship.frame.provided",
+        {
+            "runtime_mode": relationship_frame.get("runtime_mode"),
+            "bond_stage": relationship_frame.get("bond_stage"),
+            "state_snapshot_version": relationship_frame.get("state_snapshot_version"),
+            "repair_state": dict(relationship_frame.get("repair") or {}).get("state"),
+            "surface": dict(relationship_frame.get("use_policy") or {}).get("surface"),
+        },
+    )
 
     session_context = build_session_context(state, behavior_frame, context_use_policy)
     step("session.context.updated", {"turn_id": session_context["turn_id"]})
@@ -518,11 +589,10 @@ def build_context_pack(
     )
 
     t0 = _timer()
-    active_user_id = state.get("session", {}).get("user_id")
     relationship_state = (
-        state.get("relationship")
-        or state.get("persona", {}).get("relationship_state")
-        or {}
+        relationship_runtime.affect_context(relationship_frame)
+        if relationship_runtime is not None
+        else relationship_frame
     )
     try:
         if affect_runtime is None:
@@ -546,8 +616,8 @@ def build_context_pack(
                 user_id=active_user_id,
                 conversation_scope=str(state["session"].get("session_id") or "default"),
                 relationship_ref=(
-                    str(relationship_state.get("relationship_id"))
-                    if relationship_state.get("relationship_id")
+                    str(relationship_frame.get("pair_ref"))
+                    if relationship_frame.get("pair_ref")
                     else None
                 ),
                 relationship_state=relationship_state,
@@ -590,10 +660,20 @@ def build_context_pack(
     elif memory_runtime is None:
         recollection_frame = retrieve_memories(state, user_input)
     else:
-        context_features = (
+        affect_context_features = (
             affect_runtime.recall_context(affect_frame)
             if affect_runtime is not None and hasattr(affect_runtime, "recall_context")
             else None
+        )
+        relationship_context_features = (
+            relationship_runtime.recall_context(relationship_frame)
+            if relationship_runtime is not None
+            else None
+        )
+        context_features = (
+            relationship_runtime.merge_recall_contexts(affect_context_features, relationship_context_features)
+            if relationship_runtime is not None
+            else affect_context_features
         )
         recollection_frame = memory_runtime.recall(
             user_input,
@@ -647,6 +727,7 @@ def build_context_pack(
         recollection_frame,
         persona_frame,
         affect_frame,
+        relationship_frame,
         worldops_frame,
         origin_frame,
         turn_frame,
@@ -703,6 +784,7 @@ def build_context_pack(
         "recollection_frame": recollection_frame,
         "persona_frame": persona_frame,
         "affect_frame": affect_frame,
+        "relationship_frame": relationship_frame,
         "worldops_frame": worldops_frame,
         "origin_frame": origin_frame,
         "turn_frame": turn_frame,
@@ -1287,6 +1369,73 @@ def build_persona_frame(state: JsonDict) -> JsonDict:
     }
 
 
+def build_legacy_relationship_frame(state: JsonDict) -> JsonDict:
+    legacy = (
+        state.get("relationship")
+        or state.get("persona", {}).get("relationship_state")
+        or {}
+    )
+    return {
+        "schema_version": "LegacyRelationshipFrame.v1",
+        "runtime_mode": "legacy_fallback",
+        "legacy_state": dict(legacy),
+        "pair_ref": legacy.get("relationship_id"),
+        "bond_stage": "unknown",
+        "stable_bands": {},
+        "bond_bands": {},
+        "repair": {"state": "stable"},
+        "agreement": {},
+        "expression_hints": [],
+        "recall_hints": {},
+        "use_policy": {"surface": "implicit", "explicit_attribution": False},
+    }
+
+
+def build_explicit_relationship_outcome(
+    user_input: str,
+    *,
+    turn_id: int | str,
+    correlation_id: str,
+    relationship_frame: JsonDict,
+) -> JsonDict | None:
+    normalized = " ".join(user_input.strip().lower().split())
+    repair_state = str(dict(relationship_frame.get("repair") or {}).get("state") or "stable")
+    outcome_type: str | None = None
+    reason = ""
+    if repair_state not in {"stable", "repaired"} and any(
+        phrase in normalized
+        for phrase in ("我接受你的道歉", "这次我原谅你", "我们说开了", "i accept your apology", "we are good now")
+    ):
+        outcome_type = "repair_accepted"
+        reason = "explicit_repair_acceptance"
+    elif any(
+        phrase in normalized
+        for phrase in ("谢谢你尊重我的边界", "谢谢你没有追问", "thanks for respecting my boundary", "thanks for not pushing")
+    ):
+        outcome_type = "boundary_respected"
+        reason = "explicit_boundary_respect_feedback"
+    elif (
+        any(marker in normalized for marker in ("你", "sora", "you"))
+        and any(marker in normalized for marker in ("我说了", "我不是说过", "别再", "不要再", "i told you", "don't", "do not"))
+    ):
+        outcome_type = "boundary_violated"
+        reason = "explicit_user_correction"
+    if outcome_type is None:
+        return None
+    return {
+        "schema_version": "InteractionOutcome.v1",
+        "event_id": f"relationship-outcome-{correlation_id}-{turn_id}",
+        "turn_id": str(turn_id),
+        "correlation_id": correlation_id,
+        "outcome_type": outcome_type,
+        "reason_codes": [reason],
+        "source_ref": f"turn:{turn_id}",
+        "evidence_refs": [f"turn:{turn_id}"],
+        "origin_chain": ["interaction"],
+        "sensitivity": "medium",
+    }
+
+
 def build_neutral_affect_frame(
     *,
     user_id: str | None,
@@ -1436,6 +1585,7 @@ def collect_subsystem_signals(
     recollection_frame: JsonDict,
     persona_frame: JsonDict,
     affect_frame: JsonDict,
+    relationship_frame: JsonDict,
     worldops_frame: JsonDict,
     origin_frame: JsonDict,
     turn_frame: JsonDict,
@@ -1455,6 +1605,7 @@ def collect_subsystem_signals(
             "recollection": recollection_frame,
             "persona": persona_frame,
             "affect": affect_frame,
+            "relationship": relationship_frame,
             "worldops": worldops_frame,
             "origin": origin_frame,
             "dialogue_control": dialogue_control_frame,
@@ -1511,14 +1662,7 @@ def build_default_subsystem_registry() -> SubsystemRegistry:
             ),
             FunctionSubsystemAdapter(
                 "relationship",
-                lambda ctx: [
-                    relationship_signal(
-                        ctx.event_bus,
-                        ctx.state,
-                        ctx.session_context,
-                        ctx.turn_frame,
-                    )
-                ],
+                lambda ctx: [relationship_signal(ctx.event_bus, ctx.frame("relationship"), ctx.session_context, ctx.turn_frame)],
             ),
         ]
     )
@@ -1757,8 +1901,38 @@ def turn_asks_active_worldops_event(turn_frame: JsonDict, event: JsonDict) -> bo
     return False
 
 
-def relationship_signal(event_bus: JsonDict, state: JsonDict, session_context: JsonDict, turn_frame: JsonDict) -> JsonDict:
-    relationship = state["persona"].get("relationship_state", {})
+def relationship_signal(event_bus: JsonDict, relationship_frame: JsonDict, session_context: JsonDict, turn_frame: JsonDict) -> JsonDict:
+    if relationship_frame.get("schema_version") == "RelationshipFrame.v1":
+        repair = dict(relationship_frame.get("repair") or {})
+        hints = list(relationship_frame.get("expression_hints") or [])
+        if repair.get("state") not in {None, "stable", "repaired"}:
+            signal_type = "relationship_repair"
+            priority = 0.82
+            content = "Respect the active relationship repair state before normal continuity."
+        else:
+            signal_type = "relationship_continuity"
+            priority = 0.58 if turn_frame["speech_act"] == "sora_life_share" else 0.44
+            content = "Use bounded relationship continuity without escalating intimacy or permissions."
+        return build_signal(
+            event_bus,
+            "relationship",
+            signal_type,
+            content=content,
+            intent="repair_relationship" if signal_type == "relationship_repair" else "calibrate_closeness",
+            priority=priority,
+            confidence=0.92,
+            visibility="candidate" if signal_type == "relationship_repair" else "background",
+            interrupt_level="none",
+            relation_weight=0.82,
+            suggested_use=hints[:3],
+            metadata={
+                "pair_ref": relationship_frame.get("pair_ref"),
+                "bond_stage": relationship_frame.get("bond_stage"),
+                "repair_state": repair.get("state"),
+                "state_snapshot_version": relationship_frame.get("state_snapshot_version"),
+            },
+        )
+    relationship = dict(relationship_frame.get("legacy_state") or relationship_frame)
     user_cares = turn_frame["speech_act"] == "sora_life_share"
     return build_signal(
         event_bus,
@@ -2846,6 +3020,7 @@ def build_system_prompt(context_pack: JsonDict) -> str:
 
 def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
     affect_frame = context_pack.get("affect_frame") or {}
+    relationship_frame = context_pack.get("relationship_frame") or {}
     safe_pack = {
         "turn_interpretation": context_pack.get("turn_interpretation", {}),
         "turn_frame": context_pack["turn_frame"],
@@ -2861,6 +3036,23 @@ def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
             "use_policy": affect_frame.get("use_policy", {}),
             "degraded_reasons": affect_frame.get("degraded_reasons", []),
             "provenance": affect_frame.get("provenance", {}),
+        },
+        "relationship_frame": {
+            "schema_version": relationship_frame.get("schema_version"),
+            "bond_stage": relationship_frame.get("bond_stage"),
+            "stable_bands": relationship_frame.get("stable_bands", {}),
+            "bond_bands": relationship_frame.get("bond_bands", {}),
+            "comfort_rhythm": relationship_frame.get("comfort_rhythm"),
+            "agreement": relationship_frame.get("agreement", {}),
+            "repair": relationship_frame.get("repair", {}),
+            "expression_hints": relationship_frame.get("expression_hints", []),
+            "surface_summary": relationship_frame.get("surface_summary"),
+            "use_policy": relationship_frame.get("use_policy", {}),
+            "epistemic_limits": [
+                "Relationship state never grants permission to interrupt, disclose memory, or override explicit user controls.",
+                "Do not state estimated user feelings or attachment as facts.",
+                "Do not escalate intimacy beyond active Agreement terms.",
+            ],
         },
         "worldops_frame": context_pack["worldops_frame"],
         "origin_frame": context_pack["origin_frame"],
@@ -2945,6 +3137,12 @@ def build_state_diff(context_pack: JsonDict, response_plan: JsonDict, expression
             "dominant_emotion": ((context_pack.get("affect_frame") or {}).get("dominant_emotion") or {}).get("emotion_type"),
             "expression_tone": expression_event.get("affect_tone"),
         },
+        "relationship": {
+            "bond_stage": (context_pack.get("relationship_frame") or {}).get("bond_stage"),
+            "state_snapshot_version": (context_pack.get("relationship_frame") or {}).get("state_snapshot_version"),
+            "repair_state": dict((context_pack.get("relationship_frame") or {}).get("repair") or {}).get("state"),
+            "surface": dict((context_pack.get("relationship_frame") or {}).get("use_policy") or {}).get("surface"),
+        },
         "active_worldops_event": active_worldops_event,
         "worldops_event_available": active_worldops_event,
         "worldops_event_expressed": expression_event.get("worldops_event_expression") not in {None, "none"},
@@ -2986,6 +3184,13 @@ def summarize_context_pack(context_pack: JsonDict) -> JsonDict:
             "dominant_emotion": ((context_pack.get("affect_frame") or {}).get("dominant_emotion") or {}).get("emotion_type"),
             "capacity_bands": (context_pack.get("affect_frame") or {}).get("capacity_bands", {}),
             "surface_permission": (context_pack.get("affect_frame") or {}).get("state_surface_permission"),
+        },
+        "relationship": {
+            "runtime_mode": (context_pack.get("relationship_frame") or {}).get("runtime_mode"),
+            "bond_stage": (context_pack.get("relationship_frame") or {}).get("bond_stage"),
+            "state_snapshot_version": (context_pack.get("relationship_frame") or {}).get("state_snapshot_version"),
+            "repair_state": dict((context_pack.get("relationship_frame") or {}).get("repair") or {}).get("state"),
+            "surface": dict((context_pack.get("relationship_frame") or {}).get("use_policy") or {}).get("surface"),
         },
         "worldops": {
             "event": context_pack["worldops_frame"].get("selected_event_id"),
