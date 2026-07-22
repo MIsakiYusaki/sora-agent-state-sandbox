@@ -295,13 +295,23 @@ class RelationshipDynamicsEngine:
         logits = {key: logit(float(dict(value).get("value", 0.5))) for key, value in initial.items()}
         confidence_mass = {key: float(dict(value).get("confidence", 0.0)) for key, value in initial.items()}
         last_validated: dict[str, str | None] = {key: None for key in initial}
+        confidence_gain = float(self.profile.get("estimate_confidence_gain", 0.08))
+        evidence_priors = dict(
+            self.profile.get("estimate_confidence_evidence_prior")
+            or DEFAULT_POLICY_PROFILE["estimate_confidence_evidence_prior"]
+        )
         items = [item for item in contributions if str(item.get("direction_scope")) == "user_to_sora_estimate"]
         for item in sorted(items, key=lambda row: (str(row.get("occurred_at") or ""), str(row.get("contribution_id") or ""))):
             dimension = str(item.get("dimension"))
             if dimension not in logits:
                 continue
             logits[dimension] += float(item.get("bounded_delta", 0.0))
-            confidence_mass[dimension] = min(1.0, confidence_mass[dimension] + 0.08 * float(item.get("support", 0.0)))
+            evidence_prior = bounded(float(evidence_priors.get(str(item.get("evidence_type") or ""), 0.50)))
+            confidence_mass[dimension] = min(
+                1.0,
+                confidence_mass[dimension]
+                + confidence_gain * float(item.get("support", 0.0)) * evidence_prior,
+            )
             last_validated[dimension] = str(item.get("occurred_at") or generated_at)
         values = {
             key: {
@@ -425,7 +435,8 @@ class RelationshipDynamicsEngine:
             "repair": {"state": repair_state, "guidance": repair_guidance},
             "comfort_rhythm": comfort,
             "expression_hints": expression_hints[:3],
-            "surface_summary": self._surface_summary(stage, stable, repair_state),
+            "surface_summary": None,
+            "surface_summary_descriptor": self._surface_summary_descriptor(stage, stable, repair_state),
             "use_policy": {
                 "surface": surface_permission,
                 "explicit_attribution": explicit,
@@ -477,7 +488,11 @@ class RelationshipDynamicsEngine:
         if age > hard_seconds:
             result["degraded_reasons"].append("relationship_frame_hard_stale")
             result["bond_bands"] = {}
-            result["surface_summary"] = "A stable relationship context exists, but dynamic relationship hints are unavailable."
+            result["surface_summary"] = None
+            result["surface_summary_descriptor"] = {
+                "code": "relationship.context.stale",
+                "arguments": {"bond_stage": result.get("bond_stage"), "staleness": "hard"},
+            }
             result["recall_hints"] = {
                 **dict(result.get("recall_hints") or {}),
                 "repair_focus": [],
@@ -532,18 +547,29 @@ class RelationshipDynamicsEngine:
         return hints
 
     @staticmethod
-    def _surface_summary(stage: str, bands: Mapping[str, str], repair_state: str) -> str:
+    def _surface_summary_descriptor(stage: str, bands: Mapping[str, str], repair_state: str) -> JsonDict:
         if repair_state not in {"stable", "repaired"}:
-            return "The relationship has an unresolved repair context; respond with accountability and low pressure."
-        summaries = {
-            "nascent": "This is a new relationship; stay warm without assuming familiarity.",
-            "familiar": "There is growing familiarity and a recognizable shared rhythm.",
-            "close": "There is stable closeness, trust, and meaningful shared history.",
-            "intimate": "There is consented intimacy supported by trust and emotional safety.",
-            "bonded": "There is a durable bond and substantial shared history.",
-            "committed": "There is an active long-term relationship agreement and demonstrated commitment.",
+            return {
+                "code": "relationship.context.repair_unresolved",
+                "arguments": {"bond_stage": stage, "repair_state": repair_state},
+            }
+        codes = {
+            "nascent": "relationship.stage.nascent",
+            "familiar": "relationship.stage.familiar",
+            "close": "relationship.stage.close",
+            "intimate": "relationship.stage.intimate",
+            "bonded": "relationship.stage.bonded",
+            "committed": "relationship.stage.committed",
         }
-        return summaries.get(stage, summaries["nascent"])
+        return {
+            "code": codes.get(stage, codes["nascent"]),
+            "arguments": {
+                "bond_stage": stage,
+                "repair_state": repair_state,
+                "trust_band": bands.get("trust", "unknown"),
+                "shared_history_band": bands.get("shared_history_density", "unknown"),
+            },
+        }
 
 
 def snapshot_checksum(payload: Mapping[str, Any]) -> str:

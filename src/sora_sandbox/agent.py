@@ -399,7 +399,7 @@ class AgentRunner:
             "affect_influences": (context_pack.get("affect_frame") or {}).get("prompt_view", {}),
             "relationship_influences": {
                 "bond_stage": (context_pack.get("relationship_frame") or {}).get("bond_stage"),
-                "surface_summary": (context_pack.get("relationship_frame") or {}).get("surface_summary"),
+                "surface_summary_descriptor": (context_pack.get("relationship_frame") or {}).get("surface_summary_descriptor"),
                 "expression_hints": (context_pack.get("relationship_frame") or {}).get("expression_hints", []),
                 "repair": (context_pack.get("relationship_frame") or {}).get("repair", {}),
                 "agreement": (context_pack.get("relationship_frame") or {}).get("agreement", {}),
@@ -3046,7 +3046,7 @@ def build_user_prompt(context_pack: JsonDict, user_input: str) -> str:
             "agreement": relationship_frame.get("agreement", {}),
             "repair": relationship_frame.get("repair", {}),
             "expression_hints": relationship_frame.get("expression_hints", []),
-            "surface_summary": relationship_frame.get("surface_summary"),
+            "surface_summary_descriptor": relationship_frame.get("surface_summary_descriptor"),
             "use_policy": relationship_frame.get("use_policy", {}),
             "epistemic_limits": [
                 "Relationship state never grants permission to interrupt, disclose memory, or override explicit user controls.",

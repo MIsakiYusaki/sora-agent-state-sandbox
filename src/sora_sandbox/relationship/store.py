@@ -1379,28 +1379,52 @@ class RelationshipStore:
             self._conn.commit()
 
     def run_retention(self, *, now: datetime | None = None, batch_size: int = 500) -> JsonDict:
+        if batch_size <= 0:
+            raise ValueError("Relationship retention batch_size must be positive")
         current = now or datetime.now(timezone.utc)
         trace_cutoff = (current - timedelta(days=30)).isoformat()
         outbox_cutoff = (current - timedelta(days=14)).isoformat()
+        completed_at = utc_now()
         with self._lock:
-            metrics = self._conn.execute("DELETE FROM relationship_metric WHERE created_at<?", (trace_cutoff,)).rowcount
-            outbox = self._conn.execute("DELETE FROM relationship_outbox WHERE status='delivered' AND processed_at<?", (outbox_cutoff,)).rowcount
-            expired = self._conn.execute(
-                "UPDATE relationship_candidate SET status='rejected',gate_reason='deferred_ttl_expired',updated_at=?,decided_at=? WHERE status='deferred' AND deferred_until IS NOT NULL AND deferred_until<?",
-                (utc_now(), utc_now(), current.isoformat()),
-            ).rowcount
-            agreement_expired = self._conn.execute(
-                "UPDATE relationship_agreement_amendment_candidate SET status='expired',decided_at=? WHERE status='pending_confirmation' AND expires_at IS NOT NULL AND expires_at<=?",
-                (current.isoformat(), current.isoformat()),
-            ).rowcount
-            self._conn.commit()
-        return {
-            "metrics_deleted": metrics,
-            "outbox_deleted": outbox,
-            "deferred_expired": expired,
-            "agreement_proposals_expired": agreement_expired,
-            "batch_size": batch_size,
-        }
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                metrics = self._conn.execute(
+                    "DELETE FROM relationship_metric WHERE metric_id IN (SELECT metric_id FROM relationship_metric WHERE created_at<? ORDER BY created_at LIMIT ?)",
+                    (trace_cutoff, batch_size),
+                ).rowcount
+                outbox = self._conn.execute(
+                    "DELETE FROM relationship_outbox WHERE event_id IN (SELECT event_id FROM relationship_outbox WHERE status='delivered' AND processed_at<? ORDER BY processed_at LIMIT ?)",
+                    (outbox_cutoff, batch_size),
+                ).rowcount
+                expired = self._conn.execute(
+                    "UPDATE relationship_candidate SET status='rejected',gate_reason='deferred_ttl_expired',updated_at=?,decided_at=? WHERE candidate_id IN (SELECT candidate_id FROM relationship_candidate WHERE status='deferred' AND deferred_until IS NOT NULL AND deferred_until<? ORDER BY deferred_until LIMIT ?)",
+                    (completed_at, completed_at, current.isoformat(), batch_size),
+                ).rowcount
+                agreement_expired = self._conn.execute(
+                    "UPDATE relationship_agreement_amendment_candidate SET status='expired',decided_at=? WHERE candidate_id IN (SELECT candidate_id FROM relationship_agreement_amendment_candidate WHERE status='pending_confirmation' AND expires_at IS NOT NULL AND expires_at<=? ORDER BY expires_at LIMIT ?)",
+                    (current.isoformat(), current.isoformat(), batch_size),
+                ).rowcount
+                result = {
+                    "metrics_deleted": metrics,
+                    "outbox_deleted": outbox,
+                    "deferred_expired": expired,
+                    "agreement_proposals_expired": agreement_expired,
+                    "batch_size": batch_size,
+                }
+                self._insert_audit(
+                    self._conn,
+                    pair_id=None,
+                    action="relationship_retention_completed",
+                    entity_type="retention_run",
+                    entity_id=new_id("relret"),
+                    actor="relationship_retention_worker",
+                    details=result,
+                )
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
+        return result
 
     def table_counts(self) -> JsonDict:
         tables = [
@@ -1526,6 +1550,15 @@ class RelationshipStore:
     ) -> JsonDict:
         if str(bundle.get("schema_version")) != "RelationshipExportBundle.v1":
             raise ValueError("unsupported Relationship restore bundle")
+        target_pair = self.pair(pair_id=pair_id)
+        if target_pair is None:
+            raise ValueError(f"Relationship pair not found: {pair_id}")
+        source_pair = dict(bundle.get("pair") or {})
+        target_owner_hash = hashlib.sha256(str(target_pair["user_id"]).encode("utf-8")).hexdigest()
+        if not secrets.compare_digest(str(source_pair.get("user_id_hash") or ""), target_owner_hash):
+            raise PermissionError("Relationship restore bundle owner does not match target pair")
+        if not secrets.compare_digest(str(source_pair.get("sora_id") or ""), str(target_pair["sora_id"])):
+            raise PermissionError("Relationship restore bundle Sora identity does not match target pair")
         contributions = [dict(item) for item in bundle.get("contributions") or []]
         status_events = [dict(item) for item in bundle.get("contribution_status_events") or []]
         source_agreement = dict(bundle.get("agreement") or {})
@@ -1857,10 +1890,18 @@ class RelationshipStore:
         conn.execute(
             """
             UPDATE relationship_pair
-            SET active_state_snapshot_id=?,active_estimate_snapshot_id=?,active_frame_id=?,generation=?,updated_at=?
+            SET active_state_snapshot_id=?,active_estimate_snapshot_id=?,active_frame_id=?,profile_version=?,generation=?,updated_at=?
             WHERE pair_id=?
             """,
-            (state["snapshot_id"], estimate["snapshot_id"], frame_id, generation, generated_at, pair_id),
+            (
+                state["snapshot_id"],
+                estimate["snapshot_id"],
+                frame_id,
+                str(engine.profile.get("version") or RELATIONSHIP_POLICY_VERSION),
+                generation,
+                generated_at,
+                pair_id,
+            ),
         )
         self._enqueue_domain_event_tx(
             conn,

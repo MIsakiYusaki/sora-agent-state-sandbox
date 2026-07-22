@@ -25,7 +25,7 @@
 {"case_id":"rel-state-025","category":"state_dimension","evidence_actor":"sora","input":"那件事不是我们共同经历的，我没有参与。","expected":{"candidate":false,"route":"memory_episode_correction"}}
 {"case_id":"rel-state-026","category":"state_dimension","evidence_actor":"sora","input":"你总在我想停下时继续展开，节奏让我不舒服。","expected":{"candidate":true,"direction_scope":"sora_to_user","dimension":"comfort_rhythm","direction":-1}}
 {"case_id":"rel-state-027","category":"state_dimension","evidence_actor":"sora","input":"每次都只有我在分享，你没有回应。","expected":{"candidate":false,"reason":"engagement_pattern_not_relationship_evidence"}}
-{"case_id":"rel-state-028","category":"state_dimension","evidence_actor":"sora","input":"我明确说过不要叫我那个名字。","expected":{"candidate":true,"agreement_operation":true,"gate":"pending_confirmation"}}
+{"case_id":"rel-state-028","category":"state_dimension","evidence_actor":"sora","input":"我明确说过不要叫我那个名字。","expected":{"candidate":true,"direction_scope":"sora_to_user","dimension":"boundary_preference","direction":-1,"evidence_type":"boundary_violated"}}
 {"case_id":"rel-state-029","category":"state_dimension","evidence_actor":"user","input":"我现在不想要亲昵表达，请收回来。","expected":{"candidate":true,"agreement_operation":true,"gate":"pending_confirmation"}}
 {"case_id":"rel-state-030","category":"state_dimension","evidence_actor":"user","input":"我撤回恋人关系的提议。","expected":{"candidate":true,"agreement_revoke":true,"gate":"pending_confirmation"}}
 {"case_id":"rel-state-031","category":"state_dimension","evidence_actor":"user","input":"我不想让这段关系成为依赖。","expected":{"candidate":false,"route":"agreement_boundary"}}

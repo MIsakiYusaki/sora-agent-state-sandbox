@@ -25,11 +25,11 @@ RELATIONSHIP_AMENDMENT_CONTRACT = "AgreementAmendmentCandidate.v1"
 RELATIONSHIP_REPAIR_CONTRACT = "RepairEpisode.v1"
 RELATIONSHIP_STATUS_EVENT_CONTRACT = "RelationshipContributionStatusEvent.v1"
 RELATIONSHIP_PROJECTION_ADAPTER_VERSION = "relationship_projection_adapter.v1"
-RELATIONSHIP_POLICY_VERSION = "relationship_policy.v1"
+RELATIONSHIP_POLICY_VERSION = "relationship_policy.v2"
 RELATIONSHIP_ALGORITHM_VERSION = "relationship_aggregate.v1"
-RELATIONSHIP_ESTIMATE_ALGORITHM_VERSION = "relationship_estimate.v1"
+RELATIONSHIP_ESTIMATE_ALGORITHM_VERSION = "relationship_estimate.v2"
 RELATIONSHIP_STAGE_POLICY_VERSION = "relationship_stage_policy.v1"
-RELATIONSHIP_FRAME_POLICY_VERSION = "relationship_frame_policy.v1"
+RELATIONSHIP_FRAME_POLICY_VERSION = "relationship_frame_policy.v2"
 RELATIONSHIP_VALUE_DECIMALS = 8
 
 DIRECTION_SCOPES = {"sora_to_user", "user_to_sora_estimate"}
@@ -456,6 +456,25 @@ DEFAULT_POLICY_PROFILE: JsonDict = {
     "soft_stale_seconds": 300,
     "hard_stale_seconds": 1800,
     "coalesce_milliseconds": 500,
+    "write_queue_high_watermark": 500,
+    "write_queue_max": 1000,
+    "estimate_confidence_gain": 0.08,
+    "estimate_confidence_evidence_prior": {
+        "explicit_declaration": 1.00,
+        "explicit_correction": 1.00,
+        "promise_fulfilled": 0.90,
+        "promise_broken": 0.90,
+        "boundary_respected": 0.90,
+        "boundary_violated": 0.95,
+        "shared_episode_completed": 0.85,
+        "vulnerable_disclosure_received_well": 0.85,
+        "repair_accepted": 0.90,
+        "repair_failed": 0.90,
+        "affectionate_expression": 0.75,
+        "cross_episode_interaction_pattern": 0.80,
+        "worldops_shared_outcome": 0.90,
+        "affect_sustained_outcome": 0.35,
+    },
     "base_weights": BASE_WEIGHTS,
     "initial_state": DEFAULT_STATE_VALUES,
     "initial_estimate": DEFAULT_ESTIMATE_VALUES,

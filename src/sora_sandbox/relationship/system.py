@@ -112,6 +112,8 @@ class RelationshipSystem:
         start_worker: bool = True,
         worker_poll_seconds: float = 0.25,
         rollout_mode: str = "active",
+        queue_high_watermark: int | None = None,
+        queue_max: int | None = None,
     ) -> None:
         if rollout_mode not in {"disabled", "observe", "shadow", "active"}:
             raise ValueError("Relationship rollout_mode must be disabled, observe, shadow, or active")
@@ -119,10 +121,18 @@ class RelationshipSystem:
         self.provider = provider
         self.rollout_mode = rollout_mode
         self.worker_poll_seconds = worker_poll_seconds
-        self.engine = RelationshipDynamicsEngine(store.profile())
+        profile = store.profile()
+        self.engine = RelationshipDynamicsEngine(profile)
         self.extractor = RelationshipExtractor(provider)
         self.gate = RelationshipGate()
-        self.coordinator = RelationshipWriteCoordinator()
+        self.coordinator = RelationshipWriteCoordinator(
+            high_watermark=int(
+                queue_high_watermark
+                if queue_high_watermark is not None
+                else profile.get("write_queue_high_watermark", 500)
+            ),
+            max_queue=int(queue_max if queue_max is not None else profile.get("write_queue_max", 1000)),
+        )
         self.transient_evidence = TransientEvidenceBuffer(ttl_seconds=60)
         self.agreement = RelationshipAgreementService(store, self.engine)
         self.repair = RelationshipRepairService(store, self.engine, self.agreement)
@@ -143,12 +153,16 @@ class RelationshipSystem:
         provider: RelationshipEvidenceProvider | None = None,
         start_worker: bool = True,
         rollout_mode: str = "active",
+        queue_high_watermark: int | None = None,
+        queue_max: int | None = None,
     ) -> "RelationshipSystem":
         return cls(
             RelationshipStore(workspace_state_dir() / "relationship.db"),
             provider=provider,
             start_worker=start_worker,
             rollout_mode=rollout_mode,
+            queue_high_watermark=queue_high_watermark,
+            queue_max=queue_max,
         )
 
     def start_worker(self) -> None:
@@ -181,6 +195,19 @@ class RelationshipSystem:
         active_user = str(user_id or "default-user")
         existing = self.store.pair(user_id=active_user)
         if existing is not None:
+            active_policy = str(self.engine.profile.get("version") or "")
+            if str(existing.get("profile_version") or "") != active_policy:
+                self.coordinator.submit(
+                    lambda: self.store.rebuild(
+                        str(existing["pair_id"]),
+                        engine=self.engine,
+                        reason="policy_profile_upgrade",
+                        actor="relationship_policy_migrator",
+                    ),
+                    priority=1,
+                    name="relationship_policy_profile_upgrade",
+                )
+                return self.store.pair(pair_id=str(existing["pair_id"])) or existing
             return existing
         return self.coordinator.submit(
             lambda: self.store.ensure_pair(active_user),
@@ -349,6 +376,7 @@ class RelationshipSystem:
         frame["use_policy"]["explicit_attribution"] = surface == "explicit"
         if surface == "silent":
             frame["surface_summary"] = None
+            frame["surface_summary_descriptor"] = None
             frame["expression_hints"] = []
             frame.setdefault("surface_hints", {})["explicit_attribution"] = False
             frame["surface_hints"]["allowed_actions"] = ["silent_use"]
@@ -739,6 +767,8 @@ class RelationshipSystem:
         expected_owner = hashlib.sha256(str(user_id).encode("utf-8")).hexdigest()
         if str(pair.get("user_id_hash") or "") != expected_owner:
             raise PermissionError("Relationship export does not belong to the target user")
+        if str(pair.get("sora_id") or "") != self.store.sora_id:
+            raise PermissionError("Relationship export does not belong to the target Sora instance")
         state = dict(bundle.get("state_snapshot") or {})
         estimate = dict(bundle.get("estimate_snapshot") or {})
         checksums = dict(bundle.get("checksums") or {})
