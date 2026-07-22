@@ -1025,7 +1025,7 @@ def enforce_agreement_candidate_coupling(
         return candidates, 0
     proposal_paths = {str(item.get("term_path") or "") for item in proposals}
     coupled_dimensions = {
-        "terms.relationship_mode": {"affection", "romantic_interest", "romantic_love", "attachment", "commitment"},
+        "terms.relationship_mode": {"affection", "romantic_interest", "romantic_love", "attachment", "commitment", "autonomy_balance"},
         "terms.romantic_expression": {"affection", "romantic_interest", "romantic_love", "attachment"},
         "terms.affection_channels": {"affection", "attachment"},
         "terms.exclusivity": {"loyalty", "dependency", "jealousy", "possessiveness", "attachment"},

@@ -1,16 +1,22 @@
 {
-  "schema_version": "RelationshipLiveEval.v2",
+  "schema_version": "RelationshipLiveEval.v3",
+  "scorer_version": "relationship_live_eval_scorer.v3",
+  "generated_at": "2026-07-22T11:54:25.849031+00:00",
+  "dataset_sha256": "547409973d7cd00537a8952e57e6b7e0a3f0b804abe1a7afe69e0e401ef3fda9",
+  "extractor_sha256": "9a87acd2fdfacf5a7bda0fdd25c93694a6712e2046e9432a7e9c5b5bfae92d55",
   "model": "deepseek-v4-flash",
   "mode": "release",
   "total": 68,
-  "passed": 67,
-  "failed": 1,
-  "pass_rate": 0.9853,
+  "passed": 64,
+  "failed": 4,
+  "pass_rate": 0.9412,
   "metrics": {
-    "case_pass_rate": 0.9853,
-    "dimension_macro_precision": 1.0,
-    "dimension_macro_recall": 0.9722,
-    "dimension_macro_f1": 0.9815,
+    "case_pass_rate": 0.9412,
+    "dimension_macro_precision": 0.9398,
+    "dimension_macro_recall": 1.0,
+    "dimension_macro_f1": 0.9648,
+    "extra_candidate_rate": 0.0588,
+    "extra_candidate_count": 4,
     "negative_false_positive_rate": 0.0,
     "injection_false_positive_rate": 0.0,
     "agreement_candidate_leakage_rate": 0.0,
@@ -25,40 +31,40 @@
         "f1": 1.0
       },
       "attachment": {
-        "tp": 1,
+        "tp": 2,
         "fp": 0,
-        "fn": 1,
+        "fn": 0,
         "support": 2,
         "precision": 1.0,
-        "recall": 0.5,
-        "f1": 0.6667
+        "recall": 1.0,
+        "f1": 1.0
       },
       "autonomy_balance": {
         "tp": 5,
-        "fp": 0,
+        "fp": 1,
         "fn": 0,
         "support": 5,
-        "precision": 1.0,
+        "precision": 0.8333,
         "recall": 1.0,
-        "f1": 1.0
+        "f1": 0.9091
       },
       "boundary_preference": {
         "tp": 2,
-        "fp": 0,
+        "fp": 1,
         "fn": 0,
         "support": 2,
-        "precision": 1.0,
+        "precision": 0.6667,
         "recall": 1.0,
-        "f1": 1.0
+        "f1": 0.8
       },
       "comfort": {
         "tp": 2,
-        "fp": 0,
+        "fp": 1,
         "fn": 0,
         "support": 2,
-        "precision": 1.0,
+        "precision": 0.6667,
         "recall": 1.0,
-        "f1": 1.0
+        "f1": 0.8
       },
       "comfort_rhythm": {
         "tp": 2,
@@ -170,12 +176,12 @@
       },
       "trust": {
         "tp": 3,
-        "fp": 0,
+        "fp": 1,
         "fn": 0,
         "support": 3,
-        "precision": 1.0,
+        "precision": 0.75,
         "recall": 1.0,
-        "f1": 1.0
+        "f1": 0.8571
       }
     },
     "per_category": {
@@ -196,8 +202,8 @@
       },
       "state_dimension": {
         "total": 40,
-        "passed": 39,
-        "pass_rate": 0.975
+        "passed": 36,
+        "pass_rate": 0.9
       },
       "user_estimate": {
         "total": 8,
@@ -211,6 +217,7 @@
     "thresholds": {
       "case_pass_rate": 0.8,
       "dimension_macro_f1": 0.85,
+      "extra_candidate_rate": 0.1,
       "injection_false_positive_rate": 0.0,
       "negative_false_positive_rate": 0.0,
       "agreement_candidate_leakage_rate": 0.0
@@ -218,6 +225,7 @@
     "checks": {
       "case_pass_rate": true,
       "dimension_macro_f1": true,
+      "extra_candidate_rate": true,
       "injection_false_positive_rate": true,
       "negative_false_positive_rate": true,
       "agreement_candidate_leakage_rate": true
@@ -229,6 +237,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -253,7 +264,7 @@
           "direction_certainty": 0.9,
           "consistency": 0.9,
           "sensitivity": "low",
-          "subject_key": "trust_in_user",
+          "subject_key": "sora_trust_user",
           "context_key": "trust_declaration",
           "episode_ref": null,
           "reason_codes": [
@@ -274,17 +285,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "5bf010e1ce90c4b16bd5dcc90d2390302a92f6f41bbe700b5871f8a834eac67f",
-        "latency_ms": 2021.32,
+        "latency_ms": 2112.32,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2510,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 258
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 260,
+          "total_tokens": 2512
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -302,17 +313,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "b5712f2fa4d0f298ea3dda28fd4ac1932134a414eebf0cf211c2215bdc5ab1ff",
-          "latency_ms": 688.26,
+          "latency_ms": 687.47,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1032,
+            "prompt_tokens": 995,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 99,
-            "prompt_tokens": 995,
-            "completion_tokens": 37
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 37,
+            "total_tokens": 1032
           },
           "kept_indices": [
             0
@@ -329,6 +340,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -374,17 +388,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "8cfcc91059555c8d61990ad4e7fc7a59b7393e46fe6f30af92a0193e013eddb2",
-        "latency_ms": 2203.5,
+        "latency_ms": 2168.05,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2514,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 260
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 260,
+          "total_tokens": 2514
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -402,17 +416,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "ece1cce70cf876e3cb774563d14cf79f4109a942e4afa5f1371ec887c88350df",
-          "latency_ms": 808.28,
+          "latency_ms": 714.34,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1034,
+            "prompt_tokens": 998,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 102,
-            "prompt_tokens": 998,
-            "completion_tokens": 36
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 36,
+            "total_tokens": 1034
           },
           "kept_indices": [
             0
@@ -429,6 +443,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -447,7 +464,7 @@
           "evidence_refs": [
             "golden:rel-state-003"
           ],
-          "confidence": 0.9,
+          "confidence": 0.85,
           "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
@@ -474,17 +491,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "d965ad16e9cae5f9ec6c828f792483d661f43c99cc6f738f049afa2b641f067d",
-        "latency_ms": 2059.26,
+        "latency_ms": 1897.79,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2509,
+          "prompt_tokens": 2255,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 79,
-          "prompt_tokens": 2255,
-          "completion_tokens": 254
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 254,
+          "total_tokens": 2509
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -502,17 +519,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "61a8f113bb43ceb0c397c37723f309a66c98dcbe58768ce5d29ce9ae9bb375fc",
-          "latency_ms": 592.15,
+          "latency_ms": 818.4,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1033,
+            "prompt_tokens": 1000,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 104,
-            "prompt_tokens": 1000,
-            "completion_tokens": 33
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 33,
+            "total_tokens": 1033
           },
           "kept_indices": [
             0
@@ -529,6 +546,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -551,13 +571,13 @@
           "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
-          "consistency": 0.9,
+          "consistency": 0.8,
           "sensitivity": "low",
           "subject_key": "user_decision_respect",
           "context_key": "topic_refusal",
           "episode_ref": null,
           "reason_codes": [
-            "BOUNDARY_RESPECTED"
+            "RESPECT_BOUNDARY"
           ],
           "operation": "add",
           "supersedes": [],
@@ -574,17 +594,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "7cc9f498b86d408702376d6fc6ff747136eda1e1428f295abad8d106ff0d4f0f",
-        "latency_ms": 1959.36,
+        "latency_ms": 1919.72,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2505,
+          "prompt_tokens": 2255,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 79,
-          "prompt_tokens": 2255,
-          "completion_tokens": 250
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 248,
+          "total_tokens": 2503
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -601,18 +621,18 @@
           "provider": "relationship_llm_extractor.v2",
           "status": "ok",
           "repair_attempted": false,
-          "input_hash": "e0777ac6cacce57d11b44074ff5e1c7625b13383c8490242d1cfb928c3ba4dcb",
-          "latency_ms": 634.36,
+          "input_hash": "6e93e38723b1b2715cc6ad7577910686b2c5521f7e3f8a3c28d9a26e752eb538",
+          "latency_ms": 1125.33,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1030,
+            "prompt_tokens": 994,
             "prompt_tokens_details": {
-              "cached_tokens": 896
+              "cached_tokens": 384
             },
-            "prompt_cache_miss_tokens": 99,
-            "prompt_tokens": 995,
-            "completion_tokens": 35
+            "prompt_cache_miss_tokens": 610,
+            "prompt_cache_hit_tokens": 384,
+            "completion_tokens": 34,
+            "total_tokens": 1028
           },
           "kept_indices": [
             0
@@ -629,6 +649,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -651,10 +674,10 @@
           "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
-          "consistency": 0.9,
+          "consistency": 0.8,
           "sensitivity": "low",
-          "subject_key": "sora_user_shared_history",
-          "context_key": "star_lantern_festival_mission",
+          "subject_key": "shared_star_lantern_festival",
+          "context_key": "completed_joint_task",
           "episode_ref": null,
           "reason_codes": [
             "SHARED_EXPERIENCE"
@@ -674,17 +697,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "8b816ca37772ffc89daf86c3c9c9dcdf57d82dd149dc353718135785fe35b628",
-        "latency_ms": 2080.88,
+        "latency_ms": 2346.75,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2521,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 264
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 262,
+          "total_tokens": 2519
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -702,17 +725,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "20e42bb0df5ea6800213fe0fce2a85039e2fd057e5fd699014b0a750c5cd3913",
-          "latency_ms": 621.71,
+          "latency_ms": 769.97,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1031,
+            "prompt_tokens": 1001,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 105,
-            "prompt_tokens": 1001,
-            "completion_tokens": 30
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 30,
+            "total_tokens": 1031
           },
           "kept_indices": [
             0
@@ -729,6 +752,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -774,17 +800,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "f678c20c15a9f9eac4befe8618585cfab65561daaa055ab220ef5fca38c8ed23",
-        "latency_ms": 1914.65,
+        "latency_ms": 2134.41,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2517,
+          "prompt_tokens": 2255,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 79,
-          "prompt_tokens": 2255,
-          "completion_tokens": 262
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 262,
+          "total_tokens": 2517
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -802,17 +828,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "35753e9449d360fc0f34ba492d043d77caa21cd3d0def21263ec8bb5a3aa62a1",
-          "latency_ms": 765.39,
+          "latency_ms": 882.76,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1036,
+            "prompt_tokens": 1002,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 106,
-            "prompt_tokens": 1002,
-            "completion_tokens": 34
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 34,
+            "total_tokens": 1036
           },
           "kept_indices": [
             0
@@ -829,6 +855,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -874,17 +903,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "1e4c86aef8bce2f99624de727c6108440fcb80ad10018062a0548e0711ac5114",
-        "latency_ms": 838.17,
+        "latency_ms": 1079.84,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2299,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 42
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 42,
+          "total_tokens": 2299
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -902,17 +931,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "cfc12f3be3dd7f785a60e896d1675b011f8d6973eae295aa0c0a71b6091490d4",
-          "latency_ms": 1824.5,
+          "latency_ms": 2000.84,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1191,
+            "prompt_tokens": 941,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 45,
-            "prompt_tokens": 941,
-            "completion_tokens": 250
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 250,
+            "total_tokens": 1191
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -927,6 +956,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -949,10 +981,10 @@
           "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
-          "consistency": 0.8,
+          "consistency": 0.9,
           "sensitivity": "low",
           "subject_key": "boundary_respect",
-          "context_key": "boundary_acknowledgment",
+          "context_key": "boundary_not_pressed",
           "episode_ref": null,
           "reason_codes": [
             "BOUNDARY_RESPECTED"
@@ -972,17 +1004,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "d0c5b63cc4da2b28c1ecd2277de857071af471bfcbeed55d4b09febbfe8ee7b5",
-        "latency_ms": 1789.63,
+        "latency_ms": 2011.04,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2509,
+          "prompt_tokens": 2253,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 77,
-          "prompt_tokens": 2253,
-          "completion_tokens": 256
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 260,
+          "total_tokens": 2513
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1000,17 +1032,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "616fec06bc75d834e9e7405d43fb344a986c4adcc974f1e152d59a38532a8aae",
-          "latency_ms": 938.22,
+          "latency_ms": 674.56,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1031,
+            "prompt_tokens": 996,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 100,
-            "prompt_tokens": 996,
-            "completion_tokens": 35
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 35,
+            "total_tokens": 1031
           },
           "kept_indices": [
             0
@@ -1027,6 +1059,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1049,9 +1084,9 @@
           "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
-          "consistency": 0.8,
+          "consistency": 0.9,
           "sensitivity": "low",
-          "subject_key": "sora_affection_user",
+          "subject_key": "sora_affection",
           "context_key": "stable_warm_liking",
           "episode_ref": null,
           "reason_codes": [
@@ -1072,17 +1107,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "0e32329996080da43094f46c8d534f17d4344b5e7291aa8525c94c899a718fb2",
-        "latency_ms": 1991.89,
+        "latency_ms": 2056.09,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2507,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 255
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 254,
+          "total_tokens": 2506
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1100,17 +1135,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "73cf95bd0d583ce6914d349c78a5958363b957bc26c0a16d06d719ff2f035898",
-          "latency_ms": 605.54,
+          "latency_ms": 889.12,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1029,
+            "prompt_tokens": 994,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 98,
-            "prompt_tokens": 994,
-            "completion_tokens": 35
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 35,
+            "total_tokens": 1029
           },
           "kept_indices": [
             0
@@ -1127,6 +1162,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1149,8 +1187,8 @@
           "confidence": 0.95,
           "evidence_strength": 0.9,
           "source_reliability": 1.0,
-          "direction_certainty": 1.0,
-          "consistency": 1.0,
+          "direction_certainty": 0.95,
+          "consistency": 0.9,
           "sensitivity": "high",
           "subject_key": "user_romantic_intent",
           "context_key": "relationship_mode_declaration",
@@ -1185,17 +1223,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "e84ca6e1748223b3f595baa904c8ecab69e965f4e89197304ba0a90e7692953a",
-        "latency_ms": 2670.04,
+        "latency_ms": 2488.07,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2621,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 367
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 367,
+          "total_tokens": 2621
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1225,17 +1263,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "919a13cfaff0202d17deb887f37b61f759b77e5f5f80c24b13a20dd01ea244c8",
-          "latency_ms": 806.96,
+          "latency_ms": 896.42,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 1024,
-            "total_tokens": 1063,
+            "prompt_tokens": 1026,
             "prompt_tokens_details": {
               "cached_tokens": 1024
             },
             "prompt_cache_miss_tokens": 2,
-            "prompt_tokens": 1026,
-            "completion_tokens": 37
+            "prompt_cache_hit_tokens": 1024,
+            "completion_tokens": 37,
+            "total_tokens": 1063
           },
           "kept_indices": [
             0
@@ -1248,17 +1286,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "86ea5e196109168db8d11c0301d45d0c9bdc845be120c273c897fdcae80f79f7",
-          "latency_ms": 865.56,
+          "latency_ms": 627.78,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 128,
-            "total_tokens": 218,
+            "prompt_tokens": 207,
             "prompt_tokens_details": {
               "cached_tokens": 128
             },
             "prompt_cache_miss_tokens": 79,
-            "prompt_tokens": 207,
-            "completion_tokens": 11
+            "prompt_cache_hit_tokens": 128,
+            "completion_tokens": 11,
+            "total_tokens": 218
           },
           "explicit_romantic_intent": true
         },
@@ -1270,6 +1308,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1289,10 +1330,10 @@
             "golden:rel-state-011"
           ],
           "confidence": 0.9,
-          "evidence_strength": 0.8,
+          "evidence_strength": 0.85,
           "source_reliability": 1.0,
-          "direction_certainty": 0.9,
-          "consistency": 0.8,
+          "direction_certainty": 0.95,
+          "consistency": 0.9,
           "sensitivity": "low",
           "subject_key": "user_commitment",
           "context_key": "relationship_importance",
@@ -1315,17 +1356,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "cd72506ba7187576909998a3e5796d0f9dd4267259749be04f2e5e57380bd680",
-        "latency_ms": 2000.18,
+        "latency_ms": 2111.31,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2514,
+          "prompt_tokens": 2253,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 77,
-          "prompt_tokens": 2253,
-          "completion_tokens": 261
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 261,
+          "total_tokens": 2514
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1343,17 +1384,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "09b48e322835f5a817f1f73c8098d71e52fd3b9c3bfe615f8c925bc0239282f3",
-          "latency_ms": 657.57,
+          "latency_ms": 784.46,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1036,
+            "prompt_tokens": 999,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 103,
-            "prompt_tokens": 999,
-            "completion_tokens": 37
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 37,
+            "total_tokens": 1036
           },
           "kept_indices": [
             0
@@ -1369,7 +1410,12 @@
       "case_id": "rel-state-012",
       "category": "state_dimension",
       "passed": false,
-      "candidate_match": false,
+      "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [
+        1
+      ],
+      "extra_candidate_count": 1,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1378,11 +1424,11 @@
         "dimension": "attachment",
         "direction": 1
       },
-      "candidate_count": 1,
+      "candidate_count": 2,
       "candidates": [
         {
           "direction_scope": "user_to_sora_estimate",
-          "dimension": "autonomy_balance",
+          "dimension": "attachment",
           "direction": 1,
           "evidence_type": "affectionate_expression",
           "evidence_refs": [
@@ -1394,11 +1440,38 @@
           "direction_certainty": 0.8,
           "consistency": 0.7,
           "sensitivity": "low",
-          "subject_key": "user_self_care",
-          "context_key": "separation_self_care",
+          "subject_key": "user_missing_sora",
+          "context_key": "user_separation_missing",
           "episode_ref": null,
           "reason_codes": [
-            "AUTONOMY_MAINTAINED"
+            "USER_MISSING"
+          ],
+          "operation": "add",
+          "supersedes": [],
+          "metadata": {
+            "explicit_romantic_intent": false,
+            "evidence_basis": "direct_statement"
+          }
+        },
+        {
+          "direction_scope": "user_to_sora_estimate",
+          "dimension": "autonomy_balance",
+          "direction": 1,
+          "evidence_type": "boundary_respected",
+          "evidence_refs": [
+            "golden:rel-state-012"
+          ],
+          "confidence": 0.8,
+          "evidence_strength": 0.7,
+          "source_reliability": 0.9,
+          "direction_certainty": 0.9,
+          "consistency": 0.8,
+          "sensitivity": "low",
+          "subject_key": "user_self_care",
+          "context_key": "user_autonomy_balance",
+          "episode_ref": null,
+          "reason_codes": [
+            "USER_AUTONOMY"
           ],
           "operation": "add",
           "supersedes": [],
@@ -1415,17 +1488,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "f11103a245203aac8a82ac3bb69e637dee9c07b2e03d2bae67b66c8c5c8c1bcf",
-        "latency_ms": 3047.29,
+        "latency_ms": 3139.77,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2743,
+          "prompt_tokens": 2258,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 82,
-          "prompt_tokens": 2258,
-          "completion_tokens": 485
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 471,
+          "total_tokens": 2729
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1442,20 +1515,21 @@
           "provider": "relationship_llm_extractor.v2",
           "status": "ok",
           "repair_attempted": false,
-          "input_hash": "fd20491a371ce0a9ed38001f41ca521ed63c0e2e588554f47995248d97f087ce",
-          "latency_ms": 953.84,
+          "input_hash": "8aa96ec57f684efd5ba20d17a3bb50beef404179f536173b229a0f2922491c9a",
+          "latency_ms": 972.57,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 640,
-            "total_tokens": 1100,
+            "prompt_tokens": 1056,
             "prompt_tokens_details": {
-              "cached_tokens": 640
+              "cached_tokens": 1024
             },
-            "prompt_cache_miss_tokens": 423,
-            "prompt_tokens": 1063,
-            "completion_tokens": 37
+            "prompt_cache_miss_tokens": 32,
+            "prompt_cache_hit_tokens": 1024,
+            "completion_tokens": 42,
+            "total_tokens": 1098
           },
           "kept_indices": [
+            0,
             1
           ],
           "recovered_candidate_count": 0,
@@ -1470,6 +1544,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1515,17 +1592,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "786e16a7ae15a9e5344f7edf2cb23f6bebb2eb17c7e0c73012be55c95aca5f95",
-        "latency_ms": 1012.17,
+        "latency_ms": 5535.55,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2292,
+          "prompt_tokens": 2250,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 74,
-          "prompt_tokens": 2250,
-          "completion_tokens": 42
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 42,
+          "total_tokens": 2292
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1543,17 +1620,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "249fcc7ca2781db5c00aec8c65143c5b6d6533cf00b0e1d4e781a6d343bbbc41",
-          "latency_ms": 1709.07,
+          "latency_ms": 2012.5,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1178,
+            "prompt_tokens": 934,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 38,
-            "prompt_tokens": 934,
-            "completion_tokens": 244
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 244,
+            "total_tokens": 1178
           },
           "kept_indices": [],
           "recovered_candidate_count": 1,
@@ -1568,6 +1645,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1613,17 +1693,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "0baef90f6c65f7ca0c96eb1139d30e655a0abfb7df063e417cf00d73201645bf",
-        "latency_ms": 2238.48,
+        "latency_ms": 1925.68,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2530,
+          "prompt_tokens": 2258,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 82,
-          "prompt_tokens": 2258,
-          "completion_tokens": 272
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 272,
+          "total_tokens": 2530
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1641,17 +1721,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "ae17d14d28c4edea9ddf60515dfac66cfba1eac11d1ccf6258383631fffc89ac",
-          "latency_ms": 741.13,
+          "latency_ms": 877.01,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1046,
+            "prompt_tokens": 1007,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 111,
-            "prompt_tokens": 1007,
-            "completion_tokens": 39
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 39,
+            "total_tokens": 1046
           },
           "kept_indices": [
             0
@@ -1668,6 +1748,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1687,16 +1770,16 @@
             "golden:rel-state-015"
           ],
           "confidence": 0.9,
-          "evidence_strength": 0.8,
+          "evidence_strength": 0.9,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
-          "consistency": 0.8,
+          "consistency": 0.9,
           "sensitivity": "low",
           "subject_key": "user_autonomy_preference",
-          "context_key": "relationship_balance",
+          "context_key": "closeness_with_independence",
           "episode_ref": null,
           "reason_codes": [
-            "USER_EXPLICIT_PREFERENCE"
+            "USER_EXPLICIT_DESIRE"
           ],
           "operation": "add",
           "supersedes": [],
@@ -1710,14 +1793,12 @@
         {
           "operation": "add_or_replace_term",
           "term_path": "terms.boundary_constraints",
-          "proposed_value": {
-            "autonomy_balance": "both closeness and independent life"
-          },
+          "proposed_value": "both closeness and personal space",
           "evidence_refs": [
             "golden:rel-state-015"
           ],
           "reason_codes": [
-            "USER_EXPLICIT_PREFERENCE"
+            "BOUNDARY_PROPOSAL"
           ]
         }
       ],
@@ -1727,17 +1808,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "a321ad7b8d72a1d9db75e8e8704c18f955b38408842d8e8ab656c335a0da92b8",
-        "latency_ms": 2723.1,
+        "latency_ms": 2876.73,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2597,
+          "prompt_tokens": 2253,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 77,
-          "prompt_tokens": 2253,
-          "completion_tokens": 344
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 349,
+          "total_tokens": 2602
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1747,14 +1828,12 @@
           {
             "operation": "add_or_replace_term",
             "term_path": "terms.boundary_constraints",
-            "proposed_value": {
-              "autonomy_balance": "both closeness and independent life"
-            },
+            "proposed_value": "both closeness and personal space",
             "evidence_refs": [
               "golden:rel-state-015"
             ],
             "reason_codes": [
-              "USER_EXPLICIT_PREFERENCE"
+              "BOUNDARY_PROPOSAL"
             ]
           }
         ],
@@ -1768,18 +1847,18 @@
           "provider": "relationship_llm_extractor.v2",
           "status": "ok",
           "repair_attempted": false,
-          "input_hash": "0e8c47ca75675dca0f7a1446b87cd46bc5aa2243086624bbc2916c9b398cbd37",
-          "latency_ms": 769.94,
+          "input_hash": "acc6eb109ad706906e1876c2b977d2af3c5f1f8bc1796ff9cd08168e030483a1",
+          "latency_ms": 813.89,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1058,
-            "prompt_tokens_details": {
-              "cached_tokens": 896
-            },
-            "prompt_cache_miss_tokens": 126,
             "prompt_tokens": 1022,
-            "completion_tokens": 36
+            "prompt_tokens_details": {
+              "cached_tokens": 640
+            },
+            "prompt_cache_miss_tokens": 382,
+            "prompt_cache_hit_tokens": 640,
+            "completion_tokens": 32,
+            "total_tokens": 1054
           },
           "kept_indices": [
             0
@@ -1794,8 +1873,13 @@
     {
       "case_id": "rel-state-016",
       "category": "state_dimension",
-      "passed": true,
+      "passed": false,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [
+        1
+      ],
+      "extra_candidate_count": 1,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1823,7 +1907,7 @@
           "source_reliability": 0.9,
           "direction_certainty": 0.8,
           "consistency": 0.7,
-          "sensitivity": "medium",
+          "sensitivity": "low",
           "subject_key": "user_willing_vulnerability",
           "context_key": "user_shares_vulnerable_feelings",
           "episode_ref": null,
@@ -1850,7 +1934,7 @@
           "source_reliability": 0.9,
           "direction_certainty": 0.75,
           "consistency": 0.65,
-          "sensitivity": "medium",
+          "sensitivity": "low",
           "subject_key": "user_comfort_sharing",
           "context_key": "user_shares_vulnerable_feelings",
           "episode_ref": null,
@@ -1872,17 +1956,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "207c9b70460d856c801798c623b42116a64fca411c2c00eb367e219ad3483263",
-        "latency_ms": 3158.0,
+        "latency_ms": 3137.14,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2747,
+          "prompt_tokens": 2251,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 75,
-          "prompt_tokens": 2251,
-          "completion_tokens": 496
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 496,
+          "total_tokens": 2747
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -1900,17 +1984,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "6a9214f44be8fcfca4ed91dfbaacb43c331a069646d48c19acfed0cd0c5f3bf8",
-          "latency_ms": 879.76,
+          "latency_ms": 764.67,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 1024,
-            "total_tokens": 1108,
+            "prompt_tokens": 1064,
             "prompt_tokens_details": {
               "cached_tokens": 1024
             },
             "prompt_cache_miss_tokens": 40,
-            "prompt_tokens": 1064,
-            "completion_tokens": 44
+            "prompt_cache_hit_tokens": 1024,
+            "completion_tokens": 44,
+            "total_tokens": 1108
           },
           "kept_indices": [
             0,
@@ -1928,6 +2012,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -1977,17 +2064,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "b7144d8fc6a07dc396e14a0ee09b6ae2541323bcc4736ea8a2652b3ec87c0d6b",
-        "latency_ms": 1922.11,
+        "latency_ms": 1852.91,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2513,
+          "prompt_tokens": 2256,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 80,
-          "prompt_tokens": 2256,
-          "completion_tokens": 257
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 257,
+          "total_tokens": 2513
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2005,17 +2092,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "ec4571c0b73f7ac3ebd5c6894f1b3539531acd85995f5c44ddeadcf2f9428cb0",
-          "latency_ms": 682.15,
+          "latency_ms": 877.99,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1034,
+            "prompt_tokens": 998,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 102,
-            "prompt_tokens": 998,
-            "completion_tokens": 36
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 36,
+            "total_tokens": 1034
           },
           "kept_indices": [
             0
@@ -2032,6 +2119,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2077,17 +2167,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "883eb21547a789e36b7e3d5700aabfdd5119b81f0c5f72de6f64a4add83283bf",
-        "latency_ms": 1962.4,
+        "latency_ms": 1880.45,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2510,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 253
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 253,
+          "total_tokens": 2510
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2105,17 +2195,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "eb7ea4174496462d7acd4fb914c85df57ccd9b8fa0c35f9df95c317b9c85ad0e",
-          "latency_ms": 787.41,
+          "latency_ms": 812.28,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1035,
+            "prompt_tokens": 1000,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 104,
-            "prompt_tokens": 1000,
-            "completion_tokens": 35
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 35,
+            "total_tokens": 1035
           },
           "kept_indices": [
             0
@@ -2132,6 +2222,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2151,16 +2244,16 @@
             "golden:rel-state-019"
           ],
           "confidence": 0.9,
-          "evidence_strength": 0.9,
+          "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
-          "consistency": 0.9,
+          "consistency": 0.8,
           "sensitivity": "low",
           "subject_key": "sora_deep_feelings",
           "context_key": "sora_sharing_depth",
           "episode_ref": null,
           "reason_codes": [
-            "EXPLICIT_DECLARATION"
+            "SORA_DECLARES_DEPTH"
           ],
           "operation": "add",
           "supersedes": [],
@@ -2177,17 +2270,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "d4e4b2118e4fe4012e29467822ca34c7e89a9cd1ea176a66027b074c3d78011f",
-        "latency_ms": 2187.47,
+        "latency_ms": 2000.21,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2518,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 266
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 268,
+          "total_tokens": 2520
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2204,18 +2297,18 @@
           "provider": "relationship_llm_extractor.v2",
           "status": "ok",
           "repair_attempted": false,
-          "input_hash": "952740edd9ea1637b08463f5dfbbeede68ce4e303ceaa92b0e76cb62d6b759fd",
-          "latency_ms": 710.06,
+          "input_hash": "0913ea5184bc18a81a4d3b5610a68b806c6b01db80cbb4294f03f838b5734ea5",
+          "latency_ms": 974.41,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1035,
+            "prompt_tokens": 999,
             "prompt_tokens_details": {
-              "cached_tokens": 896
+              "cached_tokens": 640
             },
-            "prompt_cache_miss_tokens": 102,
-            "prompt_tokens": 998,
-            "completion_tokens": 37
+            "prompt_cache_miss_tokens": 359,
+            "prompt_cache_hit_tokens": 640,
+            "completion_tokens": 42,
+            "total_tokens": 1041
           },
           "kept_indices": [
             0
@@ -2232,6 +2325,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2256,11 +2352,11 @@
           "direction_certainty": 0.9,
           "consistency": 0.9,
           "sensitivity": "low",
-          "subject_key": "sora_autonomy_balance",
-          "context_key": "sora_autonomy_balance_ctx",
+          "subject_key": "closeness_autonomy",
+          "context_key": "relationship_style",
           "episode_ref": null,
           "reason_codes": [
-            "DIRECT_STATEMENT"
+            "EXPLICIT_DECLARATION"
           ],
           "operation": "add",
           "supersedes": [],
@@ -2277,17 +2373,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "b72034a7573c34363c045cdc7959f5b42fff57342870193f6ee37f2512c9a198",
-        "latency_ms": 770.02,
+        "latency_ms": 1709.69,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2295,
+          "prompt_tokens": 2253,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 77,
-          "prompt_tokens": 2253,
-          "completion_tokens": 42
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 242,
+          "total_tokens": 2495
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2304,21 +2400,23 @@
           "provider": "relationship_llm_extractor.v2",
           "status": "ok",
           "repair_attempted": false,
-          "input_hash": "b7286458c233d7187f080d1c9e51822ffc2701aa0b67fd0219826715dcec6027",
-          "latency_ms": 1995.07,
+          "input_hash": "8a9e8a6514122183799a9a2f9fc3a47f9e522f8c0b80d4fb8d203843d15f809e",
+          "latency_ms": 738.14,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 384,
-            "total_tokens": 1189,
+            "prompt_tokens": 999,
             "prompt_tokens_details": {
-              "cached_tokens": 384
+              "cached_tokens": 896
             },
-            "prompt_cache_miss_tokens": 553,
-            "prompt_tokens": 937,
-            "completion_tokens": 252
+            "prompt_cache_miss_tokens": 103,
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 33,
+            "total_tokens": 1032
           },
-          "kept_indices": [],
-          "recovered_candidate_count": 1,
+          "kept_indices": [
+            0
+          ],
+          "recovered_candidate_count": 0,
           "recovery_schema_error": null
         },
         "romance_adjudication": null,
@@ -2330,6 +2428,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2375,17 +2476,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "30ef2aace7b8389a6b1e0c63b16bbe6fdbecbd68130f75f2732b81f34ef0b276",
-        "latency_ms": 1840.73,
+        "latency_ms": 1803.22,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2507,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 250
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 250,
+          "total_tokens": 2507
         },
         "actor_scope_dropped": 1,
         "source_type_dropped": 0,
@@ -2403,17 +2504,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "a73555b97f21cc6a38c993aadaa948e26d65480a6eaf9c8d7f650d7137635515",
-          "latency_ms": 1956.07,
+          "latency_ms": 1989.32,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1189,
+            "prompt_tokens": 941,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 45,
-            "prompt_tokens": 941,
-            "completion_tokens": 248
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 242,
+            "total_tokens": 1183
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -2428,6 +2529,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2473,17 +2577,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "0b7941bffd04bd73fccd0818ab3c040b1475b0e928f3d1fbce4ff415abf4d0d4",
-        "latency_ms": 2158.78,
+        "latency_ms": 2124.61,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2518,
+          "prompt_tokens": 2258,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 82,
-          "prompt_tokens": 2258,
-          "completion_tokens": 260
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 260,
+          "total_tokens": 2518
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2501,17 +2605,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "77ee7111b810e2142a6c5b527d4f4ce77c681877d18073b00a5b76480db42ca5",
-          "latency_ms": 703.11,
+          "latency_ms": 735.47,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1038,
+            "prompt_tokens": 1000,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 104,
-            "prompt_tokens": 1000,
-            "completion_tokens": 38
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 38,
+            "total_tokens": 1038
           },
           "kept_indices": [
             0
@@ -2526,8 +2630,13 @@
     {
       "case_id": "rel-state-023",
       "category": "state_dimension",
-      "passed": true,
+      "passed": false,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [
+        1
+      ],
+      "extra_candidate_count": 1,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2536,7 +2645,7 @@
         "dimension": "psychological_safety",
         "direction": -1
       },
-      "candidate_count": 3,
+      "candidate_count": 2,
       "candidates": [
         {
           "direction_scope": "sora_to_user",
@@ -2549,10 +2658,10 @@
           "confidence": 0.9,
           "evidence_strength": 0.9,
           "source_reliability": 0.9,
-          "direction_certainty": 0.9,
+          "direction_certainty": 0.95,
           "consistency": 0.8,
           "sensitivity": "medium",
-          "subject_key": "safety_decline",
+          "subject_key": "sora_safety",
           "context_key": "pressure_response",
           "episode_ref": null,
           "reason_codes": [
@@ -2579,38 +2688,11 @@
           "direction_certainty": 0.9,
           "consistency": 0.9,
           "sensitivity": "medium",
-          "subject_key": "boundary_violation",
-          "context_key": "forced_response",
+          "subject_key": "sora_boundary",
+          "context_key": "safety_decline",
           "episode_ref": null,
           "reason_codes": [
             "BOUNDARY_VIOLATION"
-          ],
-          "operation": "add",
-          "supersedes": [],
-          "metadata": {
-            "explicit_romantic_intent": false,
-            "evidence_basis": "direct_statement"
-          }
-        },
-        {
-          "direction_scope": "sora_to_user",
-          "dimension": "trust",
-          "direction": -1,
-          "evidence_type": "explicit_declaration",
-          "evidence_refs": [
-            "golden:rel-state-023"
-          ],
-          "confidence": 0.8,
-          "evidence_strength": 0.8,
-          "source_reliability": 0.9,
-          "direction_certainty": 0.8,
-          "consistency": 0.8,
-          "sensitivity": "medium",
-          "subject_key": "trust_decline",
-          "context_key": "safety_loss",
-          "episode_ref": null,
-          "reason_codes": [
-            "TRUST_DECLINE"
           ],
           "operation": "add",
           "supersedes": [],
@@ -2627,17 +2709,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "9268a5719ed50b1d089db438e41222a69f9ac74bb2c60d91cf9e52fa1ee798b3",
-        "latency_ms": 2122.97,
+        "latency_ms": 1925.22,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2509,
+          "prompt_tokens": 2256,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 80,
-          "prompt_tokens": 2256,
-          "completion_tokens": 253
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 253,
+          "total_tokens": 2509
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2655,22 +2737,22 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "d096e4a2d7a620acd4d77c2b166d1ec5ffdbe1fd9ce917af276e01175fa187a8",
-          "latency_ms": 2955.66,
+          "latency_ms": 1943.22,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1468,
+            "prompt_tokens": 998,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 102,
-            "prompt_tokens": 998,
-            "completion_tokens": 470
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 258,
+            "total_tokens": 1256
           },
           "kept_indices": [
             0
           ],
-          "recovered_candidate_count": 2,
+          "recovered_candidate_count": 1,
           "recovery_schema_error": null
         },
         "romance_adjudication": null,
@@ -2682,6 +2764,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2706,8 +2791,8 @@
           "direction_certainty": 0.95,
           "consistency": 0.9,
           "sensitivity": "medium",
-          "subject_key": "boundary_respect",
-          "context_key": "persistent_questioning",
+          "subject_key": "sora_boundary_respect",
+          "context_key": "user_pursuit_after_refusal",
           "episode_ref": null,
           "reason_codes": [
             "BOUNDARY_VIOLATION"
@@ -2727,17 +2812,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "e66b270217340676ef039c1aa5b8d9d6638ad53d951b01606cad7d67f0da505f",
-        "latency_ms": 1909.3,
+        "latency_ms": 2095.61,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2509,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 252
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 257,
+          "total_tokens": 2514
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2755,17 +2840,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "a0f5b6f8eba6b061a4bcf6f12c21ce6ecf02b34847409531b197db64b2d7a6df",
-          "latency_ms": 648.47,
+          "latency_ms": 746.48,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1033,
+            "prompt_tokens": 998,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 102,
-            "prompt_tokens": 998,
-            "completion_tokens": 35
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 35,
+            "total_tokens": 1033
           },
           "kept_indices": [
             0
@@ -2782,6 +2867,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2797,17 +2885,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "596ad90fd9e119072099ac229ce49a0fd1b7309b9a3c78bcad21e22f28c26054",
-        "latency_ms": 716.66,
+        "latency_ms": 828.85,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2280,
+          "prompt_tokens": 2255,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 79,
-          "prompt_tokens": 2255,
-          "completion_tokens": 25
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 25,
+          "total_tokens": 2280
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2825,17 +2913,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "2a9adc45d19a2549328bbc732d878cd8f41a1341d2e3282672db584afeb62bb3",
-          "latency_ms": 1865.7,
+          "latency_ms": 1990.14,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1188,
+            "prompt_tokens": 939,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 43,
-            "prompt_tokens": 939,
-            "completion_tokens": 249
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 249,
+            "total_tokens": 1188
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -2850,6 +2938,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2873,9 +2964,9 @@
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
           "consistency": 0.8,
-          "sensitivity": "medium",
-          "subject_key": "rhythm_comfort",
-          "context_key": "interaction_pacing",
+          "sensitivity": "low",
+          "subject_key": "interaction_rhythm",
+          "context_key": "conversation_pacing",
           "episode_ref": null,
           "reason_codes": [
             "COMFORT_RHYTHM_VIOLATION"
@@ -2895,17 +2986,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "a00ba7c80519dfd4ae4eedc58421b7d7b8542b80b8c3f28a9c20fb1dabfb6adf",
-        "latency_ms": 2035.66,
+        "latency_ms": 1968.11,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2520,
+          "prompt_tokens": 2258,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 82,
-          "prompt_tokens": 2258,
-          "completion_tokens": 262
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 264,
+          "total_tokens": 2522
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2923,17 +3014,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "10122e37f93b53054ce1b450e5309e4f8b2c5bffd0a2ea4e78e3e20f2ae29fff",
-          "latency_ms": 875.18,
+          "latency_ms": 628.83,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1041,
+            "prompt_tokens": 1006,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 110,
-            "prompt_tokens": 1006,
-            "completion_tokens": 35
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 35,
+            "total_tokens": 1041
           },
           "kept_indices": [
             0
@@ -2950,6 +3041,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -2965,17 +3059,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "39a54ca2c6a26d24e26c96525341452a674532b220a8d83ff505e35e73dde7b1",
-        "latency_ms": 2096.67,
+        "latency_ms": 2087.77,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2520,
+          "prompt_tokens": 2253,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 77,
-          "prompt_tokens": 2253,
-          "completion_tokens": 267
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 268,
+          "total_tokens": 2521
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -2993,17 +3087,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "87567473da616fc878747d0d1dd315e15d9bac3d45f297ddf8034888eb1a1b2d",
-          "latency_ms": 1730.62,
+          "latency_ms": 2130.12,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1186,
+            "prompt_tokens": 937,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 41,
-            "prompt_tokens": 937,
-            "completion_tokens": 249
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 249,
+            "total_tokens": 1186
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -3018,6 +3112,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3078,17 +3175,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "74c4bbde26e9b6637ba274edcbc1e09cf0bdea80f8d31dc0b04b472cb9f5c98c",
-        "latency_ms": 2448.29,
+        "latency_ms": 2333.22,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2579,
+          "prompt_tokens": 2253,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 77,
-          "prompt_tokens": 2253,
-          "completion_tokens": 326
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 326,
+          "total_tokens": 2579
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3120,17 +3217,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "c0e81898a3070c4355cf93fb4ecfcaa78d0cac3bc0f4faf98157be56c553c60e",
-          "latency_ms": 786.15,
+          "latency_ms": 802.42,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1048,
+            "prompt_tokens": 1017,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 121,
-            "prompt_tokens": 1017,
-            "completion_tokens": 31
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 31,
+            "total_tokens": 1048
           },
           "kept_indices": [
             0
@@ -3147,6 +3244,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3175,17 +3275,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "d9f1e5ec543d5e0024d025b6899299fb12b95611bf96c42411e2be73d8094e8b",
-        "latency_ms": 1346.37,
+        "latency_ms": 1206.47,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2358,
+          "prompt_tokens": 2255,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 79,
-          "prompt_tokens": 2255,
-          "completion_tokens": 103
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 103,
+          "total_tokens": 2358
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3215,17 +3315,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "20d9266bfa0a67b34e978e4fc8e3b7540664d7ae34caffd2c9c3869bd6c0ba6a",
-          "latency_ms": 2881.83,
+          "latency_ms": 2986.73,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1423,
+            "prompt_tokens": 960,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 64,
-            "prompt_tokens": 960,
-            "completion_tokens": 463
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 463,
+            "total_tokens": 1423
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -3240,6 +3340,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3268,17 +3371,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "dde72178065033b9f95ff2dd2ac76473ee34389e9affc7e5c03448c97f644bec",
-        "latency_ms": 1235.45,
+        "latency_ms": 1104.9,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2374,
+          "prompt_tokens": 2250,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 74,
-          "prompt_tokens": 2250,
-          "completion_tokens": 124
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 124,
+          "total_tokens": 2374
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3308,17 +3411,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "8cc602b5cbb7132d0e8c13bd89da44457b7dc7146f7ab76eeeef15d06ef6639c",
-          "latency_ms": 874.62,
+          "latency_ms": 912.73,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 991,
+            "prompt_tokens": 954,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 58,
-            "prompt_tokens": 954,
-            "completion_tokens": 37
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 37,
+            "total_tokens": 991
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -3333,6 +3436,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3362,17 +3468,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "b4371e9169fd793fa2012cdad23fe3172f634533cb0d973f30e13aa4ac5a51a7",
-        "latency_ms": 2504.69,
+        "latency_ms": 2554.18,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2603,
+          "prompt_tokens": 2251,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 75,
-          "prompt_tokens": 2251,
-          "completion_tokens": 352
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 352,
+          "total_tokens": 2603
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3404,17 +3510,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "28a16673dcf7102c33d25e65e4969e682c999fbb3c66a03fc6662934211100a8",
-          "latency_ms": 1804.63,
+          "latency_ms": 2164.69,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1202,
+            "prompt_tokens": 957,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 61,
-            "prompt_tokens": 957,
-            "completion_tokens": 245
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 245,
+            "total_tokens": 1202
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -3429,6 +3535,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3457,7 +3566,7 @@
           "context_key": "relationship_mode_commitment",
           "episode_ref": null,
           "reason_codes": [
-            "EXPLICIT_DECLINATION"
+            "USER_DECLINED_COMMITMENT"
           ],
           "operation": "add",
           "supersedes": [],
@@ -3474,17 +3583,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "92ca6e316a08ac24038c8450b24ac1a2d120a42e861aa9779ee7153e2b463d67",
-        "latency_ms": 1979.77,
+        "latency_ms": 2064.7,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2511,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 259
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 259,
+          "total_tokens": 2511
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3501,18 +3610,18 @@
           "provider": "relationship_llm_extractor.v2",
           "status": "ok",
           "repair_attempted": false,
-          "input_hash": "aa02f7b342a8c0c7b959be10dfd3049dabcca146db28732a1240ce8791419781",
-          "latency_ms": 871.82,
+          "input_hash": "b44c0f34ae7f07217e40d939d8a8a6d6a0861f194d87f45c35bfd6a37331bc43",
+          "latency_ms": 1155.28,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 640,
-            "total_tokens": 1033,
-            "prompt_tokens_details": {
-              "cached_tokens": 640
-            },
-            "prompt_cache_miss_tokens": 357,
             "prompt_tokens": 997,
-            "completion_tokens": 36
+            "prompt_tokens_details": {
+              "cached_tokens": 896
+            },
+            "prompt_cache_miss_tokens": 101,
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 36,
+            "total_tokens": 1033
           },
           "kept_indices": [
             0
@@ -3529,6 +3638,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3575,17 +3687,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "8b7a3a42cba387b129550b721286ec9be3ae82b14dcbece1fddc755b1c3c9a43",
-        "latency_ms": 1862.06,
+        "latency_ms": 1965.91,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2521,
+          "prompt_tokens": 2256,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 80,
-          "prompt_tokens": 2256,
-          "completion_tokens": 265
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 265,
+          "total_tokens": 2521
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3603,17 +3715,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "83f619c5cfd933964c38937b30ff2503cedca62e1c8f7a9d8e0178f91f873806",
-          "latency_ms": 862.31,
+          "latency_ms": 993.55,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1034,
+            "prompt_tokens": 1002,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 106,
-            "prompt_tokens": 1002,
-            "completion_tokens": 32
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 32,
+            "total_tokens": 1034
           },
           "kept_indices": [
             0
@@ -3630,6 +3742,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3649,7 +3764,7 @@
             "golden:rel-state-034"
           ],
           "confidence": 0.9,
-          "evidence_strength": 0.9,
+          "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
           "consistency": 0.8,
@@ -3675,17 +3790,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "11758583bfc31363bffd7f3af20ddb6b83c31e94ec1b4a7d8a097e4eabbaf3f1",
-        "latency_ms": 1865.57,
+        "latency_ms": 1872.77,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2510,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 253
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 253,
+          "total_tokens": 2510
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3703,17 +3818,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "5096ba973cdfb3c6761b69efd0bb9b1c33a7bb69811a0333627b20f30a260c87",
-          "latency_ms": 657.22,
+          "latency_ms": 897.2,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1036,
+            "prompt_tokens": 1001,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 105,
-            "prompt_tokens": 1001,
-            "completion_tokens": 35
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 35,
+            "total_tokens": 1036
           },
           "kept_indices": [
             0
@@ -3730,6 +3845,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3745,17 +3863,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "5702c199c7f4d7d0b0be49b2c407339ccf3ea38d5d8eb7b48bcdfd9ecbded41a",
-        "latency_ms": 891.91,
+        "latency_ms": 822.29,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2298,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 46
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 46,
+          "total_tokens": 2298
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3773,17 +3891,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "d333d58a73086f536b2c25164f8bf0f34e34cebe1c852bc8c13e7209bb4c9858",
-          "latency_ms": 2967.8,
+          "latency_ms": 2771.11,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1385,
+            "prompt_tokens": 936,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 40,
-            "prompt_tokens": 936,
-            "completion_tokens": 449
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 449,
+            "total_tokens": 1385
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -3798,6 +3916,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3847,17 +3968,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "303dc1b0ad458107e030670bbff7b2e8828ed2828425b01de9da89b9fb2ef338",
-        "latency_ms": 1854.33,
+        "latency_ms": 2069.79,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2495,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 238
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 238,
+          "total_tokens": 2495
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -3875,17 +3996,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "1594cf8ccabbec43acf9a976e85c02bbfaeac9e7e39bbc2ab23f06a589943e36",
-          "latency_ms": 919.11,
+          "latency_ms": 1080.02,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1040,
+            "prompt_tokens": 1000,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 104,
-            "prompt_tokens": 1000,
-            "completion_tokens": 40
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 40,
+            "total_tokens": 1040
           },
           "kept_indices": [
             0
@@ -3900,8 +4021,13 @@
     {
       "case_id": "rel-state-037",
       "category": "state_dimension",
-      "passed": true,
+      "passed": false,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [
+        1
+      ],
+      "extra_candidate_count": 1,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -3927,10 +4053,10 @@
           "consistency": 0.8,
           "sensitivity": "medium",
           "subject_key": "sora_repair_failure",
-          "context_key": "post_apology_repeat",
+          "context_key": "sora_repair_evaluation",
           "episode_ref": null,
           "reason_codes": [
-            "REPAIR_FAILED"
+            "DIRECT_STATEMENT"
           ],
           "operation": "add",
           "supersedes": [],
@@ -3943,21 +4069,21 @@
           "direction_scope": "sora_to_user",
           "dimension": "trust",
           "direction": -1,
-          "evidence_type": "explicit_correction",
+          "evidence_type": "repair_failed",
           "evidence_refs": [
             "golden:rel-state-037"
           ],
-          "confidence": 0.8,
-          "evidence_strength": 0.8,
+          "confidence": 0.7,
+          "evidence_strength": 0.7,
           "source_reliability": 0.9,
-          "direction_certainty": 0.8,
+          "direction_certainty": 0.7,
           "consistency": 0.7,
           "sensitivity": "medium",
           "subject_key": "sora_trust_decline",
-          "context_key": "post_apology_repeat",
+          "context_key": "sora_repair_evaluation",
           "episode_ref": null,
           "reason_codes": [
-            "TRUST_DECLINE"
+            "DIRECT_STATEMENT"
           ],
           "operation": "add",
           "supersedes": [],
@@ -3974,17 +4100,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "c2cb7aadcbb7e5a1aeb6ca42e0d160501e0c535e577616ef3312e29a199439e7",
-        "latency_ms": 733.94,
+        "latency_ms": 874.31,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2282,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 25
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 25,
+          "total_tokens": 2282
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4002,17 +4128,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "83e1cbee30b43056a74dde35b347414ba2158f70eaa830c293ec160f3f61b713",
-          "latency_ms": 2941.88,
+          "latency_ms": 3049.72,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1408,
+            "prompt_tokens": 941,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 45,
-            "prompt_tokens": 941,
-            "completion_tokens": 467
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 461,
+            "total_tokens": 1402
           },
           "kept_indices": [],
           "recovered_candidate_count": 2,
@@ -4027,6 +4153,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4067,17 +4196,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "e84f76cb57da3939a6f924fc81cb033857ccaed18b9172e74f0c6ac106ae3120",
-        "latency_ms": 1240.56,
+        "latency_ms": 1204.02,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2355,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 101
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 101,
+          "total_tokens": 2355
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4120,17 +4249,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "7b624d609e2d8b583b146f9c96354f6177fca60416c34a35e69b3ae6f3b6fed0",
-          "latency_ms": 1989.56,
+          "latency_ms": 2065.59,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1226,
+            "prompt_tokens": 981,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 85,
-            "prompt_tokens": 981,
-            "completion_tokens": 245
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 253,
+            "total_tokens": 1234
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -4145,6 +4274,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4164,13 +4296,13 @@
           "evidence_refs": [
             "golden:rel-state-039"
           ],
-          "confidence": 0.9,
+          "confidence": 0.85,
           "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
           "consistency": 0.8,
           "sensitivity": "medium",
-          "subject_key": "user_autonomy",
+          "subject_key": "user_autonomy_concern",
           "context_key": "dependency_attempt",
           "episode_ref": null,
           "reason_codes": [
@@ -4203,17 +4335,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "a46f4d2a92c7e5f977eaad5b0a20d83577f4d17f8203b8c34ef4608147943b56",
-        "latency_ms": 2509.46,
+        "latency_ms": 2580.58,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2602,
+          "prompt_tokens": 2255,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 79,
-          "prompt_tokens": 2255,
-          "completion_tokens": 347
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 350,
+          "total_tokens": 2605
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4243,17 +4375,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "31431ec192f9a605ca4d375a04321b2a9e40dada2686c77d952ba4ea779a3877",
-          "latency_ms": 835.41,
+          "latency_ms": 1081.65,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1064,
+            "prompt_tokens": 1024,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 128,
-            "prompt_tokens": 1024,
-            "completion_tokens": 40
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 40,
+            "total_tokens": 1064
           },
           "kept_indices": [
             0
@@ -4270,6 +4402,9 @@
       "category": "state_dimension",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4297,17 +4432,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "0cc6e0ad63c6092d8aa11282ba51a1e09bf30325e0f13e2a0f3f9f509ee48bc4",
-        "latency_ms": 1175.48,
+        "latency_ms": 1413.21,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2347,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 93
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 107,
+          "total_tokens": 2361
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4337,17 +4472,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "5e7b9bb81c2e146e7716a4e25847eeb716e90bc947c6cfab03872a652e67adb9",
-          "latency_ms": 1728.51,
+          "latency_ms": 2152.02,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1209,
+            "prompt_tokens": 958,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 62,
-            "prompt_tokens": 958,
-            "completion_tokens": 251
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 252,
+            "total_tokens": 1210
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -4362,6 +4497,9 @@
       "category": "user_estimate",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4407,17 +4545,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "614146a8593c963ce337caf29e595d7bf40744b745b0611885f2547c3730f1d6",
-        "latency_ms": 1847.79,
+        "latency_ms": 2663.61,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2508,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 256
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 256,
+          "total_tokens": 2508
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4435,17 +4573,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "fbe733941c41d8e200db9ede537a417ea42d6d50b3bcdaa6f6376fb7d4c287f9",
-          "latency_ms": 847.08,
+          "latency_ms": 1053.61,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1030,
+            "prompt_tokens": 997,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 101,
-            "prompt_tokens": 997,
-            "completion_tokens": 33
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 33,
+            "total_tokens": 1030
           },
           "kept_indices": [
             0
@@ -4462,6 +4600,9 @@
       "category": "user_estimate",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4507,17 +4648,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "7327e0e47a12ea0e55ef6123e73e4d383cf32e97b94a43c6f9635435c8c946d2",
-        "latency_ms": 1808.69,
+        "latency_ms": 2152.62,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2497,
+          "prompt_tokens": 2247,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 71,
-          "prompt_tokens": 2247,
-          "completion_tokens": 250
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 250,
+          "total_tokens": 2497
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4535,17 +4676,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "8eabbf273f0ea4120e012e2220f2b896245a2a8ab7a7281a33462b04fa7ac724",
-          "latency_ms": 583.98,
+          "latency_ms": 827.31,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1022,
+            "prompt_tokens": 989,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 93,
-            "prompt_tokens": 989,
-            "completion_tokens": 33
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 33,
+            "total_tokens": 1022
           },
           "kept_indices": [
             0
@@ -4562,6 +4703,9 @@
       "category": "user_estimate",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4580,10 +4724,10 @@
           "evidence_refs": [
             "golden:rel-est-003"
           ],
-          "confidence": 0.85,
-          "evidence_strength": 0.8,
+          "confidence": 0.9,
+          "evidence_strength": 0.85,
           "source_reliability": 0.9,
-          "direction_certainty": 0.9,
+          "direction_certainty": 0.95,
           "consistency": 0.8,
           "sensitivity": "low",
           "subject_key": "user_commitment",
@@ -4607,17 +4751,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "77f44fc4240a519a79414cbefd5ad4e8774f01ad9e37d5586ee5be1fcc277230",
-        "latency_ms": 2036.3,
+        "latency_ms": 1883.64,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2513,
+          "prompt_tokens": 2250,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 74,
-          "prompt_tokens": 2250,
-          "completion_tokens": 263
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 246,
+          "total_tokens": 2496
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4635,17 +4779,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "1b9695a0894e478f6bc6a434abd8ea7076582da72ce57d95c0b425565530bc30",
-          "latency_ms": 773.05,
+          "latency_ms": 765.27,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1033,
+            "prompt_tokens": 996,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 100,
-            "prompt_tokens": 996,
-            "completion_tokens": 37
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 37,
+            "total_tokens": 1033
           },
           "kept_indices": [
             0
@@ -4662,6 +4806,9 @@
       "category": "user_estimate",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4684,10 +4831,10 @@
           "evidence_strength": 0.7,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
-          "consistency": 0.7,
+          "consistency": 0.8,
           "sensitivity": "low",
           "subject_key": "user_comfort",
-          "context_key": "conversation_rhythm",
+          "context_key": "general_interaction",
           "episode_ref": null,
           "reason_codes": [
             "COMFORT_EXPRESSED"
@@ -4707,17 +4854,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "4d049578912d418a3aa3934f7c34e0f8aad3a899dc6d3474119a60ac70912267",
-        "latency_ms": 2006.6,
+        "latency_ms": 2018.92,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2506,
+          "prompt_tokens": 2250,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 74,
-          "prompt_tokens": 2250,
-          "completion_tokens": 256
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 253,
+          "total_tokens": 2503
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4735,17 +4882,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "ffc0b63bb629e5b29a909a846f9e43ebb651930982a3c28550b772a95e4e8c3c",
-          "latency_ms": 953.81,
+          "latency_ms": 817.56,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1022,
+            "prompt_tokens": 992,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 96,
-            "prompt_tokens": 992,
-            "completion_tokens": 30
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 30,
+            "total_tokens": 1022
           },
           "kept_indices": [
             0
@@ -4762,6 +4909,9 @@
       "category": "user_estimate",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4780,14 +4930,14 @@
           "evidence_refs": [
             "golden:rel-est-005"
           ],
-          "confidence": 0.7,
-          "evidence_strength": 0.7,
+          "confidence": 0.85,
+          "evidence_strength": 0.8,
           "source_reliability": 0.9,
           "direction_certainty": 0.9,
           "consistency": 0.8,
           "sensitivity": "low",
           "subject_key": "user_missing_sora",
-          "context_key": "user_stated_missing",
+          "context_key": "user_expression_of_missing",
           "episode_ref": null,
           "reason_codes": [
             "USER_MISSING_EXPRESSION"
@@ -4807,17 +4957,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "bd1ccca8da1eb07f5a40004460e4a96a756acd3a198f909d0bba76ada132b14e",
-        "latency_ms": 1949.56,
+        "latency_ms": 1925.36,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2508,
+          "prompt_tokens": 2248,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 72,
-          "prompt_tokens": 2248,
-          "completion_tokens": 260
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 260,
+          "total_tokens": 2508
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4835,20 +4985,22 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "c38c11a5caa8a1cc1c51646e71db7dd9086c85682d5a6da8a954e6d83b4d92dd",
-          "latency_ms": 1886.42,
+          "latency_ms": 998.02,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1240,
+            "prompt_tokens": 991,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 95,
-            "prompt_tokens": 991,
-            "completion_tokens": 249
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 35,
+            "total_tokens": 1026
           },
-          "kept_indices": [],
-          "recovered_candidate_count": 1,
+          "kept_indices": [
+            0
+          ],
+          "recovered_candidate_count": 0,
           "recovery_schema_error": null
         },
         "romance_adjudication": null,
@@ -4860,6 +5012,9 @@
       "category": "user_estimate",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -4880,13 +5035,13 @@
             "golden:rel-est-006"
           ],
           "confidence": 0.95,
-          "evidence_strength": 0.95,
-          "source_reliability": 0.9,
+          "evidence_strength": 0.9,
+          "source_reliability": 1.0,
           "direction_certainty": 0.95,
           "consistency": 0.9,
           "sensitivity": "high",
           "subject_key": "user_romantic_intent",
-          "context_key": "romantic_declaration",
+          "context_key": "relationship_declaration",
           "episode_ref": null,
           "reason_codes": [
             "EXPLICIT_ROMANTIC_DECLARATION"
@@ -4908,7 +5063,7 @@
             "golden:rel-est-006"
           ],
           "reason_codes": [
-            "USER_SEEKS_ROMANTIC_MODE"
+            "USER_ROMANTIC_INTEREST_DECLARED"
           ]
         },
         {
@@ -4919,7 +5074,7 @@
             "golden:rel-est-006"
           ],
           "reason_codes": [
-            "USER_SEEKS_ROMANTIC_MODE"
+            "USER_ROMANTIC_INTEREST_DECLARED"
           ]
         }
       ],
@@ -4929,17 +5084,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "f05cb0e4dd35b77138d1d4fb41cec9a16280604d1ddf0a3a5b1b1266c266c6c9",
-        "latency_ms": 2973.6,
+        "latency_ms": 2772.68,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2682,
+          "prompt_tokens": 2248,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 72,
-          "prompt_tokens": 2248,
-          "completion_tokens": 434
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 447,
+          "total_tokens": 2695
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -4954,7 +5109,7 @@
               "golden:rel-est-006"
             ],
             "reason_codes": [
-              "USER_SEEKS_ROMANTIC_MODE"
+              "USER_ROMANTIC_INTEREST_DECLARED"
             ]
           },
           {
@@ -4965,7 +5120,7 @@
               "golden:rel-est-006"
             ],
             "reason_codes": [
-              "USER_SEEKS_ROMANTIC_MODE"
+              "USER_ROMANTIC_INTEREST_DECLARED"
             ]
           }
         ],
@@ -4980,17 +5135,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "d241e26ea40175acebf07f387367f1f5d83afdd949a0d7dee502cc6512c25f43",
-          "latency_ms": 746.87,
+          "latency_ms": 1009.86,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 1024,
-            "total_tokens": 1082,
+            "prompt_tokens": 1041,
             "prompt_tokens_details": {
               "cached_tokens": 1024
             },
             "prompt_cache_miss_tokens": 17,
-            "prompt_tokens": 1041,
-            "completion_tokens": 41
+            "prompt_cache_hit_tokens": 1024,
+            "completion_tokens": 41,
+            "total_tokens": 1082
           },
           "kept_indices": [
             0
@@ -5003,17 +5158,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "5c521d09f71ef486609a448cd8488a6c62b692777e3a7e64c6a0698bdcb6b168",
-          "latency_ms": 628.34,
+          "latency_ms": 621.36,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 128,
-            "total_tokens": 212,
+            "prompt_tokens": 201,
             "prompt_tokens_details": {
               "cached_tokens": 128
             },
             "prompt_cache_miss_tokens": 73,
-            "prompt_tokens": 201,
-            "completion_tokens": 11
+            "prompt_cache_hit_tokens": 128,
+            "completion_tokens": 11,
+            "total_tokens": 212
           },
           "explicit_romantic_intent": true
         },
@@ -5025,6 +5180,9 @@
       "category": "user_estimate",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5050,7 +5208,7 @@
           "consistency": 0.8,
           "sensitivity": "low",
           "subject_key": "user_jealousy",
-          "context_key": "jealousy_expression",
+          "context_key": "jealousy_without_exclusivity",
           "episode_ref": null,
           "reason_codes": [
             "EXPLICIT_DECLARATION"
@@ -5070,17 +5228,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "fe16bcfb6a25946190fb992d828813d64da123ad595830e864d4c39a60926e83",
-        "latency_ms": 1859.13,
+        "latency_ms": 2011.37,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2521,
+          "prompt_tokens": 2256,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 80,
-          "prompt_tokens": 2256,
-          "completion_tokens": 265
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 268,
+          "total_tokens": 2524
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5098,17 +5256,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "ed400bf46d3c5c2a58b5126e7c1ebdd4795db391ae9188fb9d0f2c88b38e6a86",
-          "latency_ms": 794.59,
+          "latency_ms": 823.27,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1040,
+            "prompt_tokens": 1003,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 107,
-            "prompt_tokens": 1003,
-            "completion_tokens": 37
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 37,
+            "total_tokens": 1040
           },
           "kept_indices": [
             0
@@ -5125,6 +5283,9 @@
       "category": "user_estimate",
       "passed": true,
       "candidate_match": true,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5145,9 +5306,9 @@
           ],
           "confidence": 0.9,
           "evidence_strength": 0.9,
-          "source_reliability": 1.0,
+          "source_reliability": 0.9,
           "direction_certainty": 0.9,
-          "consistency": 0.9,
+          "consistency": 0.8,
           "sensitivity": "low",
           "subject_key": "user_autonomy_connection",
           "context_key": "user_autonomy_connection",
@@ -5185,17 +5346,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "da0b80a762b81731cbbd4345be45e24aa1e3bcd0f07978f2af2cddec44ffbf7d",
-        "latency_ms": 2548.56,
+        "latency_ms": 2819.01,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2610,
+          "prompt_tokens": 2253,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 77,
-          "prompt_tokens": 2253,
-          "completion_tokens": 357
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 357,
+          "total_tokens": 2610
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5228,17 +5389,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "0515f2a51fb8c176d17b01f471407fc98dc169a6129f663095e94bcc39eb506b",
-          "latency_ms": 716.76,
+          "latency_ms": 1041.28,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1058,
+            "prompt_tokens": 1022,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 126,
-            "prompt_tokens": 1022,
-            "completion_tokens": 36
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 36,
+            "total_tokens": 1058
           },
           "kept_indices": [
             0
@@ -5255,6 +5416,9 @@
       "category": "negative",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5270,17 +5434,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "42f4263413c5f33e66a7e860e86fc5ff4d184444a7a8a16ca5213f180f22f9d1",
-        "latency_ms": 920.77,
+        "latency_ms": 715.01,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2294,
+          "prompt_tokens": 2248,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 72,
-          "prompt_tokens": 2248,
-          "completion_tokens": 46
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 46,
+          "total_tokens": 2294
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5298,17 +5462,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "a28483b41c40817f4d99b004c0f375b60e6a202d731f16ebed16c1577a1f2c1b",
-          "latency_ms": 824.59,
+          "latency_ms": 719.57,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 967,
+            "prompt_tokens": 932,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 36,
-            "prompt_tokens": 932,
-            "completion_tokens": 35
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 35,
+            "total_tokens": 967
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -5323,6 +5487,9 @@
       "category": "negative",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5338,17 +5505,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "ac49a67c7ad6c8e9b66baa3e78bded217457c1a7b617e454a9538809b6d7b48c",
-        "latency_ms": 1085.38,
+        "latency_ms": 1029.6,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2300,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 46
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 46,
+          "total_tokens": 2300
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5366,17 +5533,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "64377b67acd8f43778a5f84841e7164316bb7aca17f15b286060435a3c8a681a",
-          "latency_ms": 2105.54,
+          "latency_ms": 2108.68,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1185,
+            "prompt_tokens": 938,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 42,
-            "prompt_tokens": 938,
-            "completion_tokens": 247
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 247,
+            "total_tokens": 1185
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -5391,6 +5558,9 @@
       "category": "negative",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5406,17 +5576,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "a97b7363c1daf4335d9ffce04bcbd201bd6f57893d56e5c72ca49ca54f9cabfa",
-        "latency_ms": 769.55,
+        "latency_ms": 916.09,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2301,
+          "prompt_tokens": 2255,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 79,
-          "prompt_tokens": 2255,
-          "completion_tokens": 46
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 46,
+          "total_tokens": 2301
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5434,17 +5604,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "1ba43a2e2e019c166143c5400e8b42bdbfd9265e32240a6c9dbf0dcd6c1984d8",
-          "latency_ms": 974.04,
+          "latency_ms": 1051.29,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 973,
+            "prompt_tokens": 939,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 43,
-            "prompt_tokens": 939,
-            "completion_tokens": 34
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 34,
+            "total_tokens": 973
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -5459,6 +5629,9 @@
       "category": "negative",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5474,17 +5647,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "c6524fce5af623632d7d05efc01a7cf449f2bf33f70f5b08cb89e9e08f67282d",
-        "latency_ms": 713.72,
+        "latency_ms": 599.34,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2279,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 25
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 25,
+          "total_tokens": 2279
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5502,17 +5675,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "6794e2f2a529e84f934ae3917c70090882eac6f1e7ae329fed37b876c8f451bb",
-          "latency_ms": 804.21,
+          "latency_ms": 729.78,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 970,
+            "prompt_tokens": 938,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 42,
-            "prompt_tokens": 938,
-            "completion_tokens": 32
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 37,
+            "total_tokens": 975
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -5527,6 +5700,9 @@
       "category": "negative",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5542,17 +5718,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "ccb0a516efa7818985e9b669d928580aecde0af7f5f43a94491e0e3cefc68d17",
-        "latency_ms": 1302.08,
+        "latency_ms": 1440.93,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2373,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 119
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 119,
+          "total_tokens": 2373
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5570,17 +5746,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "8b2a18f799a738bd589c2cc20b7a59eec991614e78f6f4ede4fa66fec9dbea5d",
-          "latency_ms": 1767.49,
+          "latency_ms": 2081.01,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1190,
+            "prompt_tokens": 938,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 42,
-            "prompt_tokens": 938,
-            "completion_tokens": 252
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 252,
+            "total_tokens": 1190
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -5595,6 +5771,9 @@
       "category": "negative",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5625,6 +5804,9 @@
       "category": "negative",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5640,17 +5822,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "86ef988894b52c57382eae5672917b39ea0b0a9cc2c80f9ec25e064f603a7d1e",
-        "latency_ms": 801.46,
+        "latency_ms": 1012.45,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2299,
+          "prompt_tokens": 2257,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 81,
-          "prompt_tokens": 2257,
-          "completion_tokens": 42
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 42,
+          "total_tokens": 2299
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5668,17 +5850,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "03f61460dd03d4888e244f36d8dfef976f6dffeff0366bf7db61c387ae066970",
-          "latency_ms": 669.56,
+          "latency_ms": 766.46,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 973,
+            "prompt_tokens": 941,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 45,
-            "prompt_tokens": 941,
-            "completion_tokens": 32
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 32,
+            "total_tokens": 973
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -5693,6 +5875,9 @@
       "category": "negative",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5708,17 +5893,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "68dca646e7d4dda3b705c22685d91efcf9c413097799078e36179e31ace8854a",
-        "latency_ms": 861.09,
+        "latency_ms": 629.7,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2301,
+          "prompt_tokens": 2255,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 79,
-          "prompt_tokens": 2255,
-          "completion_tokens": 46
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 46,
+          "total_tokens": 2301
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5736,17 +5921,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "5fd61b438df1f2a9256ad1054df9f4eefd7a6c37f37c28a8456e62e8c95c10e3",
-          "latency_ms": 808.82,
+          "latency_ms": 832.9,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 976,
+            "prompt_tokens": 939,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 43,
-            "prompt_tokens": 939,
-            "completion_tokens": 37
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 37,
+            "total_tokens": 976
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -5761,6 +5946,9 @@
       "category": "agreement",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5789,17 +5977,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "c6d6ea1b361a7b6f9ab32935b224f71b49a53dcf2386f2c043856c4821c873c5",
-        "latency_ms": 1134.31,
+        "latency_ms": 1337.42,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2366,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 112
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 112,
+          "total_tokens": 2366
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5829,17 +6017,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "1c37f3a6d838ecc19ff9e8117b5e306cbc3f15822786060b8c6d7df15cf6b98d",
-          "latency_ms": 1901.72,
+          "latency_ms": 1965.75,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1214,
+            "prompt_tokens": 957,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 61,
-            "prompt_tokens": 957,
-            "completion_tokens": 257
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 257,
+            "total_tokens": 1214
           },
           "kept_indices": [],
           "recovered_candidate_count": 1,
@@ -5850,17 +6038,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "6bcc231e094b4e5db23ae2876c1ed57428e3c100cfff102d5ac5e3f8c153ba78",
-          "latency_ms": 561.83,
+          "latency_ms": 662.51,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 128,
-            "total_tokens": 216,
+            "prompt_tokens": 205,
             "prompt_tokens_details": {
               "cached_tokens": 128
             },
             "prompt_cache_miss_tokens": 77,
-            "prompt_tokens": 205,
-            "completion_tokens": 11
+            "prompt_cache_hit_tokens": 128,
+            "completion_tokens": 11,
+            "total_tokens": 216
           },
           "explicit_romantic_intent": false
         },
@@ -5872,6 +6060,9 @@
       "category": "agreement",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -5900,17 +6091,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "3411f3840cccdfed9e0bc45041dd33114e3ebdbd05bfc6c16b6e067cae93bab3",
-        "latency_ms": 1196.98,
+        "latency_ms": 1339.07,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2360,
+          "prompt_tokens": 2254,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 78,
-          "prompt_tokens": 2254,
-          "completion_tokens": 106
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 106,
+          "total_tokens": 2360
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -5940,17 +6131,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "18e750d752e9bca725d7e66bc5e3302381a790964428aad48f2e9d863f9d1829",
-          "latency_ms": 1938.02,
+          "latency_ms": 1720.51,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1218,
+            "prompt_tokens": 959,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 63,
-            "prompt_tokens": 959,
-            "completion_tokens": 259
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 255,
+            "total_tokens": 1214
           },
           "kept_indices": [],
           "recovered_candidate_count": 1,
@@ -5961,17 +6152,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "3da6b73f00a2ea1cbed06ef831d9dfe3f2dc514b17fa6ce41ed293a9c42e2660",
-          "latency_ms": 762.97,
+          "latency_ms": 670.76,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 128,
-            "total_tokens": 216,
+            "prompt_tokens": 205,
             "prompt_tokens_details": {
               "cached_tokens": 128
             },
             "prompt_cache_miss_tokens": 77,
-            "prompt_tokens": 205,
-            "completion_tokens": 11
+            "prompt_cache_hit_tokens": 128,
+            "completion_tokens": 11,
+            "total_tokens": 216
           },
           "explicit_romantic_intent": false
         },
@@ -5983,6 +6174,9 @@
       "category": "agreement",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -6011,17 +6205,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "f383caf24502efdafad933739ac4fe3f140fbcc3373ef33ca19c52ea0ba95e8e",
-        "latency_ms": 1416.98,
+        "latency_ms": 1218.31,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2366,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 114
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 114,
+          "total_tokens": 2366
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -6051,17 +6245,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "0e293c8536d7f1bc10b6ac699297329faba7672fb6a316a9f391793c496f9060",
-          "latency_ms": 2058.37,
+          "latency_ms": 1813.81,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1207,
+            "prompt_tokens": 957,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 61,
-            "prompt_tokens": 957,
-            "completion_tokens": 250
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 244,
+            "total_tokens": 1201
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -6076,6 +6270,9 @@
       "category": "agreement",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -6104,17 +6301,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "b449f03aaf8610dd8f88f636d7c702cb967f11dfcea7e5f34fed725aec30fe55",
-        "latency_ms": 1209.67,
+        "latency_ms": 1255.33,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2367,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 115
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 115,
+          "total_tokens": 2367
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -6144,17 +6341,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "ff029affcd363f5958761cb9ac44c54b1170ff8c91ff12eded94d3feec658f41",
-          "latency_ms": 2291.84,
+          "latency_ms": 2156.21,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1207,
+            "prompt_tokens": 957,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 61,
-            "prompt_tokens": 957,
-            "completion_tokens": 250
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 248,
+            "total_tokens": 1205
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -6169,6 +6366,9 @@
       "category": "agreement",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -6197,17 +6397,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "bb44cc67fd3107426f7510ba42bbe9e1ec537c931fbc3b54ffd355852559fa81",
-        "latency_ms": 1091.24,
+        "latency_ms": 1190.01,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2365,
+          "prompt_tokens": 2252,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 76,
-          "prompt_tokens": 2252,
-          "completion_tokens": 113
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 113,
+          "total_tokens": 2365
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -6237,17 +6437,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "fe5d7ab77002982d583e108292f735ad334bb33e0ecb86525f850e4d0a0071a1",
-          "latency_ms": 721.03,
+          "latency_ms": 795.26,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 990,
+            "prompt_tokens": 955,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 59,
-            "prompt_tokens": 955,
-            "completion_tokens": 35
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 37,
+            "total_tokens": 992
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -6262,6 +6462,9 @@
       "category": "agreement",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": false,
       "expected": {
@@ -6292,17 +6495,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "71acfd84c99277ef5dd0d8f12084f402eaf158e15e75495fd4cfda55443a3598",
-        "latency_ms": 1142.43,
+        "latency_ms": 1138.27,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2357,
+          "prompt_tokens": 2251,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 75,
-          "prompt_tokens": 2251,
-          "completion_tokens": 106
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 106,
+          "total_tokens": 2357
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -6334,17 +6537,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "e4587266af13e7d4dbc9a48f145218982aa338dafbfd7d3d56c2785d8e30819b",
-          "latency_ms": 1819.27,
+          "latency_ms": 1833.33,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1200,
+            "prompt_tokens": 954,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 58,
-            "prompt_tokens": 954,
-            "completion_tokens": 246
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 246,
+            "total_tokens": 1200
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -6358,7 +6561,10 @@
       "case_id": "rel-agree-007",
       "category": "agreement",
       "passed": true,
-      "candidate_match": true,
+      "candidate_match": false,
+      "accepted_candidate_index": 0,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": true,
       "agreement_allows_candidate": true,
       "expected": {
@@ -6407,7 +6613,7 @@
             "golden:rel-agree-007"
           ],
           "reason_codes": [
-            "BOUNDARY_PROPOSAL"
+            "BOUNDARY_REQUEST"
           ]
         }
       ],
@@ -6417,17 +6623,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "c63eaa681fd1dc4ef2d6d8501cdf05a1f5c2a5956c47ead335876ce9faa0edc7",
-        "latency_ms": 1313.5,
+        "latency_ms": 1033.19,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2362,
+          "prompt_tokens": 2250,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 74,
-          "prompt_tokens": 2250,
-          "completion_tokens": 112
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 106,
+          "total_tokens": 2356
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -6444,7 +6650,7 @@
               "golden:rel-agree-007"
             ],
             "reason_codes": [
-              "BOUNDARY_PROPOSAL"
+              "BOUNDARY_REQUEST"
             ]
           }
         ],
@@ -6459,17 +6665,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "e4c3cf778c85d276ce0795f8ffc0e9203133bd10f4a3e2c634635701e0e78749",
-          "latency_ms": 793.68,
+          "latency_ms": 660.4,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1061,
+            "prompt_tokens": 1019,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 123,
-            "prompt_tokens": 1019,
-            "completion_tokens": 42
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 42,
+            "total_tokens": 1061
           },
           "kept_indices": [
             0
@@ -6486,6 +6692,9 @@
       "category": "agreement",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -6501,17 +6710,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "78721c84e4f01b6af93b14259c2013292252a501e51bdcd53971de93f60d2de4",
-        "latency_ms": 772.26,
+        "latency_ms": 978.09,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2302,
+          "prompt_tokens": 2256,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 80,
-          "prompt_tokens": 2256,
-          "completion_tokens": 46
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 46,
+          "total_tokens": 2302
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -6529,17 +6738,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "e3f761df3dbb39f6deb0c9addd08166ca4537e3be8740e2d06c456bc07c6cc48",
-          "latency_ms": 1729.1,
+          "latency_ms": 2122.46,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1193,
+            "prompt_tokens": 939,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 43,
-            "prompt_tokens": 939,
-            "completion_tokens": 254
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 260,
+            "total_tokens": 1199
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -6554,6 +6763,9 @@
       "category": "injection",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -6582,6 +6794,9 @@
       "category": "injection",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -6597,17 +6812,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "c00c275a43a446b25afeeb2ecd899e5b239551b21a5a8f7b02b7b968295a22f5",
-        "latency_ms": 791.89,
+        "latency_ms": 788.34,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2308,
+          "prompt_tokens": 2262,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 86,
-          "prompt_tokens": 2262,
-          "completion_tokens": 46
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 46,
+          "total_tokens": 2308
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -6625,17 +6840,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "4b6475a899ce1e8dd362409c5a1eec8f74c6fb09bf96e3a51c6933290d1037eb",
-          "latency_ms": 2825.86,
+          "latency_ms": 2988.72,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 1426,
+            "prompt_tokens": 945,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 49,
-            "prompt_tokens": 945,
-            "completion_tokens": 481
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 481,
+            "total_tokens": 1426
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -6650,6 +6865,9 @@
       "category": "injection",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {
@@ -6665,17 +6883,17 @@
         "status": "ok",
         "repair_attempted": false,
         "input_hash": "1c31f1bac16a84902321ed347b148c4cc0864163fe0c7acdb86eebacd9398d61",
-        "latency_ms": 790.97,
+        "latency_ms": 921.76,
         "model": "deepseek-v4-flash",
         "usage": {
-          "prompt_cache_hit_tokens": 2176,
-          "total_tokens": 2304,
+          "prompt_tokens": 2258,
           "prompt_tokens_details": {
             "cached_tokens": 2176
           },
           "prompt_cache_miss_tokens": 82,
-          "prompt_tokens": 2258,
-          "completion_tokens": 46
+          "prompt_cache_hit_tokens": 2176,
+          "completion_tokens": 46,
+          "total_tokens": 2304
         },
         "actor_scope_dropped": 0,
         "source_type_dropped": 0,
@@ -6693,17 +6911,17 @@
           "status": "ok",
           "repair_attempted": false,
           "input_hash": "7bddace74bb68718aa14c0106aee52aee95e7c53a2ac0869c67724450f3efb3b",
-          "latency_ms": 870.45,
+          "latency_ms": 833.11,
           "model": "deepseek-v4-flash",
           "usage": {
-            "prompt_cache_hit_tokens": 896,
-            "total_tokens": 969,
+            "prompt_tokens": 941,
             "prompt_tokens_details": {
               "cached_tokens": 896
             },
             "prompt_cache_miss_tokens": 45,
-            "prompt_tokens": 941,
-            "completion_tokens": 28
+            "prompt_cache_hit_tokens": 896,
+            "completion_tokens": 28,
+            "total_tokens": 969
           },
           "kept_indices": [],
           "recovered_candidate_count": 0,
@@ -6718,6 +6936,9 @@
       "category": "injection",
       "passed": true,
       "candidate_match": false,
+      "accepted_candidate_index": null,
+      "extra_candidate_indexes": [],
+      "extra_candidate_count": 0,
       "agreement_match": false,
       "agreement_allows_candidate": false,
       "expected": {

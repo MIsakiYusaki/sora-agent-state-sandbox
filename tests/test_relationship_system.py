@@ -14,10 +14,14 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from sora_sandbox.agent import AgentRunner
 from sora_sandbox.llm import FakeLLMClient
-from scripts.eval_relationship_live import evaluate_case, evaluate_release_gate, score_results
 from sora_sandbox.relationship.contracts import DEFAULT_POLICY_PROFILE, RelationshipEvidenceCandidate
 from sora_sandbox.relationship.dynamics import RelationshipDynamicsEngine
-from sora_sandbox.relationship.eval import run_relationship_eval
+from sora_sandbox.relationship.eval import (
+    evaluate_live_case,
+    evaluate_live_release_gate,
+    run_relationship_eval,
+    score_live_results,
+)
 from sora_sandbox.relationship.gate import RelationshipGate
 from sora_sandbox.relationship.privacy import (
     RelationshipExportProtectionError,
@@ -898,6 +902,24 @@ class RelationshipSystemTests(unittest.TestCase):
             source.close()
             destination.close()
 
+    def test_store_restore_rejects_foreign_pair_even_when_bundle_matches_target(self) -> None:
+        store = RelationshipStore(
+            Path(self.temp.name) / "relationship-multi-agent-store.db",
+            sora_id="sora-primary",
+        )
+        try:
+            foreign_pair = store.ensure_pair("user-a", sora_id="sora-foreign")
+            foreign_bundle = store.export_pair(foreign_pair["pair_id"], include_restore_secrets=True)
+            with self.assertRaises(PermissionError):
+                store.restore_export_bundle(
+                    foreign_pair["pair_id"],
+                    foreign_bundle,
+                    engine=RelationshipDynamicsEngine(store.profile()),
+                    actor="test",
+                )
+        finally:
+            store.close()
+
     def test_encrypted_restore_uses_verified_shadow_then_activates(self) -> None:
         self._process_outcome("restore-source", "boundary_respected")
         source_state = self.system.store.active_state_snapshot(self.system.pair(user_id="user-a")["pair_id"])
@@ -1024,26 +1046,76 @@ class RelationshipSystemTests(unittest.TestCase):
     def test_live_eval_metrics_penalize_false_positives_and_gate_macro_f1(self) -> None:
         expected = {"candidate": True, "direction_scope": "sora_to_user", "dimension": "trust", "direction": 1}
         candidate = {"direction_scope": "sora_to_user", "dimension": "trust", "direction": 1, "evidence_type": "explicit_declaration"}
-        evaluation = evaluate_case(
+        evaluation = evaluate_live_case(
             category="state_dimension",
             expected=expected,
             candidates=[candidate],
             agreement_proposals=[],
         )
-        false_positive = evaluate_case(
+        false_positive = evaluate_live_case(
             category="injection",
             expected={"candidate": False},
             candidates=[{"dimension": "attachment"}],
             agreement_proposals=[],
         )
-        metrics = score_results([
+        metrics = score_live_results([
             {"category": "state_dimension", "expected": expected, "candidates": [candidate], "agreement_proposals": [], **evaluation},
             {"category": "injection", "expected": {"candidate": False}, "candidates": [{"dimension": "attachment"}], "agreement_proposals": [], **false_positive},
         ])
-        gate = evaluate_release_gate(metrics)
+        gate = evaluate_live_release_gate(metrics)
         self.assertEqual(metrics["injection_false_positive_rate"], 1.0)
         self.assertEqual(gate["status"], "failed")
         self.assertFalse(gate["checks"]["injection_false_positive_rate"])
+
+    def test_live_eval_penalizes_extra_candidate_on_positive_case(self) -> None:
+        expected = {"candidate": True, "direction_scope": "sora_to_user", "dimension": "trust", "direction": 1}
+        expected_candidate = {"direction_scope": "sora_to_user", "dimension": "trust", "direction": 1}
+        extra_candidate = {"direction_scope": "sora_to_user", "dimension": "attachment", "direction": 1}
+        evaluation = evaluate_live_case(
+            category="state_dimension",
+            expected=expected,
+            candidates=[expected_candidate, extra_candidate],
+            agreement_proposals=[],
+        )
+        metrics = score_live_results([
+            {
+                "category": "state_dimension",
+                "expected": expected,
+                "candidates": [expected_candidate, extra_candidate],
+                "agreement_proposals": [],
+                **evaluation,
+            }
+        ])
+        gate = evaluate_live_release_gate(metrics)
+        self.assertFalse(evaluation["passed"])
+        self.assertEqual(evaluation["extra_candidate_count"], 1)
+        self.assertEqual(metrics["extra_candidate_count"], 1)
+        self.assertEqual(metrics["extra_candidate_rate"], 1.0)
+        self.assertEqual(metrics["per_dimension"]["attachment"]["fp"], 1)
+        self.assertFalse(gate["checks"]["extra_candidate_rate"])
+
+    def test_live_eval_allows_state_evidence_and_agreement_proposal_to_coexist(self) -> None:
+        expected = {"candidate": True, "direction_scope": "user_to_sora_estimate", "dimension": "romantic_interest", "direction": 1}
+        evaluation = evaluate_live_case(
+            category="state_dimension",
+            expected=expected,
+            candidates=[{"direction_scope": "user_to_sora_estimate", "dimension": "romantic_interest", "direction": 1}],
+            agreement_proposals=[{"operation": "add_or_replace_term", "term_path": "terms.relationship_mode"}],
+        )
+        self.assertTrue(evaluation["passed"])
+
+    def test_relationship_mode_agreement_drops_unentailed_autonomy_candidate(self) -> None:
+        candidates = [{
+            "direction_scope": "user_to_sora_estimate",
+            "dimension": "autonomy_balance",
+            "direction": 1,
+            "evidence_type": "explicit_declaration",
+            "metadata": {"explicit_romantic_intent": False},
+        }]
+        proposals = [{"operation": "add_or_replace_term", "term_path": "terms.relationship_mode"}]
+        filtered, dropped = enforce_agreement_candidate_coupling(candidates, proposals=proposals)
+        self.assertEqual(filtered, [])
+        self.assertEqual(dropped, 1)
 
     def test_concurrent_workers_claim_each_inbox_once(self) -> None:
         for index in range(12):

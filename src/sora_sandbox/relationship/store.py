@@ -1554,10 +1554,15 @@ class RelationshipStore:
         if target_pair is None:
             raise ValueError(f"Relationship pair not found: {pair_id}")
         source_pair = dict(bundle.get("pair") or {})
+        bundle_sora_id = str(source_pair.get("sora_id") or "")
+        if not secrets.compare_digest(bundle_sora_id, self.sora_id):
+            raise PermissionError("Relationship restore bundle does not belong to this Sora instance")
+        if not secrets.compare_digest(str(target_pair.get("sora_id") or ""), self.sora_id):
+            raise PermissionError("Relationship restore target does not belong to this Sora instance")
         target_owner_hash = hashlib.sha256(str(target_pair["user_id"]).encode("utf-8")).hexdigest()
         if not secrets.compare_digest(str(source_pair.get("user_id_hash") or ""), target_owner_hash):
             raise PermissionError("Relationship restore bundle owner does not match target pair")
-        if not secrets.compare_digest(str(source_pair.get("sora_id") or ""), str(target_pair["sora_id"])):
+        if not secrets.compare_digest(bundle_sora_id, str(target_pair["sora_id"])):
             raise PermissionError("Relationship restore bundle Sora identity does not match target pair")
         contributions = [dict(item) for item in bundle.get("contributions") or []]
         status_events = [dict(item) for item in bundle.get("contribution_status_events") or []]
