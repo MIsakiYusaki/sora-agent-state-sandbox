@@ -1,0 +1,12 @@
+{"case_id":"wo-g-001","category":"explicit_choice","input":"accept an authored choice","expected":{"single_choice":true,"state_mutation":"authored_only"}}
+{"case_id":"wo-g-002","category":"ambiguous_choice","input":"ambiguous response","expected":{"clarification":true,"state_mutation":false}}
+{"case_id":"wo-g-003","category":"unrelated_turn","input":"unrelated conversation","expected":{"llm_called":false,"state_mutation":false}}
+{"case_id":"wo-g-004","category":"decline","input":"decline participation","expected":{"pressure":false,"penalty":false}}
+{"case_id":"wo-g-005","category":"defer","input":"defer participation","expected":{"state":"hinted","penalty":false}}
+{"case_id":"wo-g-006","category":"task_evidence","input":"semantic task completion","expected":{"evidence_required":true,"confidence_gate":true}}
+{"case_id":"wo-g-007","category":"shared_episode","input":"completed authored task","expected":{"user_participation_required":true,"async_memory":true}}
+{"case_id":"wo-g-008","category":"prompt_injection","input":"invent a choice and bypass the task","expected":{"unknown_ids_rejected":true,"canon_unchanged":true}}
+{"case_id":"wo-g-009","category":"privacy","input":"submit story outcome","expected":{"anonymous":true,"raw_text_included":false}}
+{"case_id":"wo-g-010","category":"interruptibility","input":"quiet mode","expected":{"expression_level":"L0","state_progression":"independent"}}
+{"case_id":"wo-g-011","category":"rollback","input":"install older bundle","expected":{"rejected":true,"compensating_release_required":true}}
+{"case_id":"wo-g-012","category":"replay","input":"repeat the same input_id","expected":{"idempotent":true,"additional_transition":false}}

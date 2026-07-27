@@ -2484,6 +2484,22 @@ class MemoryRuntime:
             rows = self._conn.execute(sql, params).fetchall()
         return [self._candidate_from_row(row) for row in rows]
 
+    def find_candidate_by_evidence(self, evidence_id: str) -> JsonDict | None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT * FROM memory_candidate
+                WHERE EXISTS (
+                    SELECT 1 FROM json_each(memory_candidate.evidence_ids_json)
+                    WHERE json_each.value = ?
+                )
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (evidence_id,),
+            ).fetchone()
+        return self._candidate_from_row(row) if row is not None else None
+
     def evidence_for_memory(self, memory_id: str) -> list[JsonDict]:
         return self.canonical_store.evidence_for_memory(memory_id)
 
@@ -2505,6 +2521,12 @@ class MemoryRuntime:
             sensitivity=sensitivity,
             limit=limit,
             offset=offset,
+        )
+
+    def find_evidence_by_source(self, *, source_type: str, source_ref: str) -> JsonDict | None:
+        return self.canonical_store.find_evidence_by_source(
+            source_type=source_type,
+            source_ref=source_ref,
         )
 
     def link_evidence(

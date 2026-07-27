@@ -39,6 +39,7 @@ def handle_command(
     persona_admin: Any | None = None,
     affect_admin: Any | None = None,
     relationship_admin: Any | None = None,
+    worldops_admin: Any | None = None,
 ) -> tuple[str, bool]:
     parts = shlex.split(line, posix=False)
     if not parts:
@@ -800,21 +801,78 @@ def handle_command(
         return dump(relationship_admin.resolve_dead_letter(event_id, resolution=resolution, reason=reason)), False
 
     if command == "/worldops":
+        if worldops_admin is not None:
+            return dump({
+                "frame": worldops_admin.frame(),
+                "controls": worldops_admin.store.get_control(),
+                "health": worldops_admin.health(),
+            }), False
         return dump({k: v for k, v in state["worldops"].items() if k != "content_pack"} | {"content_pack_summary": {"world_name": state["worldops"]["content_pack"]["world_name"], "events": len(state["worldops"]["content_pack"].get("events", []))}}), False
     if command == "/worldops-events":
+        if worldops_admin is not None:
+            return dump(worldops_admin.store.list_event_instances()), False
         return dump(state["worldops"]["content_pack"].get("events", [])), False
     if command == "/activate-world-event":
+        if worldops_admin is not None:
+            return dump(worldops_admin.runtime.invite(required_arg(args, "/activate-world-event <event_id>"), correlation_id="manual-repl")), False
         return activate_world_event(args, state), False
     if command == "/set-world-expression":
+        if worldops_admin is not None:
+            raise CommandError("WorldOps expression is signed content. Edit it through Content Studio and publish a new bundle.")
         return set_world_expression(args, state), False
     if command == "/start-micro-quest":
+        if worldops_admin is not None:
+            return dump(worldops_admin.runtime.invite(required_arg(args, "/start-micro-quest <event_id>"), correlation_id="manual-repl")), False
         return start_micro_quest(args, state), False
     if command == "/complete-micro-quest":
+        if worldops_admin is not None:
+            event_id = required_arg(args, "/complete-micro-quest <event_id> --choice <authored choice>")
+            choice = _value_after(args, "--choice")
+            if not choice:
+                raise CommandError("/complete-micro-quest requires --choice with an authored choice or clear user outcome")
+            return dump(worldops_admin.runtime.complete_task_manually(event_id, choice_text=choice, correlation_id="manual-repl")), False
         return complete_micro_quest(args, state), False
     if command == "/ignore-world-event":
+        if worldops_admin is not None:
+            event_id = required_arg(args, "/ignore-world-event <event_id>")
+            return dump(worldops_admin.runtime.complete_task_manually(event_id, choice_text="decline", correlation_id="manual-repl")), False
         return ignore_world_event(args, state), False
     if command == "/worldops-memory-hooks":
+        if worldops_admin is not None:
+            return dump({
+                "pending_outbox": worldops_admin.store.pending_outbox(limit=100),
+                "contribution_receipts": worldops_admin.store.list_contribution_receipts(limit=100),
+            }), False
         return dump(state["worldops"].get("memory_hooks", [])), False
+    if command == "/worldops-health":
+        require_worldops_admin(worldops_admin)
+        return dump(worldops_admin.health()), False
+    if command == "/process-worldops-outbox":
+        require_worldops_admin(worldops_admin)
+        return dump(worldops_admin.process_outbox(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/worldops-rebuild":
+        require_worldops_admin(worldops_admin)
+        return dump(worldops_admin.store.rebuild(dry_run=True)), False
+    if command == "/worldops-controls":
+        require_worldops_admin(worldops_admin)
+        return dump(worldops_admin.store.get_control()), False
+    if command == "/set-worldops-control":
+        require_worldops_admin(worldops_admin)
+        if len(args) < 2:
+            raise CommandError("Usage: /set-worldops-control <key> <value>")
+        key = arg_value(args[0])
+        raw_value = arg_value(args[1])
+        value: Any = raw_value.lower() in {"true", "1", "yes", "on"} if raw_value.lower() in {"true", "false", "1", "0", "yes", "no", "on", "off"} else raw_value
+        return dump(worldops_admin.store.update_control(**{key: value})), False
+    if command == "/worldops-contributions":
+        require_worldops_admin(worldops_admin)
+        return dump(worldops_admin.store.list_contribution_receipts(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/worldops-dead-letters":
+        require_worldops_admin(worldops_admin)
+        return dump(worldops_admin.store.list_dead_letters(limit=_int_arg(args, "--limit", default=100))), False
+    if command == "/worldops-sync-export":
+        require_worldops_admin(worldops_admin)
+        return dump(worldops_admin.store.export_sync_snapshot()), False
 
     if command == "/behavior":
         return dump(state["behavior"]), False
@@ -1028,6 +1086,11 @@ def require_affect_admin(affect_admin: Any | None) -> None:
 def require_relationship_admin(relationship_admin: Any | None) -> None:
     if relationship_admin is None:
         raise CommandError("Relationship System is not enabled.")
+
+
+def require_worldops_admin(worldops_admin: Any | None) -> None:
+    if worldops_admin is None:
+        raise CommandError("WorldOps Narrative System is not enabled.")
 
 
 def _active_user_id(state: JsonDict) -> str:

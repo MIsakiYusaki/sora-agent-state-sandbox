@@ -1,0 +1,4 @@
+{"case_id":"wo-t-001","steps":["eligible","surface_selected","participate","task_evidence","complete"],"invariants":["authored_transitions_only","evidence_before_completion","one_shared_episode"]}
+{"case_id":"wo-t-002","steps":["eligible","surface_selected","decline","later_turns"],"invariants":["no_pressure","no_negative_relationship_signal","no_shared_episode"]}
+{"case_id":"wo-t-003","steps":["bundle_v1","personal_progress","bundle_v2","rebuild"],"invariants":["personal_timeline_preserved","signed_definition_selected","rebuild_parity"]}
+{"case_id":"wo-t-004","steps":["anonymous_submit","editor_review","withdraw_or_publish"],"invariants":["raw_text_absent","receipt_authorized","no_automatic_canon_merge"]}

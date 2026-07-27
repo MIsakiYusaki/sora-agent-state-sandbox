@@ -20,6 +20,8 @@ from .relationship.system import RelationshipAffectAdapter, RelationshipSystem
 from .render import render_trace_panel
 from .repl import SoraRepl
 from .state import StateStore
+from .worldops.provider import LLMWorldOpsInterpretationProvider
+from .worldops.system import WorldOpsSystem
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -90,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         start_worker=True,
         rollout_mode=os.environ.get("SORA_RELATIONSHIP_MODE", "active").strip().lower(),
     )
+    worldops_runtime = WorldOpsSystem.default(
+        provider=LLMWorldOpsInterpretationProvider(llm),
+        memory_runtime=memory_runtime,
+        start_worker=True,
+    )
     relationship_runtime.register_domain_event_consumer(
         "affect",
         RelationshipAffectAdapter(affect_runtime, relationship_runtime).deliver,
@@ -102,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         persona_runtime.reset()
         affect_runtime.reset()
         relationship_runtime.reset()
+        worldops_runtime.reset()
     memory_runtime.projector_bus.register_adapter(
         "persona",
         persona_runtime.projection_adapter,
@@ -110,6 +118,10 @@ def main(argv: list[str] | None = None) -> int:
         "relationship",
         relationship_runtime.projection_adapter,
     )
+    memory_runtime.projector_bus.register_adapter(
+        "worldops",
+        worldops_runtime.projection_adapter,
+    )
     runner = AgentRunner(
         llm,
         memory_runtime=memory_runtime,
@@ -117,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         persona_runtime=persona_runtime,
         affect_runtime=affect_runtime,
         relationship_runtime=relationship_runtime,
+        worldops_runtime=worldops_runtime,
     )
     repl = SoraRepl(
         store,
@@ -127,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         persona_runtime=persona_runtime,
         affect_runtime=affect_runtime,
         relationship_runtime=relationship_runtime,
+        worldops_runtime=worldops_runtime,
     )
     memory_runtime.register_quality_eval_suite(
         "interruptibility",
@@ -140,6 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     persona_runtime.register_quality_ops(memory_runtime)
     affect_runtime.register_quality_ops(memory_runtime)
     relationship_runtime.register_quality_ops(memory_runtime)
+    worldops_runtime.register_quality_ops(memory_runtime)
 
     try:
         if args.once:
@@ -156,12 +171,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     finally:
         try:
-            relationship_runtime.close()
+            worldops_runtime.close()
         finally:
             try:
-                affect_runtime.close()
+                relationship_runtime.close()
             finally:
                 try:
-                    persona_runtime.close()
+                    affect_runtime.close()
                 finally:
-                    memory_runtime.close()
+                    try:
+                        persona_runtime.close()
+                    finally:
+                        memory_runtime.close()

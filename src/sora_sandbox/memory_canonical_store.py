@@ -86,6 +86,19 @@ class MemoryCanonicalStore:
             rows = self._conn.execute(sql, params).fetchall()
         return [evidence_from_row(row) for row in rows]
 
+    def find_evidence_by_source(self, *, source_type: str, source_ref: str) -> JsonDict | None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT * FROM evidence
+                WHERE source_type = ? AND source_ref = ? AND deleted_at IS NULL
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (source_type, source_ref),
+            ).fetchone()
+        return evidence_from_row(row) if row is not None else None
+
     def evidence_for_memory(self, memory_id: str) -> list[JsonDict]:
         with self._lock:
             rows = self._conn.execute(

@@ -403,3 +403,44 @@ Run deterministic and real-provider verification with:
 $env:PYTHONPATH="src"
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" scripts/eval_affect_live.py
 ```
+
+## Canonical WorldOps Narrative System
+
+WorldOps now runs as a separate bounded subsystem instead of storing narrative
+state in the legacy `state["worldops"]` dictionary. The content service owns
+authored canon, immutable Ed25519-signed bundles, approval audit, releases, and
+anonymous editorial contributions. Each client owns an isolated personal
+timeline, user controls, task evidence, deterministic transition ledger, world
+clock, forget tombstones, and a bounded `WorldOpsFrame.v1` for the dialogue
+runtime. Production clients receive public trust keys only and never hold the
+content signing private key.
+
+`WorldOpsWSGIApplication` exposes the public release, bundle, anonymous
+contribution, receipt, and withdrawal endpoints for deployment behind a
+production WSGI server or gateway. `WorldOpsHttpDistributionClient` requires
+HTTPS outside explicitly opted-in localhost tests, applies request timeouts and
+response-size bounds, sends capability tokens only in headers or protected JSON
+bodies, and supports release ETags.
+
+Dialogue handling uses deterministic authored-choice matching first. The
+bounded semantic provider is called only when an active or invited event is
+ambiguous, cannot invent event or choice IDs, and runs with thinking disabled.
+Shared-episode memory proposals and narrative contributions are asynchronous.
+Outbox consumers use at-least-once delivery, persistent per-effect checkpoints,
+stable source IDs, and downstream reconciliation. Anonymous contribution
+receipt and withdrawal capabilities are encrypted locally before transport, so
+a lost server response remains retryable and withdrawable.
+
+The client rejects unsigned, expired, wrong-channel, wrong-cohort, revoked-key,
+or lower-sequence bundles. Rollback is a higher-sequence signed compensating
+release. Multi-device snapshots require authenticated transport, exact identity
+scope, checksum validation, and non-divergent history. Module 10 registers
+WorldOps eval, export, outbox, release refresh, rebuild verification, forget,
+dead-letter, and observability-retention actions.
+
+Run the production invariants and full regression suite with:
+
+```powershell
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest tests.test_worldops_system -q
+& "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s tests
+```

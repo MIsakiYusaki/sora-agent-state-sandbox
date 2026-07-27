@@ -166,6 +166,7 @@ class AgentRunner:
     persona_runtime: Any | None = None
     affect_runtime: Any | None = None
     relationship_runtime: Any | None = None
+    worldops_runtime: Any | None = None
 
     def run(self, state: JsonDict, user_input: str) -> JsonDict:
         return self._run(state, user_input=user_input, proactive_trigger=None)
@@ -209,6 +210,7 @@ class AgentRunner:
             persona_runtime=self.persona_runtime,
             affect_runtime=self.affect_runtime,
             relationship_runtime=self.relationship_runtime,
+            worldops_runtime=self.worldops_runtime,
             correlation_id=correlation_id,
         )
         mark_behavior_observed(state)
@@ -432,6 +434,7 @@ def build_context_pack(
     persona_runtime: Any | None = None,
     affect_runtime: Any | None = None,
     relationship_runtime: Any | None = None,
+    worldops_runtime: Any | None = None,
     correlation_id: str | None = None,
 ) -> JsonDict:
     context_start = _timer()
@@ -691,8 +694,52 @@ def build_context_pack(
         },
     )
 
-    worldops_frame = build_worldops_frame(state, behavior_frame, persona_frame)
-    step("worldops.frame.provided", {"active_event_id": worldops_frame.get("selected_event_id"), "level": worldops_frame.get("expression_level")})
+    t0 = _timer()
+    try:
+        if worldops_runtime is None:
+            worldops_frame = build_worldops_frame(state, behavior_frame, persona_frame)
+            worldops_frame["runtime_mode"] = "legacy_fallback"
+        elif proactive_trigger:
+            worldops_frame = worldops_runtime.frame(
+                interruptibility_frame=interruptibility_frame,
+                correlation_id=correlation_id,
+            )
+        else:
+            worldops_observation = worldops_runtime.observe_user_turn(
+                user_input,
+                turn_id=state["session"]["turn_id"],
+                correlation_id=correlation_id or f"corr_{uuid.uuid4().hex}",
+                turn_interpretation=turn_interpretation,
+                interruptibility_frame=interruptibility_frame,
+                persona_frame=persona_frame,
+                relationship_frame=relationship_frame,
+            )
+            worldops_frame = dict(worldops_observation["frame"])
+            if hasattr(worldops_runtime, "sync_state_cache"):
+                worldops_runtime.sync_state_cache(state)
+    except Exception as exc:
+        if worldops_runtime is not None and hasattr(worldops_runtime, "runtime"):
+            worldops_frame = worldops_runtime.runtime.safe_frame(
+                reason=f"WO-INGEST-001:{type(exc).__name__}",
+                correlation_id=correlation_id,
+            )
+        else:
+            worldops_frame = build_worldops_frame(state, behavior_frame, persona_frame)
+            worldops_frame["degraded_reasons"] = [
+                f"WO-INGEST-001:{type(exc).__name__}",
+                "legacy_safe_frame",
+            ]
+    timing["worldops"] = _elapsed_since(t0)
+    step(
+        "worldops.frame.provided",
+        {
+            "runtime_mode": worldops_frame.get("runtime_mode"),
+            "active_event_id": worldops_frame.get("selected_event_id"),
+            "level": worldops_frame.get("expression_level"),
+            "timeline_revision": worldops_frame.get("timeline_revision"),
+            "degraded_reasons": worldops_frame.get("degraded_reasons", []),
+        },
+    )
 
     dialogue_control_frame = build_dialogue_control_frame(state, user_input)
     if proactive_trigger:
