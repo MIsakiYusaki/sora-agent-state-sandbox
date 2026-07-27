@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-sora.local/schemas/worldops/WorldOpsSyncSnapshot.v1.schema.json",
+  "title": "WorldOpsSyncSnapshot.v1",
+  "type": "object",
+  "required": ["contract", "identity", "world_id", "timeline_revision", "actions", "action_ids", "action_set_digest", "choices", "task_evidence", "raw_dialogue_included", "checksum"],
+  "properties": {
+    "contract": {"const": "WorldOpsSyncSnapshot.v1"}, "identity": {"type": "object"}, "world_id": {"type": "string"},
+    "timeline_revision": {"type": "integer", "minimum": 0}, "actions": {"type": "array"},
+    "action_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}, "action_set_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "choices": {"type": "array"}, "task_evidence": {"type": "array"}, "raw_dialogue_included": {"const": false},
+    "checksum": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

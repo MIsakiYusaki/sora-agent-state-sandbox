@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import threading
 import time
-from dataclasses import dataclass
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
 from typing import Any, Mapping, Protocol
 
 from ..llm import LLMClient
@@ -27,6 +30,50 @@ class WorldOpsInterpretationProvider(Protocol):
         context: Mapping[str, Any] | None = None,
     ) -> tuple[UserChoiceInterpretation | None, JsonDict]:
         ...
+
+
+@dataclass
+class LLMCallGovernor:
+    max_calls_per_minute: int = 12
+    failure_threshold: int = 3
+    cooldown_seconds: float = 60.0
+
+    def __post_init__(self) -> None:
+        if self.max_calls_per_minute < 1 or self.failure_threshold < 1 or self.cooldown_seconds <= 0:
+            raise ValueError("invalid WorldOps LLM governor configuration")
+        self._calls: dict[str, deque[float]] = defaultdict(deque)
+        self._failures: dict[str, int] = defaultdict(int)
+        self._open_until: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def acquire(self, scope: str) -> tuple[bool, str | None]:
+        now = time.monotonic()
+        with self._lock:
+            open_until = self._open_until.get(scope, 0.0)
+            if open_until > now:
+                return False, "circuit_open"
+            if open_until:
+                self._open_until.pop(scope, None)
+                self._failures[scope] = 0
+            calls = self._calls[scope]
+            while calls and calls[0] <= now - 60.0:
+                calls.popleft()
+            if len(calls) >= self.max_calls_per_minute:
+                return False, "rate_limited"
+            calls.append(now)
+            return True, None
+
+    def record_success(self, scope: str) -> None:
+        with self._lock:
+            self._failures[scope] = 0
+
+    def record_failure(self, scope: str) -> None:
+        now = time.monotonic()
+        with self._lock:
+            failures = self._failures[scope] + 1
+            self._failures[scope] = failures
+            if failures >= self.failure_threshold:
+                self._open_until[scope] = now + self.cooldown_seconds
 
 
 class DeterministicChoiceMatcher:
@@ -91,6 +138,26 @@ class DeterministicChoiceMatcher:
 class LLMWorldOpsInterpretationProvider:
     llm: LLMClient
     provider_name: str = "deepseek_worldops_interpretation_provider"
+    governor: LLMCallGovernor = field(default_factory=LLMCallGovernor)
+    input_cost_per_million_tokens: float = 0.0
+    output_cost_per_million_tokens: float = 0.0
+
+    @classmethod
+    def from_environment(cls, llm: LLMClient) -> "LLMWorldOpsInterpretationProvider":
+        return cls(
+            llm,
+            governor=LLMCallGovernor(
+                max_calls_per_minute=int(os.environ.get("SORA_WORLDOPS_LLM_CALLS_PER_MINUTE", "12")),
+                failure_threshold=int(os.environ.get("SORA_WORLDOPS_LLM_FAILURE_THRESHOLD", "3")),
+                cooldown_seconds=float(os.environ.get("SORA_WORLDOPS_LLM_CIRCUIT_COOLDOWN_SECONDS", "60")),
+            ),
+            input_cost_per_million_tokens=float(
+                os.environ.get("SORA_WORLDOPS_LLM_INPUT_COST_PER_MILLION", "0")
+            ),
+            output_cost_per_million_tokens=float(
+                os.environ.get("SORA_WORLDOPS_LLM_OUTPUT_COST_PER_MILLION", "0")
+            ),
+        )
 
     def interpret(
         self,
@@ -102,6 +169,18 @@ class LLMWorldOpsInterpretationProvider:
         context: Mapping[str, Any] | None = None,
     ) -> tuple[UserChoiceInterpretation | None, JsonDict]:
         started = time.perf_counter()
+        context_map = dict(context or {})
+        scope = str(instance.get("timeline_id") or context_map.get("timeline_id") or "default")
+        allowed, rejection = self.governor.acquire(scope)
+        if not allowed:
+            return None, {
+                "provider": self.provider_name,
+                "status": rejection,
+                "llm_called": False,
+                "usage": {},
+                "estimated_cost_usd": 0.0,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            }
         allowed_choices = {
             str(item.get("choice_id")): {
                 "label": item.get("label"),
@@ -156,24 +235,44 @@ class LLMWorldOpsInterpretationProvider:
             ensure_ascii=False,
             sort_keys=True,
         )
-        result = self.llm.chat(
-            system=system,
-            user=user,
-            temperature=0.0,
-            max_tokens=700,
-            thinking={"type": "disabled"},
+        try:
+            result = self.llm.chat(
+                system=system,
+                user=user,
+                temperature=0.0,
+                max_tokens=700,
+                thinking={"type": "disabled"},
+            )
+            payload, repaired, usage = self._parse_with_repair(result, max_tokens=700)
+        except Exception as exc:
+            self.governor.record_failure(scope)
+            return None, {
+                "provider": self.provider_name,
+                "status": "provider_error",
+                "error_type": type(exc).__name__,
+                "llm_called": True,
+                "usage": {},
+                "estimated_cost_usd": 0.0,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            }
+        estimated_cost = _estimated_cost(
+            usage,
+            input_rate=self.input_cost_per_million_tokens,
+            output_rate=self.output_cost_per_million_tokens,
         )
-        payload, repaired, usage = self._parse_with_repair(result, max_tokens=700)
         trace = {
             "provider": self.provider_name,
             "model": result.get("model"),
             "usage": usage,
+            "estimated_cost_usd": estimated_cost,
             "repair_attempted": repaired,
             "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             "llm_called": True,
         }
         if payload is None:
+            self.governor.record_failure(scope)
             return None, trace | {"status": "invalid_json"}
+        self.governor.record_success(scope)
         decision = str(payload.get("decision") or "no_match")
         if decision not in {"matched", "ambiguous", "no_match"}:
             return None, trace | {"status": "rejected_invalid_decision", "decision": decision}
@@ -308,3 +407,9 @@ def _merge_usage(first: Any, second: Any) -> JsonDict:
         b = right.get(key, 0)
         result[key] = a + b if isinstance(a, (int, float)) and isinstance(b, (int, float)) else b or a
     return result
+
+
+def _estimated_cost(usage: Mapping[str, Any], *, input_rate: float, output_rate: float) -> float:
+    input_tokens = float(usage.get("prompt_tokens") or usage.get("input_tokens") or 0.0)
+    output_tokens = float(usage.get("completion_tokens") or usage.get("output_tokens") or 0.0)
+    return round((input_tokens * input_rate + output_tokens * output_rate) / 1_000_000.0, 8)

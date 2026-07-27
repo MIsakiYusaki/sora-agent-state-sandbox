@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-sora.local/schemas/worldops/PersonalTimelineMutation.v1.schema.json",
+  "title": "PersonalTimelineMutation.v1",
+  "type": "object",
+  "required": ["contract", "timeline_id", "operation", "idempotency_key"],
+  "properties": {
+    "contract": {"const": "PersonalTimelineMutation.v1"}, "timeline_id": {"type": "string"},
+    "operation": {"enum": ["transition", "advance_clock", "fork", "forget", "control"]}, "idempotency_key": {"type": "string"},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": true
+}

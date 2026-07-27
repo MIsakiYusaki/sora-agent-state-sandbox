@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         rollout_mode=os.environ.get("SORA_RELATIONSHIP_MODE", "active").strip().lower(),
     )
     worldops_runtime = WorldOpsSystem.default(
-        provider=LLMWorldOpsInterpretationProvider(llm),
+        provider=LLMWorldOpsInterpretationProvider.from_environment(llm),
         memory_runtime=memory_runtime,
         start_worker=True,
     )

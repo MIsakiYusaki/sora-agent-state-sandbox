@@ -27,7 +27,7 @@ from sora_sandbox.worldops.contracts import (
     WorldOpsSecurityError,
 )
 from sora_sandbox.worldops.privacy import WorldOpsSecretVault
-from sora_sandbox.worldops.provider import LLMWorldOpsInterpretationProvider
+from sora_sandbox.worldops.provider import LLMCallGovernor, LLMWorldOpsInterpretationProvider
 from sora_sandbox.worldops.quality import run_worldops_eval
 from sora_sandbox.worldops.runtime import PredicateBudgetExceeded, PredicateEngine, WorldOpsRuntime
 from sora_sandbox.worldops.server import (
@@ -39,7 +39,12 @@ from sora_sandbox.worldops.server import (
 )
 from sora_sandbox.worldops.store import WorldOpsStore
 from sora_sandbox.worldops.system import WorldOpsSystem
-from sora_sandbox.worldops.transport import WorldOpsHttpDistributionClient, WorldOpsWSGIApplication
+from sora_sandbox.worldops.schema_registry import validate_contract_payload, validate_schema_registry
+from sora_sandbox.worldops.transport import (
+    SlidingWindowRateLimiter,
+    WorldOpsHttpDistributionClient,
+    WorldOpsWSGIApplication,
+)
 
 
 def interactive_source(event_id: str = "event.test.shared") -> dict:
@@ -717,6 +722,159 @@ class WorldOpsSystemTests(unittest.TestCase):
         tampered["checksum"] = content_hash(body)
         with self.assertRaises(WorldOpsSecurityError):
             self.system.store.apply_sync_snapshot(tampered, transport_authenticated=True)
+
+    def test_device_sync_merges_disjoint_event_histories(self) -> None:
+        source = interactive_source("event.test.one")
+        second = copy.deepcopy(source["events"][0])
+        second["event_id"] = "event.test.two"
+        second["title"] = "Second authored event"
+        source["events"].append(second)
+        compiled = self.system.studio.compiler.compile(
+            source,
+            canon_version="3.0.0",
+            release_sequence=3,
+            channel="stable",
+        )
+        self.system.store.install_bundle(compiled)
+        self.system.store.activate_bundle(compiled["manifest"]["bundle_id"], compiled["manifest"]["canon_version"])
+        other = WorldOpsStore(self.root / "merge-device.db", identity=self.system.store.identity, world_id="world.default")
+        try:
+            other.register_trusted_key(
+                key_id=self.system.signer.key_id,
+                public_key=self.system.signer.public_key_bytes(),
+                valid_from=self.system.store.trusted_keys()[0]["valid_from"],
+            )
+            other.install_bundle(compiled)
+            other.activate_bundle(compiled["manifest"]["bundle_id"], compiled["manifest"]["canon_version"])
+            left = self.system.store.event_instance_for("event.test.one")
+            right = other.event_instance_for("event.test.two")
+            self.system.store.transition_event(
+                left["instance_id"], to_state="hinted", expected_revision=0, trigger_type="eligible"
+            )
+            other.transition_event(
+                right["instance_id"], to_state="hinted", expected_revision=0, trigger_type="eligible"
+            )
+            merged = self.system.store.apply_sync_snapshot(
+                other.export_sync_snapshot(), transport_authenticated=True
+            )
+            self.assertEqual(merged["status"], "merged")
+            reconciled = other.apply_sync_snapshot(
+                self.system.store.export_sync_snapshot(), transport_authenticated=True
+            )
+            self.assertIn(reconciled["status"], {"applied", "merged"})
+            self.assertEqual(
+                self.system.store.export_sync_snapshot()["action_set_digest"],
+                other.export_sync_snapshot()["action_set_digest"],
+            )
+            self.assertEqual(other.event_instance_for("event.test.one")["state"], "hinted")
+            self.assertEqual(self.system.store.event_instance_for("event.test.two")["state"], "hinted")
+        finally:
+            other.close()
+
+    def test_sync_conflict_requires_explicit_resolution_and_can_fork(self) -> None:
+        compiled = self.install_interactive()
+        other = WorldOpsStore(self.root / "conflict-device.db", identity=self.system.store.identity, world_id="world.default")
+        try:
+            other.register_trusted_key(
+                key_id=self.system.signer.key_id,
+                public_key=self.system.signer.public_key_bytes(),
+                valid_from=self.system.store.trusted_keys()[0]["valid_from"],
+            )
+            other.install_bundle(compiled)
+            other.activate_bundle(compiled["manifest"]["bundle_id"], compiled["manifest"]["canon_version"])
+            self.system.runtime.invite("event.test.shared")
+            other.apply_sync_snapshot(self.system.store.export_sync_snapshot(), transport_authenticated=True)
+            self.system.runtime.complete_task_manually("event.test.shared", choice_text="participate")
+            WorldOpsRuntime(other).complete_task_manually("event.test.shared", choice_text="decline")
+            conflict = self.system.store.apply_sync_snapshot(
+                other.export_sync_snapshot(), transport_authenticated=True
+            )
+            self.assertEqual(conflict["status"], "conflict")
+            self.assertEqual(self.system.store.list_sync_conflicts()[0]["conflict_id"], conflict["conflict_id"])
+            resolved = self.system.resolve_sync_conflict(
+                conflict["conflict_id"],
+                resolution="fork_local",
+                fork_timeline_id="timeline.test.branch",
+            )
+            self.assertEqual(resolved["status"], "resolved")
+            child = WorldOpsStore(
+                self.root / "primary" / "client.db",
+                identity=IdentityScope("tenant.test", "user.test", "sora.test", "timeline.test.branch"),
+                world_id="world.default",
+            )
+            try:
+                self.assertEqual(child.timeline()["parent_timeline_id"], "timeline.test")
+                self.assertTrue(child.rebuild(dry_run=True)["parity"])
+            finally:
+                child.close()
+        finally:
+            other.close()
+
+    def test_contract_schema_registry_and_packaged_eval_data(self) -> None:
+        registry = validate_schema_registry()
+        self.assertEqual(registry["status"], "passed")
+        self.assertEqual(len(registry["contracts"]), 9)
+        self.assertEqual(validate_contract_payload(self.system.frame(), "WorldOpsFrame.v1"), [])
+        report = run_worldops_eval(self.system)
+        schema_case = next(item for item in report["cases"] if item["case_name"] == "cross_language_contract_schemas")
+        self.assertEqual(schema_case["status"], "passed")
+
+    def test_effect_registry_emits_only_typed_signal(self) -> None:
+        source = interactive_source()
+        source["events"][0]["transitions"][0]["effects"] = [
+            {"op": "emit_signal", "signal_type": "narrative.notice", "payload": {"notice_id": "lantern.ready"}}
+        ]
+        compiled = self.system.studio.compiler.compile(
+            source, canon_version="4.0.0", release_sequence=4, channel="stable"
+        )
+        self.system.store.install_bundle(compiled)
+        self.system.store.activate_bundle(compiled["manifest"]["bundle_id"], compiled["manifest"]["canon_version"])
+        instance = self.system.store.event_instance_for("event.test.shared")
+        self.system.store.transition_event(
+            instance["instance_id"], to_state="hinted", expected_revision=0, trigger_type="eligible"
+        )
+        event_types = {item["event_type"] for item in self.system.store.pending_outbox(limit=100)}
+        self.assertIn("worldops.effect.signal.v1", event_types)
+
+    def test_llm_governor_rate_limits_per_timeline(self) -> None:
+        self.install_interactive()
+        recorder = RecordingLLM({"decision": "no_match", "choice_id": None, "confidence": 0.0})
+        provider = LLMWorldOpsInterpretationProvider(
+            recorder,
+            governor=LLMCallGovernor(max_calls_per_minute=1, failure_threshold=2, cooldown_seconds=60),
+        )
+        instance = self.system.store.event_instance_for("event.test.shared")
+        event = self.system.store.event_definition("event.test.shared")
+        first = provider.interpret("unclear", input_id="turn.rate.1", instance=instance, event=event)[1]
+        second = provider.interpret("still unclear", input_id="turn.rate.2", instance=instance, event=event)[1]
+        self.assertTrue(first["llm_called"])
+        self.assertEqual(second["status"], "rate_limited")
+        self.assertFalse(second["llm_called"])
+        self.assertEqual(len(recorder.calls), 1)
+
+    def test_localization_requires_default_fallback_and_metrics_export(self) -> None:
+        source = interactive_source()
+        source["world"]["default_locale"] = "zh-CN"
+        source["assets"] = [{"asset_id": "asset.one", "localization_key": "event.title"}]
+        source["locales"] = {"zh-CN": {"event.title": "Lantern"}}
+        compiled = self.system.studio.compiler.compile(
+            source, canon_version="5.0.0", release_sequence=5, channel="stable"
+        )
+        self.assertEqual(compiled["compile_report"]["status"], "passed")
+        broken = copy.deepcopy(source)
+        broken["locales"] = {"en-US": {}}
+        with self.assertRaises(WorldOpsContractError):
+            self.system.studio.compiler.compile(
+                broken, canon_version="5.0.1", release_sequence=6, channel="stable"
+            )
+        self.system.store.record_metric("worldops_test_total", 2, labels={"result": "ok"})
+        self.assertIn('worldops_test_total{result="ok"} 2', self.system.store.export_prometheus_metrics())
+
+    def test_contribution_rate_limiter_is_bounded(self) -> None:
+        limiter = SlidingWindowRateLimiter(requests=2, window_seconds=60)
+        self.assertTrue(limiter.allow("client"))
+        self.assertTrue(limiter.allow("client"))
+        self.assertFalse(limiter.allow("client"))
 
     def test_predicate_engine_enforces_complexity_budget(self) -> None:
         expression = {"op": "not", "item": {"op": "not", "item": {"op": "always"}}}

@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from ..memory_schema import JsonDict, new_id, utc_now
-from .contracts import EVENT_STATES, WORLDOPS_FRAME_CONTRACT, WorldBundleManifest, content_hash
+from .contracts import (
+    EVENT_STATES,
+    WORLD_BUNDLE_MANIFEST_CONTRACT,
+    WORLD_CONTENT_BUNDLE_CONTRACT,
+    WORLDOPS_FRAME_CONTRACT,
+    WORLDOPS_SYNC_SNAPSHOT_CONTRACT,
+    WorldBundleManifest,
+    content_hash,
+)
+from .schema_registry import validate_contract_payload, validate_schema_registry
 from .server import deterministic_release_gate
 
 
@@ -91,8 +101,25 @@ def run_worldops_eval(system: Any) -> JsonDict:
     ) if active else {"status": "failed", "errors": ["no_active_bundle"]}
     simulation = run_long_horizon_simulation((active or {}).get("bundle") or {}, steps=10000)
     serialized_frame = json.dumps(frame, ensure_ascii=False, sort_keys=True)
+    slo = worldops_slo_snapshot(system)
+
+    schema_registry = validate_schema_registry()
+    schema_errors = {
+        "frame": validate_contract_payload(frame, WORLDOPS_FRAME_CONTRACT),
+        "manifest": validate_contract_payload((active or {}).get("manifest") or {}, WORLD_BUNDLE_MANIFEST_CONTRACT),
+        "bundle": validate_contract_payload((active or {}).get("bundle") or {}, WORLD_CONTENT_BUNDLE_CONTRACT),
+        "sync_snapshot": validate_contract_payload(system.store.export_sync_snapshot(), WORLDOPS_SYNC_SNAPSHOT_CONTRACT),
+    }
+    check(
+        "cross_language_contract_schemas",
+        lambda: (
+            schema_registry["status"] == "passed" and not any(schema_errors.values()),
+            {"registry": schema_registry, "payload_errors": schema_errors},
+        ),
+    )
 
     check("sqlite_integrity_and_worker", lambda: (health["integrity"] == "ok" and health["worker"]["running"], health))
+    check("worldops_production_slo", lambda: (slo["status"] == "met", slo))
     check(
         "signed_active_bundle",
         lambda: (
@@ -155,8 +182,9 @@ def run_worldops_eval(system: Any) -> JsonDict:
         "long_horizon_fsm_simulation",
         lambda: (simulation["status"] == "passed" and simulation["transition_kinds_covered"] > 0, simulation),
     )
-    golden = _load_jsonl(_eval_root() / "golden.jsonl")
-    trajectories = _load_jsonl(_eval_root() / "trajectory.jsonl")
+    eval_root = _eval_root()
+    golden = _load_jsonl(eval_root / "golden.jsonl")
+    trajectories = _load_jsonl(eval_root / "trajectory.jsonl")
     check(
         "versioned_eval_datasets",
         lambda: (
@@ -164,7 +192,12 @@ def run_worldops_eval(system: Any) -> JsonDict:
             and len(trajectories) >= 4
             and all(item.get("case_id") and item.get("expected") for item in golden)
             and all(item.get("case_id") and item.get("steps") and item.get("invariants") for item in trajectories),
-            {"golden_cases": len(golden), "trajectory_cases": len(trajectories)},
+            {
+                "golden_cases": len(golden),
+                "trajectory_cases": len(trajectories),
+                "dataset_root": str(eval_root),
+                "failure_class": "configuration" if not golden or not trajectories else "quality",
+            },
         ),
     )
     failed = sum(case["status"] != "passed" for case in cases)
@@ -188,7 +221,42 @@ def run_worldops_eval(system: Any) -> JsonDict:
 
 
 def _eval_root() -> Path:
-    return Path(__file__).resolve().parents[3] / "evals" / "worldops"
+    configured = os.environ.get("SORA_WORLDOPS_EVAL_ROOT")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    repository_root = Path(__file__).resolve().parents[3] / "evals" / "worldops"
+    if repository_root.exists():
+        return repository_root
+    return Path(__file__).with_name("eval_data")
+
+
+def worldops_slo_snapshot(system: Any) -> JsonDict:
+    quality = system.store.quality_snapshot()
+    health = system.health()
+    objectives = {
+        "sqlite_integrity": health.get("integrity") == "ok",
+        "rebuild_parity": bool((quality.get("rebuild") or {}).get("parity")),
+        "open_dead_letters_zero": int(quality.get("open_dead_letters", 0)) == 0,
+        "incomplete_consumer_effects_zero": int(quality.get("incomplete_consumer_effects", 0)) == 0,
+        "unresolved_sync_conflicts_zero": int(quality.get("open_sync_conflicts", 0)) == 0,
+        "write_queue_below_high_watermark": not bool((health.get("write_coordinator") or {}).get("under_backpressure")),
+    }
+    alerts = [
+        {
+            "code": name,
+            "severity": "critical" if name in {"sqlite_integrity", "rebuild_parity"} else "warning",
+            "runbook": "docs/worldops-runbook.md",
+        }
+        for name, met in objectives.items()
+        if not met
+    ]
+    return {
+        "schema_version": "WorldOpsSLOSnapshot.v1",
+        "status": "met" if all(objectives.values()) else "breached",
+        "objectives": objectives,
+        "alerts": alerts,
+        "created_at": utc_now(),
+    }
 
 
 def _load_jsonl(path: Path) -> list[JsonDict]:

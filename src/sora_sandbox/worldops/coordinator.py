@@ -44,6 +44,15 @@ class WorldOpsWriteCoordinator:
     def under_backpressure(self) -> bool:
         return self.queue_depth >= self.high_watermark
 
+    @property
+    def is_worker_thread(self) -> bool:
+        return threading.current_thread() is self._worker
+
+    def run(self, operation: WriteCallable, *, priority: int, name: str, timeout: float = 10.0) -> Any:
+        if self.is_worker_thread:
+            return operation()
+        return self.submit(operation, priority=priority, name=name, timeout=timeout)
+
     def submit(self, operation: WriteCallable, *, priority: int, name: str, timeout: float = 10.0) -> Any:
         if self._closed.is_set():
             raise RuntimeError("WorldOps write coordinator is closed")

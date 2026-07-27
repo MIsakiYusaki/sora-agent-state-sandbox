@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-sora.local/schemas/worldops/WorldBundleManifest.v1.schema.json",
+  "title": "WorldBundleManifest.v1",
+  "type": "object",
+  "required": ["schema_version", "bundle_id", "world_id", "canon_version", "release_sequence", "minimum_accepted_sequence", "key_id", "issued_at", "expires_at", "revocation_list_version", "content_hash", "channel", "cohort"],
+  "properties": {
+    "schema_version": {"const": "WorldBundleManifest.v1"},
+    "bundle_id": {"type": "string"}, "world_id": {"type": "string"}, "canon_version": {"type": "string"},
+    "release_sequence": {"type": "integer", "minimum": 1}, "minimum_accepted_sequence": {"type": "integer", "minimum": 0},
+    "key_id": {"type": "string"}, "issued_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"},
+    "revocation_list_version": {"type": "integer", "minimum": 0}, "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "channel": {"type": "string"}, "cohort": {"type": "string"}, "signature": {"type": "string"}
+  },
+  "additionalProperties": true
+}

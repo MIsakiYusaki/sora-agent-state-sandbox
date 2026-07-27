@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from http import HTTPStatus
-from typing import Any, Iterable, Mapping
+from collections import defaultdict, deque
+from typing import Any, Iterable, Mapping, Protocol
 
 from ..memory_schema import JsonDict
 from .contracts import WorldOpsContractError
@@ -14,6 +17,32 @@ from .server import WorldOpsServerAPI
 
 class WorldOpsTransportError(RuntimeError):
     pass
+
+
+class WorldOpsRequestAuthorizer(Protocol):
+    def authorize(self, environ: Mapping[str, Any], route: str) -> bool:
+        ...
+
+
+class SlidingWindowRateLimiter:
+    def __init__(self, *, requests: int, window_seconds: float = 60.0) -> None:
+        if requests < 1 or window_seconds <= 0:
+            raise ValueError("invalid WorldOps rate limit")
+        self.requests = requests
+        self.window_seconds = window_seconds
+        self._entries: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def allow(self, key: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            entries = self._entries[key]
+            while entries and entries[0] <= now - self.window_seconds:
+                entries.popleft()
+            if len(entries) >= self.requests:
+                return False
+            entries.append(now)
+            return True
 
 
 class WorldOpsHttpDistributionClient:
@@ -134,11 +163,20 @@ class WorldOpsHttpDistributionClient:
 class WorldOpsWSGIApplication:
     """Production-hostable WSGI adapter for the public WorldOps distribution API."""
 
-    def __init__(self, api: WorldOpsServerAPI, *, max_request_bytes: int = 1024 * 1024) -> None:
+    def __init__(
+        self,
+        api: WorldOpsServerAPI,
+        *,
+        max_request_bytes: int = 1024 * 1024,
+        contribution_rate_limiter: SlidingWindowRateLimiter | None = None,
+        request_authorizer: WorldOpsRequestAuthorizer | None = None,
+    ) -> None:
         if max_request_bytes < 1024:
             raise ValueError("WorldOps request limit is too small")
         self.api = api
         self.max_request_bytes = int(max_request_bytes)
+        self.contribution_rate_limiter = contribution_rate_limiter or SlidingWindowRateLimiter(requests=30)
+        self.request_authorizer = request_authorizer
 
     def __call__(self, environ: Mapping[str, Any], start_response: Any) -> Iterable[bytes]:
         try:
@@ -156,6 +194,7 @@ class WorldOpsWSGIApplication:
             ("Content-Type", "application/json; charset=utf-8"),
             ("Content-Length", str(len(raw))),
             ("X-Content-Type-Options", "nosniff"),
+            ("Referrer-Policy", "no-referrer"),
         ]
         headers.extend(extra_headers)
         start_response(f"{status} {HTTPStatus(status).phrase}", headers)
@@ -165,6 +204,9 @@ class WorldOpsWSGIApplication:
         method = str(environ.get("REQUEST_METHOD") or "GET").upper()
         segments = [urllib.parse.unquote(item) for item in str(environ.get("PATH_INFO") or "").split("/") if item]
         query = urllib.parse.parse_qs(str(environ.get("QUERY_STRING") or ""), keep_blank_values=False)
+        route = "/".join(segments)
+        if self.request_authorizer is not None and not self.request_authorizer.authorize(environ, route):
+            raise PermissionError("WorldOps request authorizer rejected the request")
         if method == "GET" and len(segments) == 5 and segments[:2] == ["v1", "worlds"] and segments[3:] == ["releases", "latest"]:
             result = self.api.get_latest_release(
                 segments[2],
@@ -173,11 +215,15 @@ class WorldOpsWSGIApplication:
                 etag=(str(environ.get("HTTP_IF_NONE_MATCH")) if environ.get("HTTP_IF_NONE_MATCH") else None),
             )
             headers = [("ETag", str(result["etag"]))] if result.get("etag") else []
+            headers.append(("Cache-Control", "public, max-age=60, stale-while-revalidate=300"))
             return int(result.get("status") or 200), result, headers
         if method == "GET" and len(segments) == 4 and segments[:2] == ["v1", "bundles"]:
             result = self.api.get_bundle(segments[2], segments[3])
-            return int(result.get("status") or 200), result, []
+            return int(result.get("status") or 200), result, [("Cache-Control", "public, immutable, max-age=31536000")]
         if method == "POST" and segments == ["v1", "contributions"]:
+            remote = str(environ.get("REMOTE_ADDR") or "unknown")
+            if not self.contribution_rate_limiter.allow(f"contribution:{remote}"):
+                return 429, {"error": "rate_limited"}, [("Retry-After", "60"), ("Cache-Control", "no-store")]
             result = self.api.post_contribution(self._json_body(environ))
             return int(result.get("status") or 202), result, [("Cache-Control", "no-store")]
         if len(segments) == 3 and segments[:2] == ["v1", "contributions"]:

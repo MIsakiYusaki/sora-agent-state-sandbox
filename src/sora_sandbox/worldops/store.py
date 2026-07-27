@@ -19,12 +19,21 @@ from .contracts import (
     WorldOpsConflictError,
     WorldOpsContractError,
     WorldOpsSecurityError,
+    WORLDOPS_SYNC_SNAPSHOT_CONTRACT,
     canonical_json,
     content_hash,
     make_event_envelope,
     utc_now,
 )
+from .effects import DEFAULT_EFFECT_REGISTRY, EffectRegistry
+from .observability import TraceSink, prometheus_text
 from .schema import WORLDOPS_CLIENT_SCHEMA_SQL
+
+
+TRANSITION_TRIGGER_ALIASES = {
+    "manual_eligibility": "eligible",
+    "user_reference": "surface_selected",
+}
 
 
 class WorldOpsStore:
@@ -38,6 +47,8 @@ class WorldOpsStore:
         world_id: str = "world.default",
         accepted_channel: str = "stable",
         accepted_cohort: str = "default",
+        effect_registry: EffectRegistry | None = None,
+        trace_sink: TraceSink | None = None,
     ) -> None:
         identity.validate()
         self.path = Path(path)
@@ -46,6 +57,8 @@ class WorldOpsStore:
         self.world_id = world_id
         self.accepted_channel = accepted_channel
         self.accepted_cohort = accepted_cohort
+        self.effect_registry = effect_registry or DEFAULT_EFFECT_REGISTRY
+        self.trace_sink = trace_sink
         self._lock = threading.RLock()
         self._read_local = threading.local()
         self._read_connections: list[sqlite3.Connection] = []
@@ -54,8 +67,40 @@ class WorldOpsStore:
         self._conn.row_factory = sqlite3.Row
         self._configure(self._conn, query_only=False)
         self._conn.executescript(WORLDOPS_CLIENT_SCHEMA_SQL)
+        self._migrate_schema()
         self._conn.commit()
         self._ensure_identity()
+
+    def _migrate_schema(self) -> None:
+        """Apply additive migrations for databases created by earlier WorldOps builds."""
+        transition_columns = {
+            str(row["name"])
+            for row in self._conn.execute("PRAGMA table_info(worldops_transition_ledger)").fetchall()
+        }
+        if "origin_action_id" not in transition_columns:
+            self._conn.execute("ALTER TABLE worldops_transition_ledger ADD COLUMN origin_action_id TEXT")
+        self._conn.execute(
+            "UPDATE worldops_transition_ledger SET origin_action_id=transition_id "
+            "WHERE origin_action_id IS NULL OR origin_action_id=''"
+        )
+        clock_columns = {
+            str(row["name"])
+            for row in self._conn.execute("PRAGMA table_info(worldops_clock_ledger)").fetchall()
+        }
+        if "origin_action_id" not in clock_columns:
+            self._conn.execute("ALTER TABLE worldops_clock_ledger ADD COLUMN origin_action_id TEXT")
+        self._conn.execute(
+            "UPDATE worldops_clock_ledger SET origin_action_id=clock_event_id "
+            "WHERE origin_action_id IS NULL OR origin_action_id=''"
+        )
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_worldops_transition_origin "
+            "ON worldops_transition_ledger(timeline_id, origin_action_id)"
+        )
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_worldops_clock_origin "
+            "ON worldops_clock_ledger(timeline_id, origin_action_id)"
+        )
 
     @staticmethod
     def _configure(connection: sqlite3.Connection, *, query_only: bool) -> None:
@@ -91,6 +136,7 @@ class WorldOpsStore:
         tables = [
             "worldops_forget_tombstone",
             "worldops_memory_projection",
+            "worldops_sync_conflict",
             "worldops_contribution_receipt",
             "worldops_control",
             "worldops_dead_letter",
@@ -491,6 +537,8 @@ class WorldOpsStore:
         effects: list[JsonDict] | None = None,
         correlation_id: str | None = None,
         causation_id: str | None = None,
+        origin_action_id: str | None = None,
+        emit_events: bool = True,
     ) -> JsonDict:
         if to_state not in EVENT_STATES:
             raise WorldOpsContractError("invalid target event state")
@@ -512,14 +560,19 @@ class WorldOpsStore:
             )
             if definition is None:
                 raise WorldOpsContractError("event definition is unavailable")
-            if not self._transition_is_authored(
+            authored_transition = self._authored_transition(
                 definition,
                 from_state=str(row["state"]),
                 to_state=to_state,
                 trigger_type=trigger_type,
                 choice_id=choice_id,
-            ):
+            )
+            if authored_transition is None:
                 raise WorldOpsContractError("event transition is not authorized by the signed definition")
+            authored_effects = [dict(item) for item in authored_transition.get("effects") or []]
+            if effects and content_hash(effects) != content_hash(authored_effects):
+                raise WorldOpsContractError("transition effects must exactly match the signed definition")
+            effects = authored_effects
             if trigger_type == "tasks_complete":
                 accepted = self._conn.execute(
                     "SELECT COUNT(*) FROM worldops_task_evidence WHERE instance_id=? AND accepted=1",
@@ -534,6 +587,33 @@ class WorldOpsStore:
             ).fetchone()
             next_timeline_revision = int(timeline["revision"]) + 1
             transition_id = new_id("wot")
+            stable_origin_action_id = str(
+                origin_action_id
+                or "wota."
+                + content_hash(
+                    {
+                        "event_id": row["event_id"],
+                        "definition_version": row["definition_version"],
+                        "from_state": row["state"],
+                        "to_state": to_state,
+                        "event_revision": next_event_revision,
+                        "trigger_type": trigger_type,
+                        "trigger_ref": trigger_ref,
+                        "choice_id": choice_id,
+                        "effects": effects,
+                    }
+                )[:40]
+            )
+            existing_origin = self._conn.execute(
+                "SELECT transition_id FROM worldops_transition_ledger WHERE timeline_id=? AND origin_action_id=?",
+                (self.identity.timeline_id, stable_origin_action_id),
+            ).fetchone()
+            if existing_origin is not None:
+                return {
+                    "status": "duplicate",
+                    "transition_id": str(existing_origin["transition_id"]),
+                    "event": self._event_from_row(row),
+                }
             timestamps = {
                 "activated_at": now if to_state == "active" else row["activated_at"],
                 "completed_at": now if to_state == "completed" else row["completed_at"],
@@ -581,13 +661,14 @@ class WorldOpsStore:
             self._conn.execute(
                 """
                 INSERT INTO worldops_transition_ledger (
-                    transition_id,timeline_id,instance_id,event_id,from_state,to_state,
+                    transition_id,origin_action_id,timeline_id,instance_id,event_id,from_state,to_state,
                     event_revision,timeline_revision,trigger_type,trigger_ref,choice_id,
                     effects_json,definition_version,bundle_id,correlation_id,causation_id,created_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     transition_id,
+                    stable_origin_action_id,
                     self.identity.timeline_id,
                     instance_id,
                     row["event_id"],
@@ -616,6 +697,7 @@ class WorldOpsStore:
                 )
             event_payload = {
                 "transition_id": transition_id,
+                "origin_action_id": stable_origin_action_id,
                 "event_id": row["event_id"],
                 "instance_id": instance_id,
                 "from_state": row["state"],
@@ -624,13 +706,14 @@ class WorldOpsStore:
                 "timeline_revision": next_timeline_revision,
                 "effects": effects,
             }
-            self._enqueue_locked(
-                "worldops.event.transitioned.v1",
-                event_key=f"transition:{transition_id}",
-                payload=event_payload,
-                correlation_id=correlation_id,
-                causation_id=causation_id,
-            )
+            if emit_events:
+                self._enqueue_locked(
+                    "worldops.event.transitioned.v1",
+                    event_key=f"transition:{stable_origin_action_id}",
+                    payload=event_payload,
+                    correlation_id=correlation_id,
+                    causation_id=causation_id,
+                )
             participated = bool(
                 self._conn.execute(
                     """
@@ -649,10 +732,10 @@ class WorldOpsStore:
                     ),
                 ).fetchone()
             )
-            if to_state == "completed" and participated:
+            if emit_events and to_state == "completed" and participated:
                 self._enqueue_locked(
                     "worldops.shared_episode.completed.v1",
-                    event_key=f"shared-episode:{instance_id}:{next_event_revision}",
+                    event_key=f"shared-episode:{row['event_id']}:{stable_origin_action_id}",
                     payload=event_payload,
                     correlation_id=correlation_id,
                     causation_id=transition_id,
@@ -861,11 +944,28 @@ class WorldOpsStore:
         *,
         reason: str,
         correlation_id: str | None = None,
+        origin_action_id: str | None = None,
+        emit_events: bool = True,
     ) -> JsonDict:
         if not 0.0 < float(delta) <= 86400.0:
             raise ValueError("world clock delta must be in (0, 86400]")
         now = utc_now()
         with self._lock, self._conn:
+            stable_origin_action_id = str(origin_action_id or new_id("woclock-origin"))
+            existing_origin = self._conn.execute(
+                "SELECT clock_event_id FROM worldops_clock_ledger WHERE timeline_id=? AND origin_action_id=?",
+                (self.identity.timeline_id, stable_origin_action_id),
+            ).fetchone()
+            if existing_origin is not None:
+                current = self._conn.execute(
+                    "SELECT world_clock,revision FROM worldops_timeline WHERE timeline_id=?",
+                    (self.identity.timeline_id,),
+                ).fetchone()
+                return {
+                    "status": "duplicate",
+                    "world_clock": float(current["world_clock"]),
+                    "timeline_revision": int(current["revision"]),
+                }
             row = self._conn.execute(
                 "SELECT world_clock,revision FROM worldops_timeline WHERE timeline_id=?",
                 (self.identity.timeline_id,),
@@ -882,12 +982,13 @@ class WorldOpsStore:
             self._conn.execute(
                 """
                 INSERT INTO worldops_clock_ledger (
-                    clock_event_id,timeline_id,timeline_revision,delta,world_clock,reason,
+                    clock_event_id,origin_action_id,timeline_id,timeline_revision,delta,world_clock,reason,
                     correlation_id,created_at
-                ) VALUES (?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     clock_event_id,
+                    stable_origin_action_id,
                     self.identity.timeline_id,
                     revision,
                     float(delta),
@@ -911,14 +1012,15 @@ class WorldOpsStore:
                     self.identity.timeline_id,
                 ),
             )
-            self._enqueue_locked(
-                "worldops.clock.advanced.v1",
-                event_key=f"clock:{self.identity.timeline_id}:{revision}",
-                payload={"delta": float(delta), "world_clock": world_clock, "revision": revision, "reason": reason},
-                correlation_id=correlation_id,
-                causation_id=None,
-            )
-        return {"world_clock": world_clock, "timeline_revision": revision}
+            if emit_events:
+                self._enqueue_locked(
+                    "worldops.clock.advanced.v1",
+                    event_key=f"clock:{self.identity.timeline_id}:{stable_origin_action_id}",
+                    payload={"delta": float(delta), "world_clock": world_clock, "revision": revision, "reason": reason},
+                    correlation_id=correlation_id,
+                    causation_id=None,
+                )
+        return {"status": "applied", "world_clock": world_clock, "timeline_revision": revision}
 
     def save_contribution_receipt(
         self,
@@ -1028,6 +1130,7 @@ class WorldOpsStore:
             actions.append(
                 {
                     "kind": "transition",
+                    "origin_action_id": str(row["origin_action_id"] or row["transition_id"]),
                     "timeline_revision": int(row["timeline_revision"]),
                     "event_id": row["event_id"],
                     "from_state": row["from_state"],
@@ -1046,6 +1149,7 @@ class WorldOpsStore:
             actions.append(
                 {
                     "kind": "clock",
+                    "origin_action_id": str(row["origin_action_id"] or row["clock_event_id"]),
                     "timeline_revision": int(row["timeline_revision"]),
                     "delta": float(row["delta"]),
                     "world_clock": float(row["world_clock"]),
@@ -1059,6 +1163,7 @@ class WorldOpsStore:
         for action in actions:
             rolling = content_hash({"previous": rolling, "action": action})
             action_hashes.append(rolling)
+        action_ids = [str(action["origin_action_id"]) for action in actions]
         choices: list[JsonDict] = []
         for row in conn.execute(
             "SELECT * FROM worldops_choice_ledger WHERE timeline_id=? ORDER BY created_at,choice_ledger_id",
@@ -1086,13 +1191,15 @@ class WorldOpsStore:
             )
         active = self.active_bundle()
         body = {
-            "contract": "WorldOpsSyncSnapshot.v1",
+            "contract": WORLDOPS_SYNC_SNAPSHOT_CONTRACT,
             "identity": self.identity.to_dict(),
             "world_id": self.world_id,
             "active_manifest": (active or {}).get("manifest"),
             "timeline_revision": int(self.timeline()["revision"]),
             "actions": actions,
             "action_hashes": action_hashes,
+            "action_ids": action_ids,
+            "action_set_digest": content_hash(sorted(action_ids)),
             "choices": choices,
             "task_evidence": evidence,
             "raw_dialogue_included": False,
@@ -1109,7 +1216,7 @@ class WorldOpsStore:
             raise WorldOpsSecurityError("WorldOps sync requires an authenticated transport session")
         payload = dict(snapshot)
         checksum = str(payload.pop("checksum", ""))
-        if payload.get("contract") != "WorldOpsSyncSnapshot.v1" or content_hash(payload) != checksum:
+        if payload.get("contract") != WORLDOPS_SYNC_SNAPSHOT_CONTRACT or content_hash(payload) != checksum:
             raise WorldOpsSecurityError("WorldOps sync snapshot integrity check failed")
         if dict(payload.get("identity") or {}) != self.identity.to_dict():
             raise WorldOpsSecurityError("WorldOps sync identity does not match this timeline")
@@ -1120,65 +1227,572 @@ class WorldOpsStore:
         if active is None or incoming_manifest.get("content_hash") != active["manifest"].get("content_hash"):
             raise WorldOpsConflictError("install the matching signed bundle before timeline sync")
         local = self.export_sync_snapshot()
-        local_hashes = list(local.get("action_hashes") or [])
-        incoming_hashes = list(payload.get("action_hashes") or [])
-        if local_hashes != incoming_hashes[: len(local_hashes)]:
-            raise WorldOpsConflictError("WorldOps timeline histories diverged; automatic merge is blocked")
-        if len(local_hashes) == len(incoming_hashes):
-            return {"status": "current", "timeline_revision": int(self.timeline()["revision"])}
-        for item in payload.get("choices") or []:
-            interpretation = dict(item.get("interpretation") or {})
-            event_id = str(interpretation.pop("event_id", ""))
+        local_actions = {_action_origin_id(item): dict(item) for item in local.get("actions") or []}
+        incoming_actions = {_action_origin_id(item): dict(item) for item in payload.get("actions") or []}
+        for action_id in local_actions.keys() & incoming_actions.keys():
+            if _action_fingerprint(local_actions[action_id]) != _action_fingerprint(incoming_actions[action_id]):
+                raise WorldOpsSecurityError("sync action origin was rebound to different content")
+        incoming_missing = [
+            action for action_id, action in incoming_actions.items() if action_id not in local_actions
+        ]
+        if not incoming_missing:
+            return {
+                "status": "current",
+                "timeline_revision": int(self.timeline()["revision"]),
+                "action_set_digest": local.get("action_set_digest"),
+            }
+        local_only = [action for action_id, action in local_actions.items() if action_id not in incoming_actions]
+        locally_changed_events = {
+            str(action.get("event_id")) for action in local_only if action.get("kind") == "transition"
+        }
+        conflicting_events = sorted(
+            {
+                str(action.get("event_id"))
+                for action in incoming_missing
+                if action.get("kind") == "transition"
+                and str(action.get("event_id")) in locally_changed_events
+            }
+        )
+        if conflicting_events:
+            conflict = self._record_sync_conflict(
+                payload | {"checksum": checksum},
+                local_action_ids=sorted(local_actions),
+                incoming_action_ids=sorted(incoming_actions),
+                conflicting_event_ids=conflicting_events,
+            )
+            return {
+                "status": "conflict",
+                "conflict_id": conflict["conflict_id"],
+                "conflicting_event_ids": conflicting_events,
+                "allowed_resolutions": ["keep_local", "fork_local"],
+            }
+        incoming_missing.sort(key=lambda item: (int(item.get("timeline_revision", 0)), _action_origin_id(item)))
+        with self._lock:
+            self._validate_merge_actions(incoming_missing)
+            for item in payload.get("choices") or []:
+                interpretation = dict(item.get("interpretation") or {})
+                event_id = str(interpretation.pop("event_id", ""))
+                instance = self.event_instance_for(event_id)
+                if instance is None:
+                    raise WorldOpsConflictError(f"sync choice references unknown event {event_id}")
+                interpretation["event_instance_id"] = instance["instance_id"]
+                self.record_choice(interpretation, status=str(item.get("status") or "accepted"))
+            for item in payload.get("task_evidence") or []:
+                instance = self.event_instance_for(str(item.get("event_id") or ""))
+                if instance is None:
+                    raise WorldOpsConflictError("sync evidence references an unknown event")
+                self.add_task_evidence(
+                    instance_id=instance["instance_id"],
+                    task_id=str(item["task_id"]),
+                    input_id=str(item["input_id"]),
+                    evidence_type=str(item["evidence_type"]),
+                    payload=dict(item.get("payload") or {}),
+                    confidence=float(item.get("confidence", 0.0)),
+                    accepted=bool(item.get("accepted")),
+                    correlation_id="device-sync",
+                )
+            applied = 0
+            for action in incoming_missing:
+                origin_action_id = _action_origin_id(action)
+                if action["kind"] == "clock":
+                    self.advance_world_clock(
+                        float(action["delta"]),
+                        reason=str(action.get("reason") or "device_sync"),
+                        correlation_id=action.get("correlation_id"),
+                        origin_action_id=origin_action_id,
+                    )
+                else:
+                    instance = self.event_instance_for(str(action["event_id"]))
+                    if instance is None:
+                        raise WorldOpsConflictError("sync transition references an unknown event")
+                    self.transition_event(
+                        instance["instance_id"],
+                        to_state=str(action["to_state"]),
+                        expected_revision=int(instance["revision"]),
+                        trigger_type=str(action["trigger_type"]),
+                        trigger_ref=action.get("trigger_ref"),
+                        choice_id=action.get("choice_id"),
+                        effects=[dict(item) for item in action.get("effects") or []],
+                        correlation_id=action.get("correlation_id"),
+                        causation_id=action.get("causation_id"),
+                        origin_action_id=origin_action_id,
+                    )
+                applied += 1
+        final = self.export_sync_snapshot()
+        final_action_ids = set(final.get("action_ids") or [])
+        if not set(incoming_actions).issubset(final_action_ids):
+            raise WorldOpsConflictError("WorldOps sync merge did not retain every incoming action")
+        return {
+            "status": "merged" if local_only else "applied",
+            "applied_actions": applied,
+            "timeline_revision": int(self.timeline()["revision"]),
+            "action_set_digest": final.get("action_set_digest"),
+            "requires_peer_reconciliation": bool(local_only),
+        }
+
+    def _validate_merge_actions(self, actions: list[JsonDict]) -> None:
+        simulated: dict[str, tuple[str, int]] = {}
+        for action in actions:
+            if action.get("kind") == "clock":
+                continue
+            event_id = str(action.get("event_id") or "")
             instance = self.event_instance_for(event_id)
             if instance is None:
-                raise WorldOpsConflictError(f"sync choice references unknown event {event_id}")
-            interpretation["event_instance_id"] = instance["instance_id"]
-            self.record_choice(interpretation, status=str(item.get("status") or "accepted"))
-        for item in payload.get("task_evidence") or []:
-            instance = self.event_instance_for(str(item.get("event_id") or ""))
-            if instance is None:
-                raise WorldOpsConflictError("sync evidence references an unknown event")
-            self.add_task_evidence(
-                instance_id=instance["instance_id"],
-                task_id=str(item["task_id"]),
-                input_id=str(item["input_id"]),
-                evidence_type=str(item["evidence_type"]),
-                payload=dict(item.get("payload") or {}),
-                confidence=float(item.get("confidence", 0.0)),
-                accepted=bool(item.get("accepted")),
+                raise WorldOpsConflictError(f"sync transition references unknown event {event_id}")
+            state, revision = simulated.get(
+                event_id,
+                (str(instance["state"]), int(instance["revision"])),
+            )
+            if str(action.get("from_state")) != state or int(action.get("event_revision", 0)) != revision + 1:
+                raise WorldOpsConflictError(f"sync transition conflicts with current event state: {event_id}")
+            definition = self.event_definition(
+                event_id,
+                definition_version=int(action.get("definition_version", instance["definition_version"])),
+            )
+            if definition is None or not self._transition_is_authored(
+                definition,
+                from_state=state,
+                to_state=str(action.get("to_state") or ""),
+                trigger_type=str(action.get("trigger_type") or ""),
+                choice_id=action.get("choice_id"),
+            ):
+                raise WorldOpsContractError("sync transition is not authorized by the signed definition")
+            simulated[event_id] = (str(action["to_state"]), revision + 1)
+
+    def _record_sync_conflict(
+        self,
+        snapshot: Mapping[str, Any],
+        *,
+        local_action_ids: list[str],
+        incoming_action_ids: list[str],
+        conflicting_event_ids: list[str],
+    ) -> JsonDict:
+        checksum = str(snapshot.get("checksum") or content_hash(dict(snapshot)))
+        existing = self._read_connection().execute(
+            """
+            SELECT * FROM worldops_sync_conflict
+            WHERE timeline_id=? AND incoming_snapshot_checksum=? AND status='open'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (self.identity.timeline_id, checksum),
+        ).fetchone()
+        if existing is not None:
+            return dict(existing)
+        conflict_id = new_id("wosc")
+        now = utc_now()
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                INSERT INTO worldops_sync_conflict (
+                    conflict_id,timeline_id,incoming_snapshot_checksum,common_action_count,
+                    local_action_ids_json,incoming_action_ids_json,conflicting_event_ids_json,
+                    incoming_snapshot_json,status,created_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    conflict_id,
+                    self.identity.timeline_id,
+                    checksum,
+                    len(set(local_action_ids) & set(incoming_action_ids)),
+                    json_dumps(local_action_ids),
+                    json_dumps(incoming_action_ids),
+                    json_dumps(conflicting_event_ids),
+                    json_dumps(dict(snapshot)),
+                    "open",
+                    now,
+                ),
+            )
+            self._trace_locked(
+                "device_sync",
+                "conflict",
+                {"conflict_id": conflict_id, "event_ids": conflicting_event_ids},
                 correlation_id="device-sync",
             )
-        start_revision = len(local_hashes)
-        applied = 0
-        for action in payload.get("actions") or []:
-            if int(action["timeline_revision"]) <= start_revision:
-                continue
-            if action["kind"] == "clock":
-                self.advance_world_clock(
-                    float(action["delta"]),
-                    reason=str(action.get("reason") or "device_sync"),
-                    correlation_id=action.get("correlation_id"),
+        return self.get_sync_conflict(conflict_id)
+
+    def get_sync_conflict(self, conflict_id: str) -> JsonDict:
+        row = self._read_connection().execute(
+            "SELECT * FROM worldops_sync_conflict WHERE conflict_id=? AND timeline_id=?",
+            (conflict_id, self.identity.timeline_id),
+        ).fetchone()
+        if row is None:
+            raise KeyError(conflict_id)
+        result = dict(row)
+        for key in ("local_action_ids", "incoming_action_ids", "conflicting_event_ids"):
+            result[key] = json_loads(result.pop(f"{key}_json"), [])
+        result["incoming_snapshot"] = json_loads(result.pop("incoming_snapshot_json"), {})
+        return result
+
+    def list_sync_conflicts(self, *, status: str | None = "open", limit: int = 100) -> list[JsonDict]:
+        if status:
+            rows = self._read_connection().execute(
+                """
+                SELECT conflict_id FROM worldops_sync_conflict
+                WHERE timeline_id=? AND status=? ORDER BY created_at DESC LIMIT ?
+                """,
+                (self.identity.timeline_id, status, max(1, min(limit, 1000))),
+            ).fetchall()
+        else:
+            rows = self._read_connection().execute(
+                """
+                SELECT conflict_id FROM worldops_sync_conflict
+                WHERE timeline_id=? ORDER BY created_at DESC LIMIT ?
+                """,
+                (self.identity.timeline_id, max(1, min(limit, 1000))),
+            ).fetchall()
+        return [self.get_sync_conflict(str(row["conflict_id"])) for row in rows]
+
+    def resolve_sync_conflict(
+        self,
+        conflict_id: str,
+        *,
+        resolution: str,
+        fork_timeline_id: str | None = None,
+    ) -> JsonDict:
+        if resolution not in {"keep_local", "fork_local"}:
+            raise ValueError("sync conflict resolution must be keep_local or fork_local")
+        conflict = self.get_sync_conflict(conflict_id)
+        if conflict["status"] != "open":
+            return conflict
+        fork_result: JsonDict | None = None
+        if resolution == "fork_local":
+            if not fork_timeline_id:
+                raise ValueError("fork_timeline_id is required for fork_local")
+            fork_result = self.fork_timeline(fork_timeline_id)
+        now = utc_now()
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                UPDATE worldops_sync_conflict SET status='resolved',resolution=?,resolved_timeline_id=?,resolved_at=?
+                WHERE conflict_id=? AND timeline_id=? AND status='open'
+                """,
+                (
+                    resolution,
+                    (fork_result or {}).get("timeline_id"),
+                    now,
+                    conflict_id,
+                    self.identity.timeline_id,
+                ),
+            )
+        return self.get_sync_conflict(conflict_id)
+
+    def fork_timeline(self, new_timeline_id: str, *, fork_revision: int | None = None) -> JsonDict:
+        """Create an explicit, provenance-preserving branch without replaying side effects."""
+        child_identity = IdentityScope(
+            tenant_id=self.identity.tenant_id,
+            user_id=self.identity.user_id,
+            sora_id=self.identity.sora_id,
+            timeline_id=str(new_timeline_id),
+        )
+        child_identity.validate()
+        if child_identity.timeline_id == self.identity.timeline_id:
+            raise ValueError("fork timeline must use a new timeline_id")
+        source_timeline = self.timeline()
+        source_revision = int(source_timeline["revision"])
+        target_revision = source_revision if fork_revision is None else int(fork_revision)
+        if not 0 <= target_revision <= source_revision:
+            raise ValueError("fork_revision is outside the source timeline")
+        identity = self.identity_state()
+        active = self.active_bundle()
+        if active is None:
+            raise WorldOpsConflictError("cannot fork a timeline without an active signed bundle")
+        now = utc_now()
+        with self._lock, self._conn:
+            exists = self._conn.execute(
+                "SELECT 1 FROM worldops_timeline WHERE timeline_id=?",
+                (child_identity.timeline_id,),
+            ).fetchone()
+            if exists is not None:
+                raise WorldOpsConflictError("fork timeline_id already exists")
+            self._conn.execute(
+                """
+                INSERT INTO worldops_identity (
+                    tenant_id,user_id,sora_id,timeline_id,world_id,active_bundle_id,
+                    active_bundle_version,active_release_sequence,minimum_accepted_sequence,
+                    revocation_watermark,state_revision,created_at,updated_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    child_identity.tenant_id,
+                    child_identity.user_id,
+                    child_identity.sora_id,
+                    child_identity.timeline_id,
+                    self.world_id,
+                    identity["active_bundle_id"],
+                    identity["active_bundle_version"],
+                    identity["active_release_sequence"],
+                    identity["minimum_accepted_sequence"],
+                    identity["revocation_watermark"],
+                    target_revision,
+                    now,
+                    now,
+                ),
+            )
+            self._conn.execute(
+                """
+                INSERT INTO worldops_timeline (
+                    timeline_id,tenant_id,user_id,sora_id,world_id,parent_timeline_id,
+                    fork_revision,revision,world_clock,status,created_at,updated_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,'active',?,?)
+                """,
+                (
+                    child_identity.timeline_id,
+                    child_identity.tenant_id,
+                    child_identity.user_id,
+                    child_identity.sora_id,
+                    self.world_id,
+                    self.identity.timeline_id,
+                    target_revision,
+                    target_revision,
+                    0.0,
+                    now,
+                    now,
+                ),
+            )
+            instance_map: dict[str, str] = {}
+            for event in active["bundle"].get("events") or []:
+                parent_instance = self._conn.execute(
+                    """
+                    SELECT * FROM worldops_event_instance
+                    WHERE timeline_id=? AND event_id=? AND definition_version=?
+                    """,
+                    (
+                        self.identity.timeline_id,
+                        str(event["event_id"]),
+                        int(event.get("definition_version", 1)),
+                    ),
+                ).fetchone()
+                if parent_instance is None:
+                    continue
+                child_instance_id = new_id("woi")
+                instance_map[str(parent_instance["instance_id"])] = child_instance_id
+                self._conn.execute(
+                    """
+                    INSERT INTO worldops_event_instance (
+                        instance_id,timeline_id,event_id,definition_version,bundle_id,state,
+                        revision,metadata_json,created_at,updated_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        child_instance_id,
+                        child_identity.timeline_id,
+                        event["event_id"],
+                        int(event.get("definition_version", 1)),
+                        identity["active_bundle_id"],
+                        str(event.get("initial_state") or "dormant"),
+                        0,
+                        "{}",
+                        now,
+                        now,
+                    ),
                 )
-            else:
-                instance = self.event_instance_for(str(action["event_id"]))
-                if instance is None:
-                    raise WorldOpsConflictError("sync transition references an unknown event")
-                self.transition_event(
-                    instance["instance_id"],
-                    to_state=str(action["to_state"]),
-                    expected_revision=int(instance["revision"]),
-                    trigger_type=str(action["trigger_type"]),
-                    trigger_ref=action.get("trigger_ref"),
-                    choice_id=action.get("choice_id"),
-                    effects=[dict(item) for item in action.get("effects") or []],
-                    correlation_id=action.get("correlation_id"),
-                    causation_id=action.get("causation_id"),
+            transitions = self._conn.execute(
+                """
+                SELECT * FROM worldops_transition_ledger
+                WHERE timeline_id=? AND timeline_revision<=?
+                ORDER BY timeline_revision,transition_id
+                """,
+                (self.identity.timeline_id, target_revision),
+            ).fetchall()
+            for row in transitions:
+                child_instance_id = instance_map[str(row["instance_id"])]
+                child_transition_id = new_id("wot")
+                self._conn.execute(
+                    """
+                    INSERT INTO worldops_transition_ledger (
+                        transition_id,origin_action_id,timeline_id,instance_id,event_id,from_state,to_state,
+                        event_revision,timeline_revision,trigger_type,trigger_ref,choice_id,effects_json,
+                        definition_version,bundle_id,correlation_id,causation_id,created_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        child_transition_id,
+                        str(row["origin_action_id"] or row["transition_id"]),
+                        child_identity.timeline_id,
+                        child_instance_id,
+                        row["event_id"],
+                        row["from_state"],
+                        row["to_state"],
+                        row["event_revision"],
+                        row["timeline_revision"],
+                        row["trigger_type"],
+                        row["trigger_ref"],
+                        row["choice_id"],
+                        row["effects_json"],
+                        row["definition_version"],
+                        row["bundle_id"],
+                        row["correlation_id"],
+                        row["causation_id"],
+                        row["created_at"],
+                    ),
                 )
-            applied += 1
-        final = self.export_sync_snapshot()
-        if final.get("action_hashes") != incoming_hashes:
-            raise WorldOpsConflictError("WorldOps sync replay did not reach deterministic parity")
-        return {"status": "applied", "applied_actions": applied, "timeline_revision": int(self.timeline()["revision"])}
+                timestamps = {
+                    "activated_at": row["created_at"] if row["to_state"] == "active" else None,
+                    "completed_at": row["created_at"] if row["to_state"] == "completed" else None,
+                    "archived_at": row["created_at"] if row["to_state"] == "archived" else None,
+                }
+                self._conn.execute(
+                    """
+                    UPDATE worldops_event_instance SET state=?,revision=?,selected_choice_id=COALESCE(?,selected_choice_id),
+                        activated_at=COALESCE(?,activated_at),completed_at=COALESCE(?,completed_at),
+                        archived_at=COALESCE(?,archived_at),updated_at=? WHERE instance_id=?
+                    """,
+                    (
+                        row["to_state"],
+                        row["event_revision"],
+                        row["choice_id"],
+                        timestamps["activated_at"],
+                        timestamps["completed_at"],
+                        timestamps["archived_at"],
+                        row["created_at"],
+                        child_instance_id,
+                    ),
+                )
+                for effect in json_loads(row["effects_json"], []):
+                    key = str(effect.get("key") or "")
+                    if not key:
+                        continue
+                    self._conn.execute(
+                        """
+                        UPDATE worldops_timeline_fact SET valid_to_revision=?
+                        WHERE timeline_id=? AND fact_key=? AND valid_to_revision IS NULL
+                        """,
+                        (row["timeline_revision"], child_identity.timeline_id, key),
+                    )
+                    if effect.get("op") == "set_fact":
+                        self._conn.execute(
+                            """
+                            INSERT INTO worldops_timeline_fact (
+                                fact_revision_id,timeline_id,fact_key,fact_value_json,source_instance_id,
+                                source_transition_id,valid_from_revision,created_at
+                            ) VALUES (?,?,?,?,?,?,?,?)
+                            """,
+                            (
+                                new_id("wof"),
+                                child_identity.timeline_id,
+                                key,
+                                json_dumps(effect.get("value")),
+                                child_instance_id,
+                                child_transition_id,
+                                row["timeline_revision"],
+                                row["created_at"],
+                            ),
+                        )
+            clocks = self._conn.execute(
+                """
+                SELECT * FROM worldops_clock_ledger
+                WHERE timeline_id=? AND timeline_revision<=?
+                ORDER BY timeline_revision,clock_event_id
+                """,
+                (self.identity.timeline_id, target_revision),
+            ).fetchall()
+            for row in clocks:
+                self._conn.execute(
+                    """
+                    INSERT INTO worldops_clock_ledger (
+                        clock_event_id,origin_action_id,timeline_id,timeline_revision,delta,
+                        world_clock,reason,correlation_id,created_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        new_id("woclock"),
+                        str(row["origin_action_id"] or row["clock_event_id"]),
+                        child_identity.timeline_id,
+                        row["timeline_revision"],
+                        row["delta"],
+                        row["world_clock"],
+                        row["reason"],
+                        row["correlation_id"],
+                        row["created_at"],
+                    ),
+                )
+            child_clock = float(clocks[-1]["world_clock"]) if clocks else 0.0
+            self._conn.execute(
+                "UPDATE worldops_timeline SET world_clock=? WHERE timeline_id=?",
+                (child_clock, child_identity.timeline_id),
+            )
+            cutoff = now
+            if target_revision < source_revision:
+                action_times = [str(row["created_at"]) for row in transitions] + [str(row["created_at"]) for row in clocks]
+                cutoff = max(action_times) if action_times else str(source_timeline["created_at"])
+            for row in self._conn.execute(
+                """
+                SELECT * FROM worldops_choice_ledger
+                WHERE timeline_id=? AND created_at<=? ORDER BY created_at,choice_ledger_id
+                """,
+                (self.identity.timeline_id, cutoff),
+            ).fetchall():
+                child_instance_id = instance_map.get(str(row["instance_id"]))
+                if child_instance_id is None:
+                    continue
+                interpretation = json_loads(row["interpretation_json"], {})
+                interpretation["event_instance_id"] = child_instance_id
+                interpretation["interpretation_id"] = "woifork." + content_hash(
+                    {"source": row["interpretation_id"], "timeline": child_identity.timeline_id}
+                )[:32]
+                self._conn.execute(
+                    """
+                    INSERT INTO worldops_choice_ledger (
+                        choice_ledger_id,timeline_id,instance_id,input_id,interpretation_id,choice_id,
+                        interpretation_json,evidence_refs_json,status,created_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        new_id("wocl"),
+                        child_identity.timeline_id,
+                        child_instance_id,
+                        row["input_id"],
+                        interpretation["interpretation_id"],
+                        row["choice_id"],
+                        json_dumps(interpretation),
+                        row["evidence_refs_json"],
+                        row["status"],
+                        row["created_at"],
+                    ),
+                )
+            for row in self._conn.execute(
+                """
+                SELECT * FROM worldops_task_evidence
+                WHERE timeline_id=? AND created_at<=? ORDER BY created_at,evidence_id
+                """,
+                (self.identity.timeline_id, cutoff),
+            ).fetchall():
+                child_instance_id = instance_map.get(str(row["instance_id"]))
+                if child_instance_id is None:
+                    continue
+                self._conn.execute(
+                    """
+                    INSERT INTO worldops_task_evidence (
+                        evidence_id,timeline_id,instance_id,task_id,input_id,evidence_type,payload_json,
+                        confidence,accepted,consumed,created_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        new_id("woe"),
+                        child_identity.timeline_id,
+                        child_instance_id,
+                        row["task_id"],
+                        row["input_id"],
+                        row["evidence_type"],
+                        row["payload_json"],
+                        row["confidence"],
+                        row["accepted"],
+                        row["consumed"],
+                        row["created_at"],
+                    ),
+                )
+            self._trace_locked(
+                "timeline_fork",
+                "created",
+                {"child_timeline_id": child_identity.timeline_id, "fork_revision": target_revision},
+            )
+        return {
+            "status": "forked",
+            "timeline_id": child_identity.timeline_id,
+            "parent_timeline_id": self.identity.timeline_id,
+            "fork_revision": target_revision,
+            "world_clock": child_clock,
+        }
 
     def store_memory_projection(self, event: Mapping[str, Any]) -> JsonDict:
         memory = dict(event.get("memory") or {})
@@ -1554,6 +2168,12 @@ class WorldOpsStore:
                 "SELECT COUNT(*) FROM worldops_consumer_effect WHERE status!='completed'"
             ).fetchone()[0]
         )
+        open_sync_conflicts = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM worldops_sync_conflict WHERE timeline_id=? AND status='open'",
+                (self.identity.timeline_id,),
+            ).fetchone()[0]
+        )
         return {
             "status": (
                 "healthy"
@@ -1569,6 +2189,7 @@ class WorldOpsStore:
                 "dead_letter": dead,
                 "incomplete_consumer_effects": incomplete_effects,
             },
+            "open_sync_conflicts": open_sync_conflicts,
             "counts": counts,
         }
 
@@ -1610,11 +2231,18 @@ class WorldOpsStore:
                 "SELECT COUNT(*) FROM worldops_consumer_effect WHERE status!='completed'"
             ).fetchone()[0]
         )
+        open_sync_conflicts = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM worldops_sync_conflict WHERE timeline_id=? AND status='open'",
+                (self.identity.timeline_id,),
+            ).fetchone()[0]
+        )
         return {
             "completed_without_user_evidence": completed_without_evidence,
             "duplicate_choice_inputs": duplicate_inputs,
             "open_dead_letters": open_dead_letters,
             "incomplete_consumer_effects": incomplete_effects,
+            "open_sync_conflicts": open_sync_conflicts,
             "rebuild": self.rebuild(dry_run=True),
             "health": self.health(),
         }
@@ -1675,6 +2303,9 @@ class WorldOpsStore:
             ).fetchall()
         return [dict(row) | {"labels": json_loads(row["labels_json"], {})} for row in rows]
 
+    def export_prometheus_metrics(self, *, limit: int = 10000) -> str:
+        return prometheus_text(self.list_metrics(limit=limit))
+
     def cleanup_observability(
         self,
         *,
@@ -1734,13 +2365,26 @@ class WorldOpsStore:
         trigger_type: str,
         choice_id: str | None,
     ) -> bool:
+        return WorldOpsStore._authored_transition(
+            definition,
+            from_state=from_state,
+            to_state=to_state,
+            trigger_type=trigger_type,
+            choice_id=choice_id,
+        ) is not None
+
+    @staticmethod
+    def _authored_transition(
+        definition: Mapping[str, Any],
+        *,
+        from_state: str,
+        to_state: str,
+        trigger_type: str,
+        choice_id: str | None,
+    ) -> Mapping[str, Any] | None:
         if trigger_type in {"migration", "break_glass_recovery"}:
-            return True
-        aliases = {
-            "manual_eligibility": "eligible",
-            "user_reference": "surface_selected",
-        }
-        authored_trigger = aliases.get(trigger_type, trigger_type)
+            return {"from": from_state, "to": to_state, "trigger": trigger_type, "effects": []}
+        authored_trigger = TRANSITION_TRIGGER_ALIASES.get(trigger_type, trigger_type)
         for transition in definition.get("transitions") or []:
             if (
                 str(transition.get("from")) != from_state
@@ -1749,8 +2393,9 @@ class WorldOpsStore:
             ):
                 continue
             choices = {str(item) for item in transition.get("choice_ids") or []}
-            return not choices or choice_id in choices
-        return False
+            if not choices or choice_id in choices:
+                return transition
+        return None
 
     def _ensure_event_instance_locked(self, event: Mapping[str, Any], *, bundle_id: str, now: str) -> None:
         event_id = str(event["event_id"])
@@ -1782,12 +2427,27 @@ class WorldOpsStore:
         transition_id: str,
         now: str,
     ) -> None:
-        op = str(effect.get("op") or "")
-        if op not in {"set_fact", "remove_fact"}:
-            raise WorldOpsContractError(f"unsupported effect opcode: {op}")
-        key = str(effect.get("key") or "")
-        if not key:
-            raise WorldOpsContractError("effect fact key is required")
+        try:
+            validated = self.effect_registry.validate(effect)
+        except ValueError as exc:
+            raise WorldOpsContractError(str(exc)) from exc
+        op = str(validated["op"])
+        if op == "emit_signal":
+            self._enqueue_locked(
+                "worldops.effect.signal.v1",
+                event_key=f"effect-signal:{transition_id}:{validated['signal_type']}",
+                payload={
+                    "signal_type": validated["signal_type"],
+                    "payload": dict(validated["payload"]),
+                    "instance_id": instance_id,
+                    "transition_id": transition_id,
+                    "timeline_revision": timeline_revision,
+                },
+                correlation_id=None,
+                causation_id=transition_id,
+            )
+            return
+        key = str(validated["key"])
         self._conn.execute(
             """
             UPDATE worldops_timeline_fact SET valid_to_revision=?
@@ -1807,7 +2467,7 @@ class WorldOpsStore:
                     new_id("wof"),
                     self.identity.timeline_id,
                     key,
-                    json_dumps(effect.get("value")),
+                    json_dumps(validated.get("value")),
                     instance_id,
                     transition_id,
                     timeline_revision,
@@ -1871,6 +2531,8 @@ class WorldOpsStore:
         bundle_id: str | None = None,
         instance_id: str | None = None,
     ) -> None:
+        created_at = utc_now()
+        trace_id = new_id("wotr")
         self._conn.execute(
             """
             INSERT INTO worldops_trace (
@@ -1879,7 +2541,7 @@ class WorldOpsStore:
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
-                new_id("wotr"),
+                trace_id,
                 self.identity.timeline_id,
                 correlation_id,
                 causation_id,
@@ -1889,9 +2551,29 @@ class WorldOpsStore:
                 instance_id,
                 json_dumps(dict(details)),
                 latency_ms,
-                utc_now(),
+                created_at,
             ),
         )
+        if self.trace_sink is not None:
+            try:
+                self.trace_sink.emit(
+                    {
+                        "trace_id": trace_id,
+                        "subsystem": "worldops",
+                        "timeline_id": self.identity.timeline_id,
+                        "correlation_id": correlation_id,
+                        "causation_id": causation_id,
+                        "stage": stage,
+                        "status": status,
+                        "bundle_id": bundle_id,
+                        "event_instance_id": instance_id,
+                        "latency_ms": latency_ms,
+                        "details": dict(details),
+                        "created_at": created_at,
+                    }
+                )
+            except Exception:
+                pass
 
     @staticmethod
     def _event_from_row(row: sqlite3.Row) -> JsonDict:
@@ -1919,3 +2601,17 @@ class WorldOpsStore:
         result = dict(row)
         result["payload"] = json_loads(row["payload_json"], {})
         return result
+
+
+def _action_origin_id(action: Mapping[str, Any]) -> str:
+    supplied = str(action.get("origin_action_id") or "").strip()
+    if supplied:
+        return supplied
+    return "legacy." + content_hash(_action_fingerprint(action))[:40]
+
+
+def _action_fingerprint(action: Mapping[str, Any]) -> JsonDict:
+    payload = dict(action)
+    for key in ("timeline_revision", "world_clock", "origin_action_id"):
+        payload.pop(key, None)
+    return payload

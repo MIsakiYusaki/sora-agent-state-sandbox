@@ -223,6 +223,7 @@ class WorldOpsRuntime:
             "schema_version": "WorldOpsFrame.v1",
             "runtime_mode": "canonical_worldops_system",
             "world_id": self.store.world_id,
+            "timeline_id": self.store.identity.timeline_id,
             "canon_version": active_bundle["manifest"]["canon_version"],
             "bundle_id": active_bundle["manifest"]["bundle_id"],
             "release_sequence": active_bundle["manifest"]["release_sequence"],
@@ -286,6 +287,7 @@ class WorldOpsRuntime:
             "schema_version": "WorldOpsFrame.v1",
             "runtime_mode": "neutral_safe_fallback",
             "world_id": self.store.world_id,
+            "timeline_id": self.store.identity.timeline_id,
             "canon_version": None,
             "timeline_revision": int(self.store.timeline()["revision"]),
             "selected_event_id": None,
@@ -298,6 +300,7 @@ class WorldOpsRuntime:
             "expression_level": "L0",
             "expression_hint": "text",
             "memory_policy": {"write_only_if_user_participates": True},
+            "state_surface_permission": "silent",
             "forbidden_behaviors": ["Do not invent WorldOps content."],
             "influence_summary": [],
             "memory_refs": [],
@@ -373,8 +376,8 @@ class WorldOpsRuntime:
             context=bounded_context,
         )
         llm_called = False
+        llm_trace_recorded = False
         if interpretation is None and self.provider is not None:
-            llm_called = True
             interpretation, trace = self.provider.interpret(
                 text,
                 input_id=input_id,
@@ -382,15 +385,38 @@ class WorldOpsRuntime:
                 event=event,
                 context=bounded_context,
             )
-        if interpretation is None:
+            llm_called = bool(trace.get("llm_called"))
             self.store.record_trace(
-                "choice_interpretation",
-                str(trace.get("status") or "no_match"),
+                "choice_interpretation_llm",
+                str(trace.get("status") or "unknown"),
                 trace,
                 correlation_id=correlation_id,
                 instance_id=str(instance["instance_id"]),
                 latency_ms=float(trace.get("latency_ms", 0.0)),
             )
+            llm_trace_recorded = True
+            usage = dict(trace.get("usage") or {})
+            for metric_name, keys in (
+                ("worldops_llm_input_tokens", ("prompt_tokens", "input_tokens")),
+                ("worldops_llm_output_tokens", ("completion_tokens", "output_tokens")),
+            ):
+                value = next((usage.get(key) for key in keys if usage.get(key) is not None), 0)
+                self.store.record_metric(metric_name, float(value or 0), labels={"provider": trace.get("provider")})
+            self.store.record_metric(
+                "worldops_llm_estimated_cost_usd",
+                float(trace.get("estimated_cost_usd") or 0.0),
+                labels={"provider": trace.get("provider")},
+            )
+        if interpretation is None:
+            if not llm_trace_recorded:
+                self.store.record_trace(
+                    "choice_interpretation",
+                    str(trace.get("status") or "no_match"),
+                    trace,
+                    correlation_id=correlation_id,
+                    instance_id=str(instance["instance_id"]),
+                    latency_ms=float(trace.get("latency_ms", 0.0)),
+                )
             return {"status": str(trace.get("status") or "no_match"), "llm_called": llm_called, "trace": trace}
         allowed_choices = {str(item.get("choice_id")) for item in event.get("choices") or []}
         allowed_tasks = {str(item.get("task_id")) for item in event.get("tasks") or []}

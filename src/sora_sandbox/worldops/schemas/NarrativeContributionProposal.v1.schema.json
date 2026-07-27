@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-sora.local/schemas/worldops/NarrativeContributionProposal.v1.schema.json",
+  "title": "NarrativeContributionProposal.v1",
+  "type": "object",
+  "required": ["contract", "proposal_id", "world_id", "pseudonymous_subject_id", "privacy", "payload"],
+  "properties": {
+    "contract": {"const": "NarrativeContributionProposal.v1"}, "proposal_id": {"type": "string"}, "world_id": {"type": "string"},
+    "pseudonymous_subject_id": {"type": "string"}, "privacy": {"type": "object"}, "payload": {"type": "object"}
+  },
+  "additionalProperties": true
+}

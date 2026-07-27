@@ -7,6 +7,9 @@ dependencies = [
     "cryptography>=43.0.0",
 ]
 
+[tool.setuptools.package-data]
+"sora_sandbox.worldops" = ["schemas/*.json", "eval_data/*.jsonl"]
+
 [project.scripts]
 sora-sandbox = "sora_sandbox.__main__:main"
 

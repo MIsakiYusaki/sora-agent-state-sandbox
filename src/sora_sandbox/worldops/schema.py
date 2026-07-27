@@ -153,6 +153,7 @@ ON worldops_timeline_fact(timeline_id, fact_key, valid_to_revision);
 
 CREATE TABLE IF NOT EXISTS worldops_transition_ledger (
     transition_id TEXT PRIMARY KEY,
+    origin_action_id TEXT NOT NULL,
     timeline_id TEXT NOT NULL,
     instance_id TEXT NOT NULL,
     event_id TEXT NOT NULL,
@@ -170,6 +171,7 @@ CREATE TABLE IF NOT EXISTS worldops_transition_ledger (
     causation_id TEXT,
     created_at TEXT NOT NULL,
     UNIQUE(instance_id, event_revision),
+    UNIQUE(timeline_id, origin_action_id),
     FOREIGN KEY(timeline_id) REFERENCES worldops_timeline(timeline_id),
     FOREIGN KEY(instance_id) REFERENCES worldops_event_instance(instance_id)
 );
@@ -179,6 +181,7 @@ ON worldops_transition_ledger(timeline_id, timeline_revision, transition_id);
 
 CREATE TABLE IF NOT EXISTS worldops_clock_ledger (
     clock_event_id TEXT PRIMARY KEY,
+    origin_action_id TEXT NOT NULL,
     timeline_id TEXT NOT NULL,
     timeline_revision INTEGER NOT NULL,
     delta REAL NOT NULL,
@@ -187,6 +190,7 @@ CREATE TABLE IF NOT EXISTS worldops_clock_ledger (
     correlation_id TEXT,
     created_at TEXT NOT NULL,
     UNIQUE(timeline_id, timeline_revision),
+    UNIQUE(timeline_id, origin_action_id),
     FOREIGN KEY(timeline_id) REFERENCES worldops_timeline(timeline_id)
 );
 
@@ -258,6 +262,9 @@ CREATE TABLE IF NOT EXISTS worldops_trace (
 CREATE INDEX IF NOT EXISTS idx_worldops_trace_correlation
 ON worldops_trace(correlation_id, created_at);
 
+CREATE INDEX IF NOT EXISTS idx_worldops_trace_created
+ON worldops_trace(created_at);
+
 CREATE TABLE IF NOT EXISTS worldops_metric (
     metric_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -284,6 +291,9 @@ CREATE TABLE IF NOT EXISTS worldops_dead_letter (
     UNIQUE(source_event_id, source_kind)
 );
 
+CREATE INDEX IF NOT EXISTS idx_worldops_dead_letter_status
+ON worldops_dead_letter(status, created_at);
+
 CREATE TABLE IF NOT EXISTS worldops_control (
     tenant_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
@@ -309,6 +319,29 @@ CREATE TABLE IF NOT EXISTS worldops_contribution_receipt (
     updated_at TEXT NOT NULL,
     FOREIGN KEY(timeline_id) REFERENCES worldops_timeline(timeline_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_worldops_contribution_receipt_timeline
+ON worldops_contribution_receipt(timeline_id, updated_at);
+
+CREATE TABLE IF NOT EXISTS worldops_sync_conflict (
+    conflict_id TEXT PRIMARY KEY,
+    timeline_id TEXT NOT NULL,
+    incoming_snapshot_checksum TEXT NOT NULL,
+    common_action_count INTEGER NOT NULL,
+    local_action_ids_json TEXT NOT NULL,
+    incoming_action_ids_json TEXT NOT NULL,
+    conflicting_event_ids_json TEXT NOT NULL,
+    incoming_snapshot_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    resolution TEXT,
+    resolved_timeline_id TEXT,
+    created_at TEXT NOT NULL,
+    resolved_at TEXT,
+    FOREIGN KEY(timeline_id) REFERENCES worldops_timeline(timeline_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_worldops_sync_conflict_status
+ON worldops_sync_conflict(timeline_id, status, created_at);
 
 CREATE TABLE IF NOT EXISTS worldops_memory_projection (
     source_memory_id TEXT PRIMARY KEY,

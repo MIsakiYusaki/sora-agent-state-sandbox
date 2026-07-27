@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-sora.local/schemas/worldops/WorldOpsEventEnvelope.v1.schema.json",
+  "title": "WorldOpsEventEnvelope.v1",
+  "type": "object",
+  "required": ["contract", "event_id", "event_type", "occurred_at", "producer", "contract_version", "subject", "payload", "privacy_class", "idempotency_key"],
+  "properties": {
+    "contract": {"const": "WorldOpsEventEnvelope.v1"}, "event_id": {"type": "string"}, "event_type": {"type": "string"},
+    "occurred_at": {"type": "string", "format": "date-time"}, "producer": {"type": "string"}, "contract_version": {"const": 1},
+    "subject": {"type": "object"}, "payload": {"type": "object"},
+    "privacy_class": {"enum": ["public", "internal_pseudonymous", "private_local", "restricted"]}, "idempotency_key": {"type": "string"}
+  },
+  "additionalProperties": true
+}

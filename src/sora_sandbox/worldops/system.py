@@ -23,6 +23,7 @@ from .contracts import (
     content_hash,
     validate_event_envelope,
 )
+from .coordinator import WorldOpsWriteCoordinator
 from .privacy import WorldOpsSecretVault
 from .provider import WorldOpsInterpretationProvider
 from .runtime import WorldOpsRuntime
@@ -61,6 +62,13 @@ class WorldOpsProjectionAdapter:
         self.system = system
 
     def deliver(self, event: JsonDict) -> JsonDict:
+        return self.system.write_coordinator.run(
+            lambda: self._deliver(event),
+            priority=1,
+            name="worldops_projection_deliver",
+        )
+
+    def _deliver(self, event: JsonDict) -> JsonDict:
         if str(event.get("target_subsystem") or "") != "worldops":
             return {
                 "contract": PROJECTION_ACK_CONTRACT,
@@ -132,6 +140,7 @@ class WorldOpsSystem:
         start_worker: bool = True,
         worker_interval_seconds: float = 0.5,
         deployment_mode: str = "remote_client",
+        write_coordinator: WorldOpsWriteCoordinator | None = None,
     ) -> None:
         self.store = store
         self.runtime = runtime
@@ -143,6 +152,7 @@ class WorldOpsSystem:
         self.memory_runtime = memory_runtime
         self.worker_interval_seconds = max(0.05, float(worker_interval_seconds))
         self.deployment_mode = deployment_mode
+        self.write_coordinator = write_coordinator or WorldOpsWriteCoordinator()
         if deployment_mode == "remote_client" and signer is not None:
             raise WorldOpsContractError("production WorldOps clients must never hold a content signing key")
         if deployment_mode == "local_split_development" and (signer is None or studio is None or server_store is None):
@@ -287,6 +297,14 @@ class WorldOpsSystem:
         return self.refresh_from_server(latest=latest)
 
     def refresh_from_server(self, *, latest: Mapping[str, Any] | None = None) -> JsonDict:
+        return self.write_coordinator.run(
+            lambda: self._refresh_from_server(latest=latest),
+            priority=1,
+            name="worldops_refresh_bundle",
+            timeout=30.0,
+        )
+
+    def _refresh_from_server(self, *, latest: Mapping[str, Any] | None = None) -> JsonDict:
         response = dict(
             latest
             or self.distribution.get_latest_release("world.default", channel="stable", cohort="default")
@@ -322,14 +340,18 @@ class WorldOpsSystem:
         persona_frame: Mapping[str, Any] | None = None,
         relationship_frame: Mapping[str, Any] | None = None,
     ) -> JsonDict:
-        return self.runtime.observe_turn(
-            text,
-            turn_id=turn_id,
-            correlation_id=correlation_id,
-            turn_interpretation=turn_interpretation,
-            interruptibility_frame=interruptibility_frame,
-            persona_frame=persona_frame,
-            relationship_frame=relationship_frame,
+        return self.write_coordinator.run(
+            lambda: self.runtime.observe_turn(
+                text,
+                turn_id=turn_id,
+                correlation_id=correlation_id,
+                turn_interpretation=turn_interpretation,
+                interruptibility_frame=interruptibility_frame,
+                persona_frame=persona_frame,
+                relationship_frame=relationship_frame,
+            ),
+            priority=1,
+            name="worldops_observe_turn",
         )
 
     def frame(
@@ -382,6 +404,14 @@ class WorldOpsSystem:
                 self._stop_event.wait(min(5.0, self.worker_interval_seconds * 4))
 
     def process_outbox(self, *, limit: int = 100) -> JsonDict:
+        return self.write_coordinator.run(
+            lambda: self._process_outbox(limit=limit),
+            priority=2,
+            name="worldops_process_outbox",
+            timeout=30.0,
+        )
+
+    def _process_outbox(self, *, limit: int = 100) -> JsonDict:
         with self._outbox_delivery_lock:
             processed = 0
             failed = 0
@@ -624,6 +654,43 @@ class WorldOpsSystem:
     def register_domain_event_consumer(self, event_type: str, consumer: Callable[[JsonDict], Any]) -> None:
         self._event_consumers[event_type] = consumer
 
+    def apply_sync_snapshot(self, snapshot: Mapping[str, Any], *, transport_authenticated: bool) -> JsonDict:
+        return self.write_coordinator.run(
+            lambda: self.store.apply_sync_snapshot(
+                snapshot,
+                transport_authenticated=transport_authenticated,
+            ),
+            priority=1,
+            name="worldops_apply_sync_snapshot",
+            timeout=30.0,
+        )
+
+    def fork_timeline(self, timeline_id: str, *, fork_revision: int | None = None) -> JsonDict:
+        return self.write_coordinator.run(
+            lambda: self.store.fork_timeline(timeline_id, fork_revision=fork_revision),
+            priority=0,
+            name="worldops_fork_timeline",
+            timeout=30.0,
+        )
+
+    def resolve_sync_conflict(
+        self,
+        conflict_id: str,
+        *,
+        resolution: str,
+        fork_timeline_id: str | None = None,
+    ) -> JsonDict:
+        return self.write_coordinator.run(
+            lambda: self.store.resolve_sync_conflict(
+                conflict_id,
+                resolution=resolution,
+                fork_timeline_id=fork_timeline_id,
+            ),
+            priority=0,
+            name="worldops_resolve_sync_conflict",
+            timeout=30.0,
+        )
+
     def projection_snapshot(
         self,
         *,
@@ -653,6 +720,13 @@ class WorldOpsSystem:
         }
 
     def migrate_legacy(self, legacy: Mapping[str, Any] | None) -> JsonDict:
+        return self.write_coordinator.run(
+            lambda: self._migrate_legacy(legacy),
+            priority=2,
+            name="worldops_migrate_legacy",
+        )
+
+    def _migrate_legacy(self, legacy: Mapping[str, Any] | None) -> JsonDict:
         payload = dict(legacy or {})
         active_event_id = str(payload.get("active_event_id") or "")
         if not active_event_id:
@@ -700,6 +774,7 @@ class WorldOpsSystem:
 
     def close(self) -> None:
         self.stop_worker()
+        self.write_coordinator.close()
         if self.server_store is not None:
             self.server_store.close()
         self.store.close()
@@ -709,10 +784,18 @@ class WorldOpsSystem:
         health = self.store.health()
         return health | {
             "worker": {"running": worker_alive, "interval_seconds": self.worker_interval_seconds},
+            "write_coordinator": {
+                "queue_depth": self.write_coordinator.queue_depth,
+                "under_backpressure": self.write_coordinator.under_backpressure,
+                "high_watermark": self.write_coordinator.high_watermark,
+                "max_queue": self.write_coordinator.max_queue,
+            },
             "deployment": self.deployment_mode,
         }
 
     def export_state(self) -> JsonDict:
+        from .quality import worldops_slo_snapshot
+
         active = self.store.active_bundle()
         return {
             "schema_version": "WorldOpsSystemExport.v1",
@@ -725,8 +808,10 @@ class WorldOpsSystem:
             "controls": self.store.get_control(),
             "contribution_receipts": self.store.list_contribution_receipts(limit=100),
             "memory_projections": self.store.list_memory_projections(active=True),
+            "sync_conflicts": self.store.list_sync_conflicts(status=None, limit=100),
             "quality": self.store.quality_snapshot(),
             "health": self.health(),
+            "slo": worldops_slo_snapshot(self),
             "recent_traces": self.store.list_traces(limit=100),
             "server_audit": self.server_store.list_audit(limit=100) if self.server_store is not None else [],
         }
@@ -793,6 +878,17 @@ class WorldOpsSystem:
                 ),
                 rollback_plan=lambda params: {"type": "not_required", "note": "Only expired derived observability rows are removed; canonical ledgers remain intact."},
                 description="Apply bounded retention to WorldOps traces, metrics, and processed outbox rows.",
+            ),
+            AdminActionSpec(
+                name="worldops_fork_timeline",
+                risk_level="high",
+                preview=lambda params: {"impact_summary": {"mutates": ["worldops_timeline", "worldops_ledgers"], "new_timeline_id": params.get("timeline_id"), "explicit_user_choice_required": True}},
+                execute=lambda params: self.fork_timeline(
+                    str(params["timeline_id"]),
+                    fork_revision=(int(params["fork_revision"]) if params.get("fork_revision") is not None else None),
+                ),
+                rollback_plan=lambda params: {"type": "archive_fork", "note": "The source timeline is never mutated by a fork."},
+                description="Create an explicit personal timeline branch at a selected revision.",
             ),
         ]
         for action in actions:

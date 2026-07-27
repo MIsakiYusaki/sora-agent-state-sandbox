@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-sora.local/schemas/worldops/WorldOpsFrame.v1.schema.json",
+  "title": "WorldOpsFrame.v1",
+  "type": "object",
+  "required": ["schema_version", "world_id", "timeline_id", "timeline_revision", "candidate_events", "state_surface_permission", "forbidden_behaviors"],
+  "properties": {
+    "schema_version": {"const": "WorldOpsFrame.v1"}, "world_id": {"type": "string"}, "timeline_id": {"type": "string"},
+    "timeline_revision": {"type": "integer", "minimum": 0}, "candidate_events": {"type": "array"}, "state_surface_permission": {"enum": ["silent", "implicit", "explicit"]},
+    "forbidden_behaviors": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

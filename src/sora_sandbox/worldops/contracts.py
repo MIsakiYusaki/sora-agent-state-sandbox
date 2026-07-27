@@ -18,6 +18,7 @@ TASK_EVIDENCE_CONTRACT = "TaskEvidence.v1"
 NARRATIVE_CONTRIBUTION_CONTRACT = "NarrativeContributionProposal.v1"
 PERSONAL_TIMELINE_MUTATION_CONTRACT = "PersonalTimelineMutation.v1"
 WORLDOPS_EVENT_ENVELOPE_CONTRACT = "WorldOpsEventEnvelope.v1"
+WORLDOPS_SYNC_SNAPSHOT_CONTRACT = "WorldOpsSyncSnapshot.v1"
 WORLDOPS_PROJECTION_ADAPTER_VERSION = "worldops_projection_adapter.v1"
 WORLDOPS_SCHEMA_VERSION = 1
 
@@ -232,6 +233,29 @@ def validate_content_bundle(bundle: Mapping[str, Any]) -> JsonDict:
     world_id = _required_identifier(world.get("world_id"), "world.world_id")
     if not str(world.get("name") or "").strip():
         raise WorldOpsContractError("world.name is required")
+    locales = payload.get("locales") or {}
+    if not isinstance(locales, dict):
+        raise WorldOpsContractError("locales must be an object")
+    if locales:
+        default_locale = str(world.get("default_locale") or (payload.get("defaults") or {}).get("default_locale") or "")
+        if not default_locale or default_locale not in locales:
+            raise WorldOpsContractError("localized bundles require a declared default_locale with resources")
+        required_keys = {
+            str(asset.get("localization_key"))
+            for asset in payload.get("assets") or []
+            if isinstance(asset, dict) and asset.get("localization_key")
+        }
+        default_resources = locales.get(default_locale)
+        if not isinstance(default_resources, dict):
+            raise WorldOpsContractError("default locale resources must be an object")
+        missing_keys = sorted(required_keys - set(default_resources))
+        if missing_keys:
+            raise WorldOpsContractError(
+                "default locale is missing asset fallbacks: " + ",".join(missing_keys)
+            )
+        for locale, resources in locales.items():
+            if not str(locale).strip() or not isinstance(resources, dict):
+                raise WorldOpsContractError("each locale must map to a resource object")
     events = payload.get("events")
     if not isinstance(events, list):
         raise WorldOpsContractError("events must be a list")
@@ -249,6 +273,8 @@ def validate_content_bundle(bundle: Mapping[str, Any]) -> JsonDict:
 
 
 def _validate_event_definition(event: Mapping[str, Any]) -> None:
+    from .effects import DEFAULT_EFFECT_REGISTRY
+
     if not str(event.get("title") or "").strip():
         raise WorldOpsContractError("event title is required")
     if not str(event.get("summary") or event.get("one_sentence") or "").strip():
@@ -278,6 +304,11 @@ def _validate_event_definition(event: Mapping[str, Any]) -> None:
             raise WorldOpsContractError("event transition references an invalid state")
         if source in TERMINAL_EVENT_STATES and target != "archived":
             raise WorldOpsContractError("terminal event states cannot resume without migration")
+        for effect in transition.get("effects") or []:
+            try:
+                DEFAULT_EFFECT_REGISTRY.validate(effect)
+            except ValueError as exc:
+                raise WorldOpsContractError(str(exc)) from exc
 
 
 def make_event_envelope(

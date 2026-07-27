@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-sora.local/schemas/worldops/UserChoiceInterpretation.v1.schema.json",
+  "title": "UserChoiceInterpretation.v1",
+  "type": "object",
+  "required": ["schema_version", "interpretation_id", "event_instance_id", "input_id", "task_evidence", "confidence", "ambiguous"],
+  "properties": {
+    "schema_version": {"const": "UserChoiceInterpretation.v1"}, "interpretation_id": {"type": "string"},
+    "event_instance_id": {"type": "string"}, "input_id": {"type": "string"}, "choice_id": {"type": ["string", "null"]},
+    "task_evidence": {"type": "array"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "ambiguous": {"type": "boolean"}, "clarification": {"type": ["string", "null"]}, "unsupported_claims": {"type": "array"},
+    "evidence_refs": {"type": "array"}, "model_trace": {"type": "object"}
+  },
+  "additionalProperties": false
+}

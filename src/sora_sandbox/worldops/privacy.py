@@ -8,7 +8,7 @@ import stat
 import sys
 from ctypes import wintypes
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Protocol
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -21,14 +21,46 @@ class WorldOpsSecretProtectionError(RuntimeError):
     pass
 
 
+class PortableKeyProvider(Protocol):
+    provider_name: str
+
+    def get_or_create_key(self, key_id: str) -> bytes:
+        ...
+
+
+class FilePortableKeyProvider:
+    """Development fallback; production should inject an OS keyring or KMS provider."""
+
+    provider_name = "restricted_file_fallback"
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+
+    def get_or_create_key(self, key_id: str) -> bytes:
+        if self.path.exists():
+            key = self.path.read_bytes()
+            if len(key) != 32:
+                raise WorldOpsSecretProtectionError("WorldOps portable vault key is invalid")
+            return key
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        key = os.urandom(32)
+        self.path.write_bytes(key)
+        try:
+            self.path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        except OSError:
+            pass
+        return key
+
+
 class WorldOpsSecretVault:
     """Small platform-protected vault for contribution receipt capabilities."""
 
     _AAD = b"Project Sora WorldOps capability vault:v1"
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, portable_key_provider: PortableKeyProvider | None = None) -> None:
         self.path = Path(path)
         self.key_path = self.path.with_suffix(".key")
+        self.portable_key_provider = portable_key_provider or FilePortableKeyProvider(self.key_path)
 
     def put(self, proposal_id: str, *, receipt_token: str, withdrawal_token: str) -> None:
         values = self._load_all()
@@ -98,18 +130,9 @@ class WorldOpsSecretVault:
         raise WorldOpsSecretProtectionError("unknown WorldOps capability vault format")
 
     def _portable_key(self) -> bytes:
-        if self.key_path.exists():
-            key = self.key_path.read_bytes()
-            if len(key) != 32:
-                raise WorldOpsSecretProtectionError("WorldOps portable vault key is invalid")
-            return key
-        self.key_path.parent.mkdir(parents=True, exist_ok=True)
-        key = os.urandom(32)
-        self.key_path.write_bytes(key)
-        try:
-            self.key_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-        except OSError:
-            pass
+        key = self.portable_key_provider.get_or_create_key("worldops.capability-vault.v1")
+        if len(key) != 32:
+            raise WorldOpsSecretProtectionError("WorldOps portable key provider must return 32 bytes")
         return key
 
 

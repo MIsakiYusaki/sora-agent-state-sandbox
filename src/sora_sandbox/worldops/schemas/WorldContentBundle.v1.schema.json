@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-sora.local/schemas/worldops/WorldContentBundle.v1.schema.json",
+  "title": "WorldContentBundle.v1",
+  "type": "object",
+  "required": ["contract", "world", "events"],
+  "properties": {
+    "contract": {"const": "WorldContentBundle.v1"},
+    "world": {
+      "type": "object",
+      "required": ["world_id", "name"],
+      "properties": {"world_id": {"type": "string"}, "name": {"type": "string", "minLength": 1}},
+      "additionalProperties": true
+    },
+    "events": {"type": "array", "items": {"type": "object", "required": ["event_id", "title"]}},
+    "entities": {"type": "array"},
+    "factions": {"type": "array"},
+    "locales": {"type": "object"}
+  },
+  "additionalProperties": true
+}
