@@ -5,7 +5,7 @@ import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 
 class LLMClient(Protocol):
@@ -21,6 +21,9 @@ class DeepSeekClient:
     timeout: int = 60
 
     def chat(self, system: str, user: str, **kwargs: Any) -> dict[str, Any]:
+        cancellation_token = kwargs.get("cancellation_token")
+        if cancellation_token is not None:
+            cancellation_token.raise_if_cancelled()
         endpoint = self.base_url.rstrip("/")
         if not endpoint.endswith("/chat/completions"):
             endpoint += "/chat/completions"
@@ -47,12 +50,20 @@ class DeepSeekClient:
         try:
             request_timeout = float(kwargs.get("timeout", self.timeout))
             with urllib.request.urlopen(req, timeout=request_timeout) as response:
+                if cancellation_token is not None:
+                    cancellation_token.add_callback(lambda _reason: response.close())
                 payload = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"DeepSeek API error {exc.code}: {detail}") from exc
         except urllib.error.URLError as exc:
             raise RuntimeError(f"DeepSeek API connection failed: {exc}") from exc
+        except (OSError, ValueError) as exc:
+            if cancellation_token is not None and cancellation_token.cancelled:
+                cancellation_token.raise_if_cancelled()
+            raise RuntimeError(f"DeepSeek connection failed: {exc}") from exc
+        if cancellation_token is not None:
+            cancellation_token.raise_if_cancelled()
 
         choice = payload["choices"][0]["message"]["content"]
         return {
@@ -61,6 +72,75 @@ class DeepSeekClient:
             "model": payload.get("model", body["model"]),
             "raw": payload,
         }
+
+    def stream_chat(self, system: str, user: str, **kwargs: Any) -> Iterator[dict[str, Any]]:
+        cancellation_token = kwargs.get("cancellation_token")
+        if cancellation_token is not None:
+            cancellation_token.raise_if_cancelled()
+        endpoint = self.base_url.rstrip("/")
+        if not endpoint.endswith("/chat/completions"):
+            endpoint += "/chat/completions"
+        body = {
+            "model": kwargs.get("model") or os.environ.get("OPENAI_MODEL") or self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": kwargs.get("temperature", 0.7),
+            "max_tokens": kwargs.get("max_tokens", 800),
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if kwargs.get("thinking") is not None:
+            body["thinking"] = kwargs["thinking"]
+        request = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+                "Accept": "text/event-stream",
+            },
+            method="POST",
+        )
+        try:
+            request_timeout = float(kwargs.get("timeout", self.timeout))
+            with urllib.request.urlopen(request, timeout=request_timeout) as response:
+                if cancellation_token is not None:
+                    cancellation_token.add_callback(lambda _reason: response.close())
+                for raw_line in response:
+                    if cancellation_token is not None:
+                        cancellation_token.raise_if_cancelled()
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    payload = json.loads(data)
+                    choices = payload.get("choices") or []
+                    delta = ""
+                    finish_reason = None
+                    if choices:
+                        delta = str((choices[0].get("delta") or {}).get("content") or "")
+                        finish_reason = choices[0].get("finish_reason")
+                    yield {
+                        "delta": delta,
+                        "finish_reason": finish_reason,
+                        "usage": payload.get("usage") or {},
+                        "model": payload.get("model") or body["model"],
+                    }
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"DeepSeek API error {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"DeepSeek API connection failed: {exc}") from exc
+        except (OSError, ValueError) as exc:
+            if cancellation_token is not None and cancellation_token.cancelled:
+                cancellation_token.raise_if_cancelled()
+            raise RuntimeError(f"DeepSeek streaming connection failed: {exc}") from exc
+        if cancellation_token is not None:
+            cancellation_token.raise_if_cancelled()
 
 
 class FakeLLMClient:
@@ -89,6 +169,20 @@ class FakeLLMClient:
             "model": "fake-llm",
             "raw": {},
         }
+
+    def stream_chat(self, system: str, user: str, **kwargs: Any) -> Iterator[dict[str, Any]]:
+        result = self.chat(system, user, **kwargs)
+        cancellation_token = kwargs.get("cancellation_token")
+        content = str(result["content"])
+        for offset in range(0, len(content), 16):
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
+            yield {
+                "delta": content[offset : offset + 16],
+                "usage": result["usage"] if offset + 16 >= len(content) else {},
+                "model": result["model"],
+                "finish_reason": "stop" if offset + 16 >= len(content) else None,
+            }
 
     def _fake_turn_interpretation(self, user: str) -> str:
         try:

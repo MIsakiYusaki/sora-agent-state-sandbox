@@ -444,3 +444,17 @@ Run the production invariants and full regression suite with:
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest tests.test_worldops_system -q
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s tests
 ```
+
+## Text Conversation Runtime
+
+The default application entry now runs through the production text conversation
+runtime. It provides encrypted turn journaling, stable request idempotency,
+per-conversation execution leases, bounded model routing, provider cancellation,
+reconnectable client events, atomic final commit, and asynchronous idempotent
+post-turn delivery to Memory, Affect, Relationship, and WorldOps. Generation is
+fail-closed behind the packed disclosure/token gate; ciphertext is key-ID aware,
+and the packaged Golden Set has an executable trajectory harness.
+
+Operational contracts, API examples, retention, recovery, and release
+verification are documented in
+[`docs/TEXT_CONVERSATION_RUNTIME.md`](docs/TEXT_CONVERSATION_RUNTIME.md).

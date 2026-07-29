@@ -1614,6 +1614,9 @@ class MemoryQualityOpsService:
             "interruptibility": {"interruptibility"},
             "dialogue_control": {"interruptibility"},
             "initiative": {"interruptibility"},
+            "conversation_runtime": {"conversation_runtime"},
+            "text_runtime": {"conversation_runtime"},
+            "e2e": {"conversation_runtime"},
             "persona": {"persona"},
             "persona_growth": {"persona", "projection_gateway"},
         }

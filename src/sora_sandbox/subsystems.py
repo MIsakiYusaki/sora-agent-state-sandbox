@@ -89,10 +89,30 @@ class HttpSubsystemAdapter:
 
 
 class SubsystemRegistry:
-    def __init__(self, adapters: list[SubsystemAdapter] | None = None) -> None:
+    def __init__(
+        self,
+        adapters: list[SubsystemAdapter] | None = None,
+        *,
+        persistent_executor: bool = False,
+        max_workers: int = 8,
+    ) -> None:
         self._adapters: dict[str, SubsystemAdapter] = {}
+        self._persistent_executor = persistent_executor
+        self._executor = (
+            ThreadPoolExecutor(
+                max_workers=max(1, max_workers),
+                thread_name_prefix="sora-subsystem",
+            )
+            if persistent_executor
+            else None
+        )
         for adapter in adapters or []:
             self.register(adapter)
+
+    def close(self) -> None:
+        if self._executor is not None:
+            self._executor.shutdown(wait=True, cancel_futures=True)
+            self._executor = None
 
     def register(self, adapter: SubsystemAdapter, *, replace: bool = False) -> None:
         if adapter.name in self._adapters and not replace:
@@ -106,9 +126,8 @@ class SubsystemRegistry:
         if not self._adapters:
             return [], []
 
-        executor = ThreadPoolExecutor(
-            max_workers=len(self._adapters),
-            thread_name_prefix="sora-subsystem",
+        executor = self._executor or ThreadPoolExecutor(
+            max_workers=len(self._adapters), thread_name_prefix="sora-subsystem"
         )
         submitted: dict[
             str,
@@ -163,7 +182,8 @@ class SubsystemRegistry:
                         ).to_dict()
                     )
         finally:
-            executor.shutdown(wait=False, cancel_futures=True)
+            if not self._persistent_executor:
+                executor.shutdown(wait=False, cancel_futures=True)
         return signals, health
 
 

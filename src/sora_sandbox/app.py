@@ -5,7 +5,11 @@ import json
 import os
 import sys
 
-from .agent import AgentRunner
+from .agent import (
+    AgentRunner,
+    build_default_subsystem_registry,
+    build_explicit_relationship_outcome,
+)
 from .affect.provider import LLMAffectAppraisalProvider
 from .affect.system import AffectSystem
 from .credentials import CredentialError, CredentialManager
@@ -17,6 +21,7 @@ from .persona.provider import LLMPersonaCandidateProvider
 from .persona.system import PersonaSystem
 from .relationship.provider import LLMRelationshipEvidenceProvider
 from .relationship.system import RelationshipAffectAdapter, RelationshipSystem
+from .conversation_runtime import ConversationRuntime
 from .render import render_trace_panel
 from .repl import SoraRepl
 from .state import StateStore
@@ -122,8 +127,9 @@ def main(argv: list[str] | None = None) -> int:
         "worldops",
         worldops_runtime.projection_adapter,
     )
-    runner = AgentRunner(
+    legacy_runner = AgentRunner(
         llm,
+        subsystem_registry=build_default_subsystem_registry(persistent_executor=True),
         memory_runtime=memory_runtime,
         interruptibility=interruptibility,
         persona_runtime=persona_runtime,
@@ -131,9 +137,23 @@ def main(argv: list[str] | None = None) -> int:
         relationship_runtime=relationship_runtime,
         worldops_runtime=worldops_runtime,
     )
+    conversation_runtime = ConversationRuntime.build(
+        legacy_runner,
+        llm=llm,
+        memory_runtime=memory_runtime,
+        affect_runtime=affect_runtime,
+        relationship_runtime=relationship_runtime,
+        worldops_runtime=worldops_runtime,
+        relationship_outcome_builder=build_explicit_relationship_outcome,
+    )
+    if args.reset_state:
+        conversation_runtime.reset()
+    else:
+        conversation_runtime.recover()
+        conversation_runtime.maintain()
     repl = SoraRepl(
         store,
-        runner,
+        conversation_runtime,
         show_trace_panel=not args.compact,
         memory_runtime=memory_runtime,
         interruptibility_runtime=interruptibility,
@@ -155,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     affect_runtime.register_quality_ops(memory_runtime)
     relationship_runtime.register_quality_ops(memory_runtime)
     worldops_runtime.register_quality_ops(memory_runtime)
+    conversation_runtime.register_quality_ops(memory_runtime)
 
     try:
         if args.once:
@@ -171,15 +192,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     finally:
         try:
-            worldops_runtime.close()
+            conversation_runtime.close()
         finally:
             try:
-                relationship_runtime.close()
+                worldops_runtime.close()
             finally:
                 try:
-                    affect_runtime.close()
+                    relationship_runtime.close()
                 finally:
                     try:
-                        persona_runtime.close()
+                        affect_runtime.close()
                     finally:
-                        memory_runtime.close()
+                        try:
+                            persona_runtime.close()
+                        finally:
+                            memory_runtime.close()

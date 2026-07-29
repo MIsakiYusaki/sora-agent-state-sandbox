@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "sora-agent-state-sandbox"
 version = "0.1.0"
@@ -5,10 +9,15 @@ description = "Project Sora Agent State Sandbox with DeepSeek-backed response or
 requires-python = ">=3.11"
 dependencies = [
     "cryptography>=43.0.0",
+    "keyring>=25.0.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
 "sora_sandbox.worldops" = ["schemas/*.json", "eval_data/*.jsonl"]
+"sora_sandbox.conversation_runtime" = ["eval_data/*.jsonl"]
 
 [project.scripts]
 sora-sandbox = "sora_sandbox.__main__:main"

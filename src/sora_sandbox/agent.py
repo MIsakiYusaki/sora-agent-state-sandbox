@@ -5,7 +5,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from .contracts import TurnContext
 from .interruptibility import (
@@ -167,12 +167,38 @@ class AgentRunner:
     affect_runtime: Any | None = None
     relationship_runtime: Any | None = None
     worldops_runtime: Any | None = None
+    defer_domain_observation: bool = False
+    defer_post_turn_writes: bool = False
+    context_pack_transformer: Callable[[JsonDict], JsonDict] | None = None
+    response_max_tokens: int = 800
 
-    def run(self, state: JsonDict, user_input: str) -> JsonDict:
-        return self._run(state, user_input=user_input, proactive_trigger=None)
+    def run(
+        self,
+        state: JsonDict,
+        user_input: str,
+        *,
+        correlation_id: str | None = None,
+    ) -> JsonDict:
+        return self._run(
+            state,
+            user_input=user_input,
+            proactive_trigger=None,
+            correlation_id=correlation_id,
+        )
 
-    def run_proactive(self, state: JsonDict, trigger: JsonDict) -> JsonDict:
-        return self._run(state, user_input="", proactive_trigger=trigger)
+    def run_proactive(
+        self,
+        state: JsonDict,
+        trigger: JsonDict,
+        *,
+        correlation_id: str | None = None,
+    ) -> JsonDict:
+        return self._run(
+            state,
+            user_input="",
+            proactive_trigger=trigger,
+            correlation_id=correlation_id,
+        )
 
     def _run(
         self,
@@ -180,11 +206,12 @@ class AgentRunner:
         *,
         user_input: str,
         proactive_trigger: JsonDict | None,
+        correlation_id: str | None,
     ) -> JsonDict:
         start = _timer()
         trace: list[JsonDict] = []
         timing: dict[str, float] = {}
-        correlation_id = f"corr_{uuid.uuid4().hex}"
+        correlation_id = correlation_id or f"corr_{uuid.uuid4().hex}"
 
         def step(name: str, payload: JsonDict | None = None) -> None:
             trace.append({"seq": len(trace) + 1, "kind": name, "at": now_ms(), "payload": payload or {}})
@@ -212,7 +239,14 @@ class AgentRunner:
             relationship_runtime=self.relationship_runtime,
             worldops_runtime=self.worldops_runtime,
             correlation_id=correlation_id,
+            defer_domain_observation=self.defer_domain_observation,
         )
+        if self.context_pack_transformer is not None:
+            context_pack = self.context_pack_transformer(context_pack)
+            step(
+                "context.pack.transformed",
+                {"transformer": type(self.context_pack_transformer).__name__},
+            )
         mark_behavior_observed(state)
 
         if proactive_trigger and context_pack["arbitration_result"]["primary_mode"] == "proactive_silent":
@@ -266,9 +300,10 @@ class AgentRunner:
             append_recent_turn(state, "user", user_input)
         append_recent_turn(state, "sora", reply)
         update_session(state, user_input or "[proactive idle turn]", reply)
-        persist_response_candidates(state, response_plan)
+        if not self.defer_post_turn_writes:
+            persist_response_candidates(state, response_plan)
         memory_updates: list[JsonDict] = []
-        if self.memory_runtime is not None:
+        if self.memory_runtime is not None and not self.defer_post_turn_writes:
             if not proactive_trigger:
                 if hasattr(self.memory_runtime, "observe_turn_candidates"):
                     memory_updates.extend(
@@ -299,7 +334,11 @@ class AgentRunner:
                 topic_id=selected_proactive_topic_id(context_pack),
             )
         relationship_update: JsonDict | None = None
-        if self.relationship_runtime is not None and not proactive_trigger:
+        if (
+            self.relationship_runtime is not None
+            and not proactive_trigger
+            and not self.defer_post_turn_writes
+        ):
             explicit_outcome = build_explicit_relationship_outcome(
                 user_input,
                 turn_id=state["session"]["turn_id"],
@@ -355,7 +394,12 @@ class AgentRunner:
         else:
             system = build_system_prompt(context_pack)
             user = build_user_prompt(context_pack, user_input)
-            llm_result = self.llm.chat(system=system, user=user, temperature=0.7, max_tokens=800)
+            llm_result = self.llm.chat(
+                system=system,
+                user=user,
+                temperature=0.7,
+                max_tokens=max(1, int(self.response_max_tokens)),
+            )
             step("llm.response.received", {"model": llm_result.get("model"), "usage": llm_result.get("usage", {})})
 
         output_text = clean_response(llm_result["content"].strip())
@@ -436,6 +480,7 @@ def build_context_pack(
     relationship_runtime: Any | None = None,
     worldops_runtime: Any | None = None,
     correlation_id: str | None = None,
+    defer_domain_observation: bool = False,
 ) -> JsonDict:
     context_start = _timer()
     behavior_frame = dict(state["behavior"]["current"])
@@ -485,7 +530,7 @@ def build_context_pack(
     try:
         if relationship_runtime is None:
             relationship_frame = build_legacy_relationship_frame(state)
-        elif proactive_trigger:
+        elif proactive_trigger or defer_domain_observation:
             relationship_frame = relationship_runtime.frame(
                 user_id=active_user_id,
                 correlation_id=correlation_id,
@@ -604,7 +649,7 @@ def build_context_pack(
                 interruptibility_frame=interruptibility_frame,
                 correlation_id=correlation_id,
             )
-        elif proactive_trigger:
+        elif proactive_trigger or defer_domain_observation:
             affect_frame = affect_runtime.frame(
                 user_id=active_user_id,
                 interruptibility_frame=interruptibility_frame,
@@ -699,7 +744,7 @@ def build_context_pack(
         if worldops_runtime is None:
             worldops_frame = build_worldops_frame(state, behavior_frame, persona_frame)
             worldops_frame["runtime_mode"] = "legacy_fallback"
-        elif proactive_trigger:
+        elif proactive_trigger or defer_domain_observation:
             worldops_frame = worldops_runtime.frame(
                 interruptibility_frame=interruptibility_frame,
                 correlation_id=correlation_id,
@@ -1666,7 +1711,7 @@ def collect_subsystem_signals(
     return signals, health
 
 
-def build_default_subsystem_registry() -> SubsystemRegistry:
+def build_default_subsystem_registry(*, persistent_executor: bool = False) -> SubsystemRegistry:
     def optional(signal: JsonDict | None) -> list[JsonDict]:
         return [signal] if signal else []
 
@@ -1711,7 +1756,8 @@ def build_default_subsystem_registry() -> SubsystemRegistry:
                 "relationship",
                 lambda ctx: [relationship_signal(ctx.event_bus, ctx.frame("relationship"), ctx.session_context, ctx.turn_frame)],
             ),
-        ]
+        ],
+        persistent_executor=persistent_executor,
     )
 
 

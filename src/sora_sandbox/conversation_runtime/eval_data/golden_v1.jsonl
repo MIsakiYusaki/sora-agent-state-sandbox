@@ -1,0 +1,9 @@
+{"case_id":"crt_basic_reply_001","category":"basic_reply","user_turns":["你好"],"expectations":{"status":"committed","reply_required":true,"max_llm_calls":3,"thinking_disabled_tasks":["turn_interpretation","semantic_arbitration"]},"policy_profile":"default"}
+{"case_id":"crt_idempotency_001","category":"request_idempotency","user_turns":["我们继续刚才的话题"],"expectations":{"same_request_same_turn":true,"duplicate_side_effects":0},"policy_profile":"default"}
+{"case_id":"crt_control_001","category":"explicit_control","user_turns":["先别说话"],"expectations":{"response_obligation":"forbidden","visible_delta_count":0},"policy_profile":"default"}
+{"case_id":"crt_disclosure_001","category":"context_disclosure","user_turns":["你为什么会这么回答？"],"expectations":{"memory_permission":"implicit","forbid_raw_quote":true,"most_restrictive_wins":true},"policy_profile":"privacy_strict"}
+{"case_id":"crt_reference_001","category":"ambiguous_reference","user_turns":["我最近在考虑换工作","那这个怎么办？"],"expectations":{"interpreter_route":"fast_nonthinking","references_previous_context":true},"policy_profile":"default"}
+{"case_id":"crt_repair_001","category":"correction_repair","user_turns":["简短一点","我说简短点你听不懂吗"],"expectations":{"acknowledge_violation":true,"follow_up_permission":"none","response_shape":"brief"},"policy_profile":"default"}
+{"case_id":"crt_cancel_001","category":"cancellation","user_turns":["给我详细分析这个问题","算了，停下"],"expectations":{"first_turn_status":"cancelled","second_turn_status":"committed","partial_not_committed":true},"policy_profile":"default"}
+{"case_id":"crt_provider_failure_001","category":"provider_failure","user_turns":["你好"],"expectations":{"status":"failed","state_unchanged":true,"recoverable_trace":true},"policy_profile":"fault_injection"}
+{"case_id":"crt_concurrency_001","category":"concurrency","user_turns":["第一条","第二条"],"expectations":{"single_execution_lease":true,"ordered_commit":true,"no_duplicate_history":true},"policy_profile":"fault_injection"}

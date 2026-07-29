@@ -1066,9 +1066,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
 );
 """
 
+_CANDIDATE_HASH_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_memory_candidate_hash
+ON memory_candidate(candidate_hash);
+"""
+
 
 def init_memory_schema(conn: sqlite3.Connection) -> None:
-    conn.executescript(MEMORY_SCHEMA_SQL)
+    # Older databases predate candidate_hash. Creating its index before the
+    # additive column migration makes SQLite abort startup, so defer this one
+    # index until after ensure_column has made the schema forward-compatible.
+    conn.executescript(MEMORY_SCHEMA_SQL.replace(_CANDIDATE_HASH_INDEX_SQL, ""))
     ensure_column(conn, "evidence", "raw_content", "TEXT")
     ensure_column(conn, "evidence", "source_ref", "TEXT")
     ensure_column(conn, "evidence", "span_json", "TEXT")
@@ -1165,6 +1173,7 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "memory_trace_index", "replay", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "memory_admin_action", "dry_run", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "memory_admin_action", "expires_at", "TEXT")
+    conn.executescript(_CANDIDATE_HASH_INDEX_SQL)
     conn.commit()
 
 
