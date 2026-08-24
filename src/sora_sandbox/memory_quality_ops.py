@@ -1616,7 +1616,10 @@ class MemoryQualityOpsService:
             "initiative": {"interruptibility"},
             "conversation_runtime": {"conversation_runtime"},
             "text_runtime": {"conversation_runtime"},
-            "e2e": {"conversation_runtime"},
+            "conversation_gateway": {"conversation_gateway"},
+            "gateway": {"conversation_gateway"},
+            "live_text": {"conversation_gateway", "conversation_runtime"},
+            "e2e": {"conversation_gateway", "conversation_runtime"},
             "persona": {"persona"},
             "persona_growth": {"persona", "projection_gateway"},
         }

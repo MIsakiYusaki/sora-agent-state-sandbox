@@ -219,6 +219,7 @@ class ConversationRuntime:
         request_id: str | None = None,
         conversation_id: str | None = None,
         branch_id: str = "main",
+        correlation_id: str | None = None,
     ) -> JsonDict:
         context, created = self._accept(
             state,
@@ -227,6 +228,7 @@ class ConversationRuntime:
             conversation_id=conversation_id,
             branch_id=branch_id,
             turn_kind=TurnKind.REACTIVE,
+            correlation_id=correlation_id,
         )
         if not created:
             replay = self.journal.read_result(context.turn_id)
@@ -270,6 +272,7 @@ class ConversationRuntime:
         conversation_id: str | None = None,
         branch_id: str = "main",
         after_sequence: int = 0,
+        correlation_id: str | None = None,
     ) -> Iterator[ClientEvent]:
         context, created = self._accept(
             state,
@@ -278,6 +281,7 @@ class ConversationRuntime:
             conversation_id=conversation_id,
             branch_id=branch_id,
             turn_kind=TurnKind.REACTIVE,
+            correlation_id=correlation_id,
         )
         if not created:
             yield from self.journal.client_events(
@@ -314,7 +318,27 @@ class ConversationRuntime:
                 yield item
 
     def reconnect(self, turn_id: str, *, after_sequence: int = 0) -> list[ClientEvent]:
+        self._repair_terminal_client_event(turn_id)
         return self.journal.client_events(turn_id, after_sequence=after_sequence)
+
+    def history_page(
+        self,
+        conversation_id: str,
+        *,
+        limit: int = 40,
+        before_sequence: int | None = None,
+    ) -> list[JsonDict]:
+        return self.journal.history_page(
+            conversation_id,
+            limit=limit,
+            before_sequence=before_sequence,
+        )
+
+    def conversation_version(self, conversation_id: str) -> int:
+        return self.journal.conversation_version(conversation_id)
+
+    def turn_status(self, turn_id: str):
+        return self.journal.get_turn(turn_id)
 
     def aborted_response(self, turn_id: str) -> str | None:
         """Returns only validated partial output that the client had already seen."""
@@ -413,6 +437,7 @@ class ConversationRuntime:
         conversation_id: str | None,
         branch_id: str,
         turn_kind: TurnKind,
+        correlation_id: str | None = None,
     ):
         session = dict(state.get("session") or {})
         active_conversation = conversation_id or str(
@@ -434,6 +459,7 @@ class ConversationRuntime:
             turn_kind=turn_kind,
             branch_id=branch_id,
             deadline_at_ms=deadline,
+            correlation_id=correlation_id,
         )
 
     def _execute(
@@ -690,10 +716,37 @@ class ConversationRuntime:
         payload: JsonDict,
         sink: Callable[[ClientEvent], None] | None,
     ) -> ClientEvent:
-        event = self.journal.append_client_event(turn_id, event_type, payload)
+        if event_type in {"response.completed", "turn.cancelled", "turn.failed"}:
+            event = self.journal.ensure_client_event(turn_id, event_type, payload)
+        else:
+            event = self.journal.append_client_event(turn_id, event_type, payload)
         if sink is not None:
             sink(event)
         return event
+
+    def _repair_terminal_client_event(self, turn_id: str) -> ClientEvent | None:
+        context = self.journal.get_turn(turn_id)
+        if context.status == TurnStatus.COMMITTED:
+            result = self.journal.read_result(turn_id) or {}
+            reply = str(result.get("reply") or "")
+            return self.journal.ensure_client_event(
+                turn_id,
+                "response.completed",
+                {"reply_chars": len(reply), "committed": True, "recovered": True},
+            )
+        if context.status == TurnStatus.CANCELLED:
+            return self.journal.ensure_client_event(
+                turn_id,
+                "turn.cancelled",
+                {"reason": "recovered_terminal", "recovered": True},
+            )
+        if context.status == TurnStatus.FAILED:
+            return self.journal.ensure_client_event(
+                turn_id,
+                "turn.failed",
+                {"error_code": "RECOVERED_TERMINAL", "recovered": True},
+            )
+        return None
 
     @staticmethod
     def _scrub_legacy_plaintext_state(state: JsonDict, turn_id: str) -> None:

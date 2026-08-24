@@ -85,9 +85,10 @@ class AffectSystem:
         memory_runtime: Any | None = None,
         start_worker: bool = True,
         rollout_mode: str = "active",
+        sora_id: str = "default-agent",
     ) -> "AffectSystem":
         return cls(
-            AffectStore(workspace_state_dir() / "affect.db"),
+            AffectStore(workspace_state_dir() / "affect.db", sora_id=sora_id),
             provider=provider,
             memory_runtime=memory_runtime,
             start_worker=start_worker,

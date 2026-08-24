@@ -458,3 +458,14 @@ and the packaged Golden Set has an executable trajectory harness.
 Operational contracts, API examples, retention, recovery, and release
 verification are documented in
 [`docs/TEXT_CONVERSATION_RUNTIME.md`](docs/TEXT_CONVERSATION_RUNTIME.md).
+
+## Live Text Conversation Gateway
+
+The desktop-facing production boundary is implemented under
+`src/sora_sandbox/conversation_gateway`. It provides scoped local capabilities,
+strict versioned contracts, REST/SSE/WebSocket transport, durable request
+idempotency, sequence-based reconnect, bounded backpressure, profile-isolated
+runtime assembly, a typed desktop client, and a supervised child-process entry.
+
+See [`docs/CONVERSATION_GATEWAY.md`](docs/CONVERSATION_GATEWAY.md) for startup,
+API, recovery, security, observability, and release instructions.

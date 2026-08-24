@@ -19,8 +19,18 @@ class MemorySystem:
     runtime: MemoryRuntime
 
     @classmethod
-    def default(cls) -> "MemorySystem":
-        return cls(MemoryRuntime.default())
+    def default(
+        cls,
+        *,
+        owner_user_id: str = "local-user",
+        agent_id: str = "sora_default",
+    ) -> "MemorySystem":
+        return cls(
+            MemoryRuntime.default(
+                owner_user_id=owner_user_id,
+                agent_id=agent_id,
+            )
+        )
 
     def close(self) -> None:
         self.runtime.close()

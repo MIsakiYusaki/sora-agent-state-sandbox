@@ -503,6 +503,55 @@ class ConversationJournal:
             )
         return ClientEvent(turn_id, sequence, event_type, payload, timestamp)
 
+    def ensure_client_event(
+        self,
+        turn_id: str,
+        event_type: str,
+        payload: JsonDict,
+    ) -> ClientEvent:
+        """Appends a singleton event type once and returns the canonical row."""
+        timestamp = now_ms()
+        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        payload_digest = content_hash(serialized)
+        with self.transaction() as connection:
+            existing = connection.execute(
+                """
+                SELECT * FROM runtime_client_event
+                WHERE turn_id=? AND event_type=? ORDER BY sequence LIMIT 1
+                """,
+                (turn_id, event_type),
+            ).fetchone()
+            if existing is not None:
+                existing_payload = self.cipher.decrypt_json(
+                    str(existing["payload_cipher"]),
+                    associated_data=f"client-event:{turn_id}:{existing['sequence']}",
+                )
+                return ClientEvent(
+                    turn_id=turn_id,
+                    sequence=int(existing["sequence"]),
+                    event_type=str(existing["event_type"]),
+                    payload=existing_payload,
+                    created_at_ms=int(existing["created_at_ms"]),
+                )
+            sequence = int(
+                connection.execute(
+                    "SELECT COALESCE(MAX(sequence), 0) + 1 FROM runtime_client_event WHERE turn_id=?",
+                    (turn_id,),
+                ).fetchone()[0]
+            )
+            encrypted = self.cipher.encrypt_json(
+                payload, associated_data=f"client-event:{turn_id}:{sequence}"
+            )
+            connection.execute(
+                """
+                INSERT INTO runtime_client_event (
+                    turn_id, sequence, event_type, payload_cipher, payload_hash, created_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (turn_id, sequence, event_type, encrypted, payload_digest, timestamp),
+            )
+        return ClientEvent(turn_id, sequence, event_type, payload, timestamp)
+
     def client_events(self, turn_id: str, *, after_sequence: int = 0) -> list[ClientEvent]:
         with self._lock:
             rows = self._conn.execute(
@@ -647,6 +696,55 @@ class ConversationJournal:
                 }
             )
         return result
+
+    def history_page(
+        self,
+        conversation_id: str,
+        *,
+        limit: int = 40,
+        before_sequence: int | None = None,
+    ) -> list[JsonDict]:
+        bounded_limit = max(1, min(int(limit), 200))
+        clauses = ["conversation_id=?"]
+        params: list[Any] = [conversation_id]
+        if before_sequence is not None:
+            clauses.append("sequence<?")
+            params.append(max(1, int(before_sequence)))
+        params.append(bounded_limit)
+        with self._lock:
+            rows = self._conn.execute(
+                f"""
+                SELECT * FROM runtime_short_turn
+                WHERE {' AND '.join(clauses)}
+                ORDER BY sequence DESC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        return [
+            {
+                "role": row["role"],
+                "content": self.cipher.decrypt_text(
+                    str(row["content_cipher"]),
+                    associated_data=f"history:{row['history_id']}",
+                ),
+                "turn_id": row["turn_id"],
+                "sequence": int(row["sequence"]),
+                "created_at_ms": int(row["created_at_ms"]),
+            }
+            for row in reversed(rows)
+        ]
+
+    def conversation_version(self, conversation_id: str) -> int:
+        with self._lock:
+            return int(
+                self._conn.execute(
+                    """
+                    SELECT COUNT(*) FROM runtime_turn
+                    WHERE conversation_id=? AND status='committed'
+                    """,
+                    (conversation_id,),
+                ).fetchone()[0]
+            )
 
     def import_legacy_history(
         self,

@@ -1,0 +1,16 @@
+{"case_id":"auth_missing_bearer","category":"authentication","operation":"submit_without_token","expectations":{"status_code":401,"error_code":"AUTH_REQUIRED"}}
+{"case_id":"auth_expired_or_revoked","category":"authentication","operation":"submit_revoked_token","expectations":{"status_code":403,"error_code":"FORBIDDEN"}}
+{"case_id":"cross_profile_turn_read","category":"authorization_isolation","operation":"read_foreign_turn","expectations":{"status_code":403,"content_leaked":false}}
+{"case_id":"origin_exact_match","category":"authorization_isolation","operation":"wrong_origin","expectations":{"status_code":403,"error_code":"FORBIDDEN"}}
+{"case_id":"unsupported_protocol","category":"protocol_validation","operation":"submit_protocol_2","expectations":{"status_code":426,"error_code":"PROTOCOL_UNSUPPORTED"}}
+{"case_id":"strict_unknown_field","category":"protocol_validation","operation":"submit_extra_field","expectations":{"status_code":422,"error_code":"INVALID_REQUEST"}}
+{"case_id":"same_request_same_turn","category":"idempotency","operation":"duplicate_submit","expectations":{"same_turn_id":true,"one_history_pair":true}}
+{"case_id":"request_payload_conflict","category":"idempotency","operation":"duplicate_different_text","expectations":{"status_code":409,"error_code":"IDEMPOTENCY_CONFLICT"}}
+{"case_id":"sse_resume_no_duplicates","category":"event_resume","operation":"resume_after_sequence","expectations":{"strictly_increasing":true,"duplicates":0}}
+{"case_id":"terminal_event_repair","category":"terminal_repair","operation":"repair_missing_terminal","expectations":{"terminal_once":true,"terminal_matches_status":true}}
+{"case_id":"cancel_inflight_turn","category":"cancellation","operation":"cancel_slow_turn","expectations":{"terminal_status":"cancelled","partial_committed":false}}
+{"case_id":"history_after_commit","category":"history_consistency","operation":"read_history","expectations":{"roles":["user","sora"],"conversation_version":1}}
+{"case_id":"profile_concurrency_bound","category":"concurrency","operation":"exceed_active_limit","expectations":{"status_code":409,"error_code":"TURN_IN_PROGRESS"}}
+{"case_id":"websocket_slow_consumer","category":"backpressure","operation":"fill_outgoing_queue","expectations":{"close_code":1013,"reason":"slow_consumer"}}
+{"case_id":"drain_rejects_new_turn","category":"shutdown_recovery","operation":"submit_while_draining","expectations":{"status_code":503,"error_code":"DRAINING"}}
+{"case_id":"startup_recovers_stale_turn","category":"shutdown_recovery","operation":"recover_stale_turn","expectations":{"runtime_status":"failed","terminal_event":"turn.failed"}}

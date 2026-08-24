@@ -155,9 +155,12 @@ class RelationshipSystem:
         rollout_mode: str = "active",
         queue_high_watermark: int | None = None,
         queue_max: int | None = None,
+        sora_id: str = "default-agent",
     ) -> "RelationshipSystem":
         return cls(
-            RelationshipStore(workspace_state_dir() / "relationship.db"),
+            RelationshipStore(
+                workspace_state_dir() / "relationship.db", sora_id=sora_id
+            ),
             provider=provider,
             start_worker=start_worker,
             rollout_mode=rollout_mode,

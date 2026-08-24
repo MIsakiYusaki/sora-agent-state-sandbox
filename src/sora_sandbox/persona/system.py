@@ -125,9 +125,10 @@ class PersonaSystem:
         *,
         provider: PersonaCandidateProvider | None = None,
         start_worker: bool = True,
+        agent_id: str = "sora",
     ) -> "PersonaSystem":
         return cls(
-            PersonaStore(workspace_state_dir() / "persona.db"),
+            PersonaStore(workspace_state_dir() / "persona.db", agent_id=agent_id),
             provider=provider,
             start_worker=start_worker,
         )

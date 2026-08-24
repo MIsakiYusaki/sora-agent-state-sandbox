@@ -240,8 +240,17 @@ class MemoryRuntime:
         self._register_quality_ops()
 
     @classmethod
-    def default(cls) -> "MemoryRuntime":
-        runtime = cls(workspace_state_dir() / "memory.db")
+    def default(
+        cls,
+        *,
+        owner_user_id: str = "local-user",
+        agent_id: str = "sora_default",
+    ) -> "MemoryRuntime":
+        runtime = cls(
+            workspace_state_dir() / "memory.db",
+            owner_user_id=owner_user_id,
+            agent_id=agent_id,
+        )
         runtime.seed_if_empty(load_jsonl(SEEDS_DIR / "memory.seed.jsonl"))
         return runtime
 

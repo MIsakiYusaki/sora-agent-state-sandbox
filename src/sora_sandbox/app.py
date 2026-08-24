@@ -5,28 +5,12 @@ import json
 import os
 import sys
 
-from .agent import (
-    AgentRunner,
-    build_default_subsystem_registry,
-    build_explicit_relationship_outcome,
-)
-from .affect.provider import LLMAffectAppraisalProvider
-from .affect.system import AffectSystem
 from .credentials import CredentialError, CredentialManager
-from .interruptibility import InterruptibilityService, LLMInterruptibilityResolutionProvider
-from .interruptibility_eval import run_interruptibility_eval
 from .llm import DeepSeekClient
-from .memory_system import MemorySystem
-from .persona.provider import LLMPersonaCandidateProvider
-from .persona.system import PersonaSystem
-from .relationship.provider import LLMRelationshipEvidenceProvider
-from .relationship.system import RelationshipAffectAdapter, RelationshipSystem
-from .conversation_runtime import ConversationRuntime
 from .render import render_trace_panel
 from .repl import SoraRepl
 from .state import StateStore
-from .worldops.provider import LLMWorldOpsInterpretationProvider
-from .worldops.system import WorldOpsSystem
+from .runtime_stack import SoraRuntimeStack
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,87 +51,25 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     store = StateStore.default()
-    memory_runtime = MemorySystem.default()
     if args.reset_state:
         store.reset()
-        memory_runtime.reset()
 
     try:
         llm = make_llm(args.provider, args.model, args.no_prompt_key)
     except CredentialError as exc:
-        memory_runtime.close()
         print(f"凭据错误：{exc}", file=sys.stderr)
         return 2
 
-    interruptibility = InterruptibilityService(
-        provider=LLMInterruptibilityResolutionProvider(llm),
-    )
-    persona_runtime = PersonaSystem.default(
-        provider=LLMPersonaCandidateProvider(llm),
-        start_worker=True,
-    )
-    affect_runtime = AffectSystem.default(
-        provider=LLMAffectAppraisalProvider(llm),
-        memory_runtime=memory_runtime,
-        start_worker=True,
-        rollout_mode=os.environ.get("SORA_AFFECT_MODE", "active").strip().lower(),
-    )
-    relationship_runtime = RelationshipSystem.default(
-        provider=LLMRelationshipEvidenceProvider(llm),
-        start_worker=True,
-        rollout_mode=os.environ.get("SORA_RELATIONSHIP_MODE", "active").strip().lower(),
-    )
-    worldops_runtime = WorldOpsSystem.default(
-        provider=LLMWorldOpsInterpretationProvider.from_environment(llm),
-        memory_runtime=memory_runtime,
-        start_worker=True,
-    )
-    relationship_runtime.register_domain_event_consumer(
-        "affect",
-        RelationshipAffectAdapter(affect_runtime, relationship_runtime).deliver,
-    )
-    memory_runtime.register_memory_change_listener(
-        "affect",
-        affect_runtime.handle_memory_change,
-    )
+    stack = SoraRuntimeStack.build(llm)
+    memory_runtime = stack.memory
+    interruptibility = stack.interruptibility
+    persona_runtime = stack.persona
+    affect_runtime = stack.affect
+    relationship_runtime = stack.relationship
+    worldops_runtime = stack.worldops
+    conversation_runtime = stack.conversation
     if args.reset_state:
-        persona_runtime.reset()
-        affect_runtime.reset()
-        relationship_runtime.reset()
-        worldops_runtime.reset()
-    memory_runtime.projector_bus.register_adapter(
-        "persona",
-        persona_runtime.projection_adapter,
-    )
-    memory_runtime.projector_bus.register_adapter(
-        "relationship",
-        relationship_runtime.projection_adapter,
-    )
-    memory_runtime.projector_bus.register_adapter(
-        "worldops",
-        worldops_runtime.projection_adapter,
-    )
-    legacy_runner = AgentRunner(
-        llm,
-        subsystem_registry=build_default_subsystem_registry(persistent_executor=True),
-        memory_runtime=memory_runtime,
-        interruptibility=interruptibility,
-        persona_runtime=persona_runtime,
-        affect_runtime=affect_runtime,
-        relationship_runtime=relationship_runtime,
-        worldops_runtime=worldops_runtime,
-    )
-    conversation_runtime = ConversationRuntime.build(
-        legacy_runner,
-        llm=llm,
-        memory_runtime=memory_runtime,
-        affect_runtime=affect_runtime,
-        relationship_runtime=relationship_runtime,
-        worldops_runtime=worldops_runtime,
-        relationship_outcome_builder=build_explicit_relationship_outcome,
-    )
-    if args.reset_state:
-        conversation_runtime.reset()
+        stack.reset()
     else:
         conversation_runtime.recover()
         conversation_runtime.maintain()
@@ -162,20 +84,10 @@ def main(argv: list[str] | None = None) -> int:
         relationship_runtime=relationship_runtime,
         worldops_runtime=worldops_runtime,
     )
-    memory_runtime.register_quality_eval_suite(
-        "interruptibility",
-        run_interruptibility_eval,
-        source_module="interruptibility_system",
-    )
     memory_runtime.register_quality_export_section(
         "interruptibility",
         lambda: interruptibility.export_traces(repl.state, limit=500),
     )
-    persona_runtime.register_quality_ops(memory_runtime)
-    affect_runtime.register_quality_ops(memory_runtime)
-    relationship_runtime.register_quality_ops(memory_runtime)
-    worldops_runtime.register_quality_ops(memory_runtime)
-    conversation_runtime.register_quality_ops(memory_runtime)
 
     try:
         if args.once:
@@ -191,19 +103,4 @@ def main(argv: list[str] | None = None) -> int:
         repl.loop()
         return 0
     finally:
-        try:
-            conversation_runtime.close()
-        finally:
-            try:
-                worldops_runtime.close()
-            finally:
-                try:
-                    relationship_runtime.close()
-                finally:
-                    try:
-                        affect_runtime.close()
-                    finally:
-                        try:
-                            persona_runtime.close()
-                        finally:
-                            memory_runtime.close()
+        stack.close()
