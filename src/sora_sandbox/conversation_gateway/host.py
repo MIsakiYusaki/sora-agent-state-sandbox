@@ -5,13 +5,24 @@ import json
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Awaitable, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 from fastapi import FastAPI, Header, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
+
+from ..model_provider.admin import (
+    BindWorkloadRequest,
+    CreateProfileRequest,
+    CredentialInput,
+    DeleteProfileRequest,
+    ModelProviderAdminService,
+    RotateCredentialRequest,
+    VerifyModelRequest,
+)
+from ..model_provider.errors import ModelProviderError, RevisionConflict
 
 from .contracts import (
     AckCommand,
@@ -41,6 +52,7 @@ def create_gateway_app(
     own_service_lifecycle: bool = True,
     allowed_hosts: tuple[str, ...] = ("127.0.0.1", "localhost", "testserver"),
     shutdown_callback: Callable[[], None] | None = None,
+    model_provider_admin: ModelProviderAdminService | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -62,6 +74,7 @@ def create_gateway_app(
     )
     app.state.gateway_service = service
     app.state.capability_provider = capability_provider
+    app.state.model_provider_admin = model_provider_admin
     trusted_hosts = tuple(host.lower() for host in allowed_hosts)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(trusted_hosts))
 
@@ -127,6 +140,116 @@ def create_gateway_app(
     async def readiness() -> JSONResponse:
         result = service.readiness()
         return JSONResponse(result, status_code=200 if result["status"] == "ready" else 503)
+
+    if model_provider_admin is not None:
+        @app.get("/v1/model-providers")
+        async def list_model_providers(request: Request):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.read"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            return await _run_provider_admin(model_provider_admin.list_configuration)
+
+        @app.get("/v1/model-providers/health")
+        async def model_provider_health(request: Request):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.read"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            return await _run_provider_admin(model_provider_admin.health)
+
+        @app.post("/v1/model-providers/maintenance")
+        async def maintain_model_providers(request: Request):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.write"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            return await _run_provider_admin(model_provider_admin.maintain)
+
+        @app.post("/v1/model-providers", status_code=201)
+        async def create_model_provider(request: Request, payload: CreateProfileRequest):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.write"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            return await _run_provider_admin(model_provider_admin.create_profile, payload)
+
+        @app.put("/v1/model-providers/{profile_id}/credential")
+        async def save_model_provider_credential(
+            request: Request, profile_id: str, payload: CredentialInput
+        ):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.write"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            _require_path_identifier(profile_id, field="profile_id")
+            return await _run_provider_admin(
+                model_provider_admin.save_credential, profile_id, payload
+            )
+
+        @app.post("/v1/model-providers/{profile_id}/verify")
+        async def verify_model_provider(
+            request: Request, profile_id: str, payload: VerifyModelRequest
+        ):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.verify"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            _require_path_identifier(profile_id, field="profile_id")
+            return await _run_provider_admin(
+                model_provider_admin.verify_model, profile_id, payload
+            )
+
+        @app.post("/v1/model-providers/{profile_id}/credential/rotate")
+        async def rotate_model_provider_credential(
+            request: Request, profile_id: str, payload: RotateCredentialRequest
+        ):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.write"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            _require_path_identifier(profile_id, field="profile_id")
+            return await _run_provider_admin(
+                model_provider_admin.rotate_credential, profile_id, payload
+            )
+
+        @app.put("/v1/model-provider-bindings/{workload}")
+        async def bind_model_provider_workload(
+            request: Request, workload: str, payload: BindWorkloadRequest
+        ):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.bind"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            if workload != payload.workload.value:
+                raise GatewayServiceError(
+                    GatewayErrorCode.INVALID_REQUEST,
+                    "path and body workloads differ",
+                    status_code=400,
+                )
+            return await _run_provider_admin(model_provider_admin.bind_workload, payload)
+
+        @app.delete("/v1/model-providers/{profile_id}")
+        async def delete_model_provider(
+            request: Request, profile_id: str, payload: DeleteProfileRequest
+        ):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.delete"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            _require_path_identifier(profile_id, field="profile_id")
+            return await _run_provider_admin(
+                model_provider_admin.delete_profile, profile_id, payload
+            )
 
     @app.post("/v1/turns", status_code=202)
     async def submit_turn(request: Request, payload: TurnSubmit):
@@ -454,6 +577,49 @@ def _authenticate(
             GatewayErrorCode.FORBIDDEN,
             "capability is invalid for this operation",
             status_code=403,
+        ) from exc
+
+
+def _require_provider_owner(
+    identity: VerifiedIdentity,
+    admin: ModelProviderAdminService,
+) -> None:
+    owner = admin.system.owner
+    if (
+        identity.profile_id != owner.tenant_id
+        or identity.subject_id != owner.user_id
+        or identity.agent_id != owner.agent_id
+    ):
+        raise GatewayServiceError(
+            GatewayErrorCode.FORBIDDEN,
+            "capability identity does not own this provider configuration",
+            status_code=403,
+        )
+
+
+async def _run_provider_admin(operation: Callable[..., Any], *args: Any):
+    try:
+        return await asyncio.to_thread(operation, *args)
+    except RevisionConflict as exc:
+        raise GatewayServiceError(
+            GatewayErrorCode.VERSION_CONFLICT,
+            "provider configuration changed; refresh and retry",
+            status_code=409,
+            details={"provider_error_code": exc.code.value},
+        ) from exc
+    except ModelProviderError as exc:
+        raise GatewayServiceError(
+            GatewayErrorCode.INVALID_REQUEST,
+            str(exc)[:300],
+            status_code=422,
+            retryable=exc.retryable,
+            details={"provider_error_code": exc.code.value},
+        ) from exc
+    except ValueError as exc:
+        raise GatewayServiceError(
+            GatewayErrorCode.INVALID_REQUEST,
+            str(exc)[:300],
+            status_code=422,
         ) from exc
 
 

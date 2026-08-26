@@ -23,7 +23,11 @@ class AsyncMemoryExtractorWorker:
     worker_id: str = "async_memory_extractor"
 
     def __post_init__(self) -> None:
-        self.provider = self.provider or OpenAICompatibleExtractorProvider.from_env()
+        self.provider = (
+            self.provider
+            or self.runtime.extractor_provider
+            or OpenAICompatibleExtractorProvider.from_env()
+        )
 
     def run_once(self, *, auto_commit: bool = True) -> JsonDict:
         job = self.runtime.claim_next_extraction_job()

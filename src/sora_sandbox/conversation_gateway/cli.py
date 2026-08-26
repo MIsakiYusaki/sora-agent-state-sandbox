@@ -11,6 +11,8 @@ import uvicorn
 
 from ..app import configure_stdio, make_llm
 from ..credentials import CredentialError
+from ..model_provider import OwnerScope
+from ..model_provider.admin import ModelProviderAdminService
 from ..paths import workspace_state_dir
 from ..runtime_stack import SoraRuntimeStack
 from .host import create_gateway_app
@@ -29,6 +31,11 @@ ALL_PERMISSIONS = frozenset(
         "turn.cancel",
         "history.read",
         "gateway.shutdown",
+        "model_provider.read",
+        "model_provider.write",
+        "model_provider.verify",
+        "model_provider.bind",
+        "model_provider.delete",
     }
 )
 
@@ -71,7 +78,16 @@ def main(argv: list[str] | None = None) -> int:
         print("at least one --origin or --allow-missing-origin is required", file=sys.stderr)
         return 2
     try:
-        llm = make_llm("deepseek", args.model, True)
+        llm = make_llm(
+            "deepseek",
+            args.model,
+            True,
+            owner=OwnerScope(
+                tenant_id=args.profile_id,
+                user_id=args.subject_id,
+                agent_id=args.agent_id,
+            ),
+        )
     except CredentialError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -123,6 +139,11 @@ def main(argv: list[str] | None = None) -> int:
         service,
         capabilities,
         shutdown_callback=lambda: setattr(server_holder["server"], "should_exit", True),
+        model_provider_admin=(
+            ModelProviderAdminService(stack.model_provider_system)
+            if stack.model_provider_system is not None
+            else None
+        ),
     )
     config = uvicorn.Config(
         app,

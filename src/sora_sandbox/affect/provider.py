@@ -169,6 +169,7 @@ class LLMAffectAppraisalProvider:
         result = self.llm.chat(
             system=system,
             user=user,
+            workload="affect_appraisal",
             temperature=0.0,
             max_tokens=max_tokens,
             thinking={"type": "disabled"},
@@ -189,6 +190,7 @@ class LLMAffectAppraisalProvider:
                     {"task": "repair_affect_json", "malformed_output": content[:6000]},
                     ensure_ascii=False,
                 ),
+                workload="affect_appraisal",
                 temperature=0.0,
                 max_tokens=max_tokens,
                 thinking={"type": "disabled"},

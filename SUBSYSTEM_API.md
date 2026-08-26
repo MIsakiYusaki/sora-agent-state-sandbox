@@ -172,3 +172,54 @@ Forget and rollback deactivate append-only contributions and deterministically
 rebuild snapshots. Affect-generated memory candidates are rejected or forgotten
 when their source is forgotten. Memory tombstones can also notify Affect through
 the registered memory-change listener when that memory was an Affect source.
+
+## Model Provider and BYOK Boundary
+
+`ModelProviderSystem` is the only component allowed to combine a provider
+credential with an outbound model request. Domain systems receive a routed LLM,
+embedding, or rerank client and never read API keys. Provider metadata, verified
+capabilities, workload bindings, probes, invocation traces, and audit events live
+in `provider.db`; secret material lives only in the operating-system credential
+store. There is no plaintext fallback.
+
+The runtime routes by typed workload rather than by a global model name. The
+supported workloads include foreground interpretation and generation, Memory,
+Persona, Affect, Relationship, WorldOps, document/query embedding, and Memory
+reranking. A turn pins one immutable `RoutingSnapshot`, so a settings change
+cannot switch providers halfway through a response.
+
+The Desktop Shell configures BYOK through the local Conversation Gateway:
+
+| Method | Path | Capability | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/v1/model-providers` | `model_provider.read` | Read redacted profiles, models, and bindings. |
+| `POST` | `/v1/model-providers` | `model_provider.write` | Create provider metadata without a secret. |
+| `PUT` | `/v1/model-providers/{id}/credential` | `model_provider.write` | Save a key or bounded custom auth headers. |
+| `POST` | `/v1/model-providers/{id}/verify` | `model_provider.verify` | Probe and persist measured model capabilities. |
+| `PUT` | `/v1/model-provider-bindings/{workload}` | `model_provider.bind` | Atomically bind a verified model and explicit fallbacks. |
+| `POST` | `/v1/model-providers/{id}/credential/rotate` | `model_provider.write` | Verify a new secret before deleting the previous one. |
+| `GET` | `/v1/model-providers/health` | `model_provider.read` | Report registry and active-route credential health. |
+| `POST` | `/v1/model-providers/maintenance` | `model_provider.write` | Apply trace, probe, and audit retention. |
+| `DELETE` | `/v1/model-providers/{id}` | `model_provider.delete` | Delete after an exact `delete:{id}` confirmation. |
+
+The setup transaction is deliberately ordered:
+
+```text
+create draft profile
+  -> store credential in OS keyring
+  -> capability probe
+  -> bind selected workloads
+  -> activate on the next turn snapshot
+```
+
+Profiles for OpenAI, DeepSeek, Anthropic, and Gemini must use their canonical API
+host unless the user explicitly marks the endpoint as custom. Remote endpoints
+require HTTPS, public DNS answers, and an allowed port; local endpoints are
+loopback-only. Redirects are never followed, environment proxy inheritance is
+disabled, response sizes are bounded, and errors/traces are redacted.
+
+The first startup with a complete legacy DeepSeek configuration migrates it to a
+provider profile and the OS keyring, then creates the missing workload bindings.
+Legacy environment variables remain a one-way bootstrap source, not the runtime
+credential store. An incomplete BYOK draft never breaks an otherwise valid
+runtime; only a missing credential on an active route degrades readiness.

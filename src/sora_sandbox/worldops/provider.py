@@ -239,6 +239,7 @@ class LLMWorldOpsInterpretationProvider:
             result = self.llm.chat(
                 system=system,
                 user=user,
+                workload="worldops_interpretation",
                 temperature=0.0,
                 max_tokens=700,
                 thinking={"type": "disabled"},
@@ -345,6 +346,7 @@ class LLMWorldOpsInterpretationProvider:
                     "Preserve meaning, add no facts or identifiers, and return JSON only."
                 ),
                 user=json.dumps({"task": "repair_json", "malformed": content[:8000]}, ensure_ascii=False),
+                workload="worldops_interpretation",
                 temperature=0.0,
                 max_tokens=max_tokens,
                 thinking={"type": "disabled"},

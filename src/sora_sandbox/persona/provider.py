@@ -190,6 +190,7 @@ class LLMPersonaCandidateProvider:
         result = self.llm.chat(
             system=system,
             user=user,
+            workload="persona_candidate",
             temperature=0.0,
             max_tokens=max_tokens,
             thinking={"type": "disabled"},
@@ -206,6 +207,7 @@ class LLMPersonaCandidateProvider:
                     "Preserve meaning, add no facts, and return JSON only."
                 ),
                 user=json.dumps({"task": "repair_json", "malformed": content[:6000]}, ensure_ascii=False),
+                workload="persona_candidate",
                 temperature=0.0,
                 max_tokens=max_tokens,
                 thinking={"type": "disabled"},

@@ -40,6 +40,7 @@ class SoraRuntimeStack:
     worldops: WorldOpsSystem
     runner: AgentRunner
     conversation: ConversationRuntime
+    model_provider_system: Any | None = None
 
     @classmethod
     def build(
@@ -53,10 +54,14 @@ class SoraRuntimeStack:
         timeline_id: str | None = None,
     ) -> "SoraRuntimeStack":
         resources: list[Any] = []
+        model_provider_system = getattr(llm, "provider_system", None)
+        if model_provider_system is not None:
+            resources.append(model_provider_system)
         try:
             memory = MemorySystem.default(
                 owner_user_id=owner_user_id,
                 agent_id=agent_id,
+                model_provider_system=model_provider_system,
             )
             resources.append(memory)
             interruptibility = InterruptibilityService(
@@ -154,6 +159,7 @@ class SoraRuntimeStack:
                 worldops=worldops,
                 runner=runner,
                 conversation=conversation,
+                model_provider_system=getattr(llm, "provider_system", None),
             )
             stack.register_quality_ops()
             return stack
@@ -166,6 +172,8 @@ class SoraRuntimeStack:
             raise
 
     def register_quality_ops(self) -> None:
+        if self.model_provider_system is not None:
+            self.model_provider_system.register_quality_ops(self.memory)
         self.memory.register_quality_eval_suite(
             "interruptibility",
             run_interruptibility_eval,
@@ -205,4 +213,8 @@ class SoraRuntimeStack:
                         try:
                             self.persona.close()
                         finally:
-                            self.memory.close()
+                            try:
+                                self.memory.close()
+                            finally:
+                                if self.model_provider_system is not None:
+                                    self.model_provider_system.close()

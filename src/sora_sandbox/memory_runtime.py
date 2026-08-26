@@ -16,6 +16,7 @@ from .memory_extractor_schema import (
     WriteOperation,
     candidate_to_dict,
 )
+from .memory_extractor_provider import MemoryExtractorProvider
 from .memory_extraction import extract_memory_candidates
 from .memory_gate import (
     MemoryGate,
@@ -26,7 +27,11 @@ from .memory_gate_engine import compute_candidate_hash, evaluate_candidate_gate
 from .memory_gate_pipeline import MemoryGatePipeline
 from .memory_gate_schema import GateDecisionAction
 from .memory_context_packer import MemoryContextPacker
-from .memory_embedding import EmbeddingProvider, create_embedding_provider_from_env
+from .memory_embedding import (
+    DeterministicEmbeddingProvider,
+    EmbeddingProvider,
+    create_embedding_provider_from_env,
+)
 from .memory_index_fts import index_text as _index_text
 from .memory_index_outbox import MemoryIndexOutbox
 from .memory_hybrid_retrieval import MemoryRetrievalService
@@ -35,10 +40,15 @@ from .memory_lifecycle_eval import MemoryLifecycleEvalService
 from .memory_observability import MemoryObservabilityService
 from .memory_projector import MemoryProjectorBus
 from .memory_quality_ops import AdminActionSpec, MemoryQualityOpsService
-from .memory_recall_planner import RecallPlanner, create_recall_planner_from_env, plan_to_json
+from .memory_recall_planner import (
+    HybridRecallPlanner,
+    RecallPlanner,
+    create_recall_planner_from_env,
+    plan_to_json,
+)
 from .memory_recall_planner_eval import MemoryRecallPlannerEvalService
 from .memory_recall_eval_service import MemoryRecallEvalService
-from .memory_reranker import MemoryReranker, create_reranker_from_env
+from .memory_reranker import FeatureMemoryReranker, MemoryReranker, create_reranker_from_env
 from .memory_retention import MemoryRetentionService
 from .memory_schema import (
     JsonDict,
@@ -54,7 +64,19 @@ from .memory_store import (
     row_value,
 )
 from .memory_surface_eval import MemorySurfaceEvalService
-from .memory_surface_policy import SurfacePolicyEngine, create_surface_policy_from_env
+from .memory_surface_policy import (
+    DeterministicSurfacePolicyProvider,
+    SurfacePolicyEngine,
+    create_surface_policy_from_env,
+)
+from .memory_provider_routes import (
+    RoutedEmbeddingProvider,
+    RoutedMemoryExtractorProvider,
+    RoutedMemoryReranker,
+    RoutedRecallPlannerProvider,
+    RoutedSurfacePolicyProvider,
+)
+from .model_provider import ModelProviderSystem, Workload
 from .memory_vector_index import VectorIndex
 from .paths import SEEDS_DIR, workspace_state_dir
 from .state import load_jsonl
@@ -101,6 +123,8 @@ class MemoryRuntime:
     embedding_provider: EmbeddingProvider | None = None
     reranker: MemoryReranker | None = None
     surface_policy: SurfacePolicyEngine | None = None
+    extractor_provider: MemoryExtractorProvider | None = None
+    model_provider_system: ModelProviderSystem | None = None
     vector_index_factory: Callable[[sqlite3.Connection, EmbeddingProvider], VectorIndex] | None = None
 
     def __post_init__(self) -> None:
@@ -108,10 +132,48 @@ class MemoryRuntime:
         self._lock = threading.RLock()
         self._memory_change_listeners: dict[str, Callable[..., Any]] = {}
         self.gate = self.gate or MemoryGate()
-        self.recall_planner = self.recall_planner or create_recall_planner_from_env()
-        self.embedding_provider = self.embedding_provider or create_embedding_provider_from_env()
-        self.reranker = self.reranker or create_reranker_from_env()
-        self.surface_policy = self.surface_policy or create_surface_policy_from_env()
+        if self.model_provider_system is not None:
+            routes = self.model_provider_system.router
+            if self.recall_planner is None:
+                self.recall_planner = (
+                    HybridRecallPlanner(
+                        llm_provider=RoutedRecallPlannerProvider(self.model_provider_system.llm),
+                        enable_llm=True,
+                    )
+                    if routes.has_binding(Workload.MEMORY_RECALL_PLANNING)
+                    else HybridRecallPlanner(enable_llm=False)
+                )
+            if self.embedding_provider is None:
+                has_embeddings = routes.has_binding(Workload.EMBEDDING_DOCUMENTS) and routes.has_binding(
+                    Workload.EMBEDDING_QUERY
+                )
+                self.embedding_provider = (
+                    RoutedEmbeddingProvider(self.model_provider_system)
+                    if has_embeddings
+                    else DeterministicEmbeddingProvider()
+                )
+            if self.reranker is None:
+                self.reranker = (
+                    RoutedMemoryReranker(self.model_provider_system)
+                    if routes.has_binding(Workload.MEMORY_RERANK)
+                    else FeatureMemoryReranker()
+                )
+            if self.surface_policy is None:
+                provider = (
+                    RoutedSurfacePolicyProvider(self.model_provider_system.llm)
+                    if routes.has_binding(Workload.MEMORY_SURFACE)
+                    else DeterministicSurfacePolicyProvider()
+                )
+                self.surface_policy = SurfacePolicyEngine(provider=provider)
+            if self.extractor_provider is None and routes.has_binding(Workload.MEMORY_EXTRACTION):
+                self.extractor_provider = RoutedMemoryExtractorProvider(
+                    self.model_provider_system.llm
+                )
+        else:
+            self.recall_planner = self.recall_planner or create_recall_planner_from_env()
+            self.embedding_provider = self.embedding_provider or create_embedding_provider_from_env()
+            self.reranker = self.reranker or create_reranker_from_env()
+            self.surface_policy = self.surface_policy or create_surface_policy_from_env()
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
@@ -245,11 +307,13 @@ class MemoryRuntime:
         *,
         owner_user_id: str = "local-user",
         agent_id: str = "sora_default",
+        model_provider_system: ModelProviderSystem | None = None,
     ) -> "MemoryRuntime":
         runtime = cls(
             workspace_state_dir() / "memory.db",
             owner_user_id=owner_user_id,
             agent_id=agent_id,
+            model_provider_system=model_provider_system,
         )
         runtime.seed_if_empty(load_jsonl(SEEDS_DIR / "memory.seed.jsonl"))
         return runtime

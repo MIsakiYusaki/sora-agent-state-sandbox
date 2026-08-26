@@ -6,7 +6,7 @@ import os
 import sys
 
 from .credentials import CredentialError, CredentialManager
-from .llm import DeepSeekClient
+from .model_provider import ModelProviderSystem, OwnerScope
 from .render import render_trace_panel
 from .repl import SoraRepl
 from .state import StateStore
@@ -36,14 +36,30 @@ def configure_stdio() -> None:
                 pass
 
 
-def make_llm(provider: str, model: str, no_prompt_key: bool):
-    manager = CredentialManager()
-    key = manager.get_api_key(prompt_if_missing=not no_prompt_key)
-    return DeepSeekClient(
-        api_key=key,
-        model=model,
-        base_url=os.environ.get("OPENAI_BASE_URL", "https://api.deepseek.com"),
-    )
+def make_llm(
+    provider: str,
+    model: str,
+    no_prompt_key: bool,
+    *,
+    owner: OwnerScope | None = None,
+):
+    if provider != "deepseek":
+        raise CredentialError(f"Unsupported bootstrap provider: {provider}")
+    system = ModelProviderSystem.default(owner or OwnerScope())
+    try:
+        configured = system.configured_client()
+        if configured is not None:
+            return configured
+        manager = CredentialManager()
+        key = manager.get_api_key(prompt_if_missing=not no_prompt_key)
+        return system.bootstrap_legacy_deepseek(
+            api_key=key,
+            model=model,
+            base_url=os.environ.get("OPENAI_BASE_URL", "https://api.deepseek.com"),
+        )
+    except Exception:
+        system.close()
+        raise
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -5,6 +5,7 @@ from typing import Any
 
 from .memory_runtime import MemoryRuntime
 from .memory_schema import JsonDict
+from .model_provider import ModelProviderSystem
 
 
 @dataclass
@@ -24,11 +25,13 @@ class MemorySystem:
         *,
         owner_user_id: str = "local-user",
         agent_id: str = "sora_default",
+        model_provider_system: ModelProviderSystem | None = None,
     ) -> "MemorySystem":
         return cls(
             MemoryRuntime.default(
                 owner_user_id=owner_user_id,
                 agent_id=agent_id,
+                model_provider_system=model_provider_system,
             )
         )
 

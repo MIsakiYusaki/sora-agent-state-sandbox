@@ -318,6 +318,7 @@ class LLMInterruptibilityResolutionProvider:
         result = self.llm.chat(
             system=system,
             user=user,
+            workload="interruptibility_resolution",
             temperature=0.0,
             max_tokens=500,
             thinking={"type": "disabled"},

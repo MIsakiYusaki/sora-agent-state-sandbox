@@ -62,6 +62,14 @@ from sora_sandbox.conversation_runtime.routing import ModelRouteCoordinator, Rou
 from sora_sandbox.conversation_runtime.security import AtRestCipher, StaticKeyProvider
 from sora_sandbox.interruptibility import InterruptibilityService
 from sora_sandbox.llm import FakeLLMClient
+from sora_sandbox.model_provider import (
+    EndpointPolicy,
+    InMemorySecretStore,
+    ModelProviderSystem,
+    OwnerScope,
+    ProviderRegistry,
+)
+from sora_sandbox.model_provider.admin import ModelProviderAdminService
 from sora_sandbox.runtime_stack import SoraRuntimeStack
 
 
@@ -72,6 +80,11 @@ PERMISSIONS = {
     "turn.cancel",
     "history.read",
     "gateway.shutdown",
+    "model_provider.read",
+    "model_provider.write",
+    "model_provider.verify",
+    "model_provider.bind",
+    "model_provider.delete",
 }
 
 
@@ -114,6 +127,14 @@ class ConversationGatewayTests(unittest.TestCase):
             ),
             identity_scope=("profile-a", "user-a", "sora"),
         )
+        self.model_provider_system = ModelProviderSystem(
+            ProviderRegistry(self.root / "providers.db"),
+            InMemorySecretStore(),
+            OwnerScope(tenant_id="profile-a", user_id="user-a", agent_id="sora"),
+            endpoint_policy=EndpointPolicy(
+                resolver=lambda _host, _port: ("93.184.216.34",)
+            ),
+        )
         self.token, _ = self.capabilities.issue(
             profile_id="profile-a",
             subject_id="user-a",
@@ -132,7 +153,11 @@ class ConversationGatewayTests(unittest.TestCase):
             allowed_origins={"app://sora"},
             allow_missing_origin=True,
         )
-        app = create_gateway_app(self.service, self.capabilities)
+        app = create_gateway_app(
+            self.service,
+            self.capabilities,
+            model_provider_admin=ModelProviderAdminService(self.model_provider_system),
+        )
         self.client_context = TestClient(app)
         self.client = self.client_context.__enter__()
 
@@ -140,7 +165,64 @@ class ConversationGatewayTests(unittest.TestCase):
         self.client_context.__exit__(None, None, None)
         self.registry.close()
         self.runtime.close()
+        self.model_provider_system.close()
         self.temp.cleanup()
+
+    def test_model_provider_management_is_owner_scoped_and_secret_redacted(self) -> None:
+        create = self.client.post(
+            "/v1/model-providers",
+            headers=self.headers(),
+            json={
+                "display_name": "User DeepSeek",
+                "provider_kind": "deepseek",
+                "protocol": "openai_chat_completions",
+                "base_url": "https://api.deepseek.com",
+                "custom_endpoint": False,
+                "auth_scheme": "bearer",
+            },
+        )
+        self.assertEqual(create.status_code, 201, create.text)
+        profile_id = create.json()["profile_id"]
+        credential = self.client.put(
+            f"/v1/model-providers/{profile_id}/credential",
+            headers=self.headers(),
+            json={"api_key": "sk-owned-by-user", "headers": {}},
+        )
+        self.assertEqual(credential.status_code, 200, credential.text)
+        self.assertEqual(credential.json()["credential_ref"], "bound")
+        self.assertNotIn("sk-owned-by-user", credential.text)
+
+        listing = self.client.get("/v1/model-providers", headers=self.headers())
+        self.assertEqual(listing.status_code, 200, listing.text)
+        self.assertNotIn("sk-owned-by-user", listing.text)
+        self.assertFalse(listing.json()["secrets_included"])
+
+        health = self.client.get(
+            "/v1/model-providers/health", headers=self.headers()
+        )
+        self.assertEqual(health.status_code, 200, health.text)
+        self.assertEqual(health.json()["status"], "ok")
+        self.assertEqual(health.json()["active_credential_failures"], [])
+
+        maintained = self.client.post(
+            "/v1/model-providers/maintenance", headers=self.headers()
+        )
+        self.assertEqual(maintained.status_code, 200, maintained.text)
+        self.assertIn("provider_invocation_trace", maintained.json()["deleted"])
+
+        foreign = self.client.get(
+            "/v1/model-providers", headers=self.headers(self.foreign_token)
+        )
+        self.assertEqual(foreign.status_code, 403)
+
+        deleted = self.client.request(
+            "DELETE",
+            f"/v1/model-providers/{profile_id}",
+            headers=self.headers(),
+            json={"confirmation": f"delete:{profile_id}"},
+        )
+        self.assertEqual(deleted.status_code, 200, deleted.text)
+        self.assertEqual(deleted.json()["status"], "deleted")
 
     def headers(self, token: str | None = None, *, origin: str | None = None):
         selected_token = token or self.token

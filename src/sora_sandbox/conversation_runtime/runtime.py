@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 import os
 import queue
 import threading
@@ -137,9 +138,10 @@ class ConversationRuntime:
         journal = ConversationJournal(
             directory / "conversation_runtime.db", AtRestCipher(key_provider)
         )
+        uses_provider_system = getattr(llm, "provider_system", None) is not None
         routes = ModelRouteCoordinator(
-            fast_model=os.environ.get("SORA_FAST_MODEL") or None,
-            response_model=os.environ.get("OPENAI_MODEL") or None,
+            fast_model=None if uses_provider_system else (os.environ.get("SORA_FAST_MODEL") or None),
+            response_model=None if uses_provider_system else (os.environ.get("OPENAI_MODEL") or None),
             max_hot_path_calls=(config or ConversationRuntimeConfig()).max_hot_path_llm_calls,
         )
         routed_llm = llm if isinstance(llm, RoutedLLMClient) else RoutedLLMClient(
@@ -500,19 +502,30 @@ class ConversationRuntime:
             cancellation.raise_if_cancelled()
             self.journal.transition(turn_id, TurnStatus.GENERATING, stage="wave_b_and_generation")
             self._emit(turn_id, "turn.preparing", {"stage": "wave_b_and_generation"}, sink)
-            with self.model_routes.activate(turn_id, cancellation) as model_budget:
-                if proactive_trigger is None:
-                    result = self.runner.run(
-                        working_state,
-                        user_input,
-                        correlation_id=context.correlation_id,
-                    )
-                else:
-                    result = self.runner.run_proactive(
-                        working_state,
-                        proactive_trigger,
-                        correlation_id=context.correlation_id,
-                    )
+            activate_provider_turn = getattr(self.runner.llm, "activate_turn", None)
+            provider_scope = (
+                activate_provider_turn(turn_id)
+                if callable(activate_provider_turn)
+                else contextlib.nullcontext()
+            )
+            with provider_scope:
+                with self.model_routes.activate(
+                    turn_id,
+                    cancellation,
+                    correlation_id=context.correlation_id,
+                ) as model_budget:
+                    if proactive_trigger is None:
+                        result = self.runner.run(
+                            working_state,
+                            user_input,
+                            correlation_id=context.correlation_id,
+                        )
+                    else:
+                        result = self.runner.run_proactive(
+                            working_state,
+                            proactive_trigger,
+                            correlation_id=context.correlation_id,
+                        )
             cancellation.raise_if_cancelled()
 
             context_pack = dict(result.get("context_pack") or {})

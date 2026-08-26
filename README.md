@@ -8,11 +8,13 @@ Event Bus
 -> Interruptibility Frame（回应义务、展开、追问、切题、主动性、状态外显预算）
 -> Initiative Window
 -> Arbiter
--> DeepSeek-backed Agent Runtime
+-> Workload-routed Model Provider Runtime
 -> response_plan / expression_event / state_diff
 ```
 
-第一版采用真实 DeepSeek Chat Completions API。首次运行会询问 DeepSeek API Key，并保存到本机用户配置目录。Windows 下使用 DPAPI 加密保存；非 Windows 环境会保存为权限受限的本地配置文件。
+当前版本支持 Sora Managed、OpenAI、DeepSeek、Anthropic、Gemini、OpenAI-compatible、Ollama、Embedding 和 Rerank Provider。用户自带密钥只写入操作系统凭据库；Provider 元数据、能力探测结果和 workload 绑定写入独立 SQLite Registry。凭据库不可用时系统 fail closed，不回退到明文文件。
+
+历史 DeepSeek 环境变量仍可在首次启动时作为一次性迁移来源：系统把密钥迁入操作系统凭据库、建立 Provider Profile 和缺失的 workload 绑定，此后运行时不再从环境变量读取密钥。桌面客户端通过本地 Conversation Gateway 的 `/v1/model-providers` 管理接口完成创建、密钥保存、能力验证和按 workload 绑定；接口详情见 `SUBSYSTEM_API.md`。
 
 本版参考了旧工程验证 PoC 的可观察性设计，但保留当前纯 Python、少依赖的实现：
 
@@ -141,7 +143,7 @@ python run.py --once "你好呀" --trace
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" run.py
 ```
 
-开发时默认使用真实 LLM，需要配置 DeepSeek/OpenAI-compatible 密钥：
+开发时默认使用真实 LLM。已有 DeepSeek 环境变量会自动迁移；新的 BYOK 配置应通过本地 Conversation Gateway 的 Model Provider 管理接口写入操作系统凭据库：
 
 ```powershell
 & "C:\Users\aizen\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" run.py

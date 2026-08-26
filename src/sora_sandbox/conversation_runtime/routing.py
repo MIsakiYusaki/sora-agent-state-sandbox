@@ -33,6 +33,7 @@ class ModelRoute:
 class TurnModelBudget:
     turn_id: str
     cancellation: CancellationToken
+    correlation_id: str | None = None
     max_logical_calls: int = 3
     calls: list[JsonDict] = field(default_factory=list)
 
@@ -110,10 +111,17 @@ class ModelRouteCoordinator:
         }
 
     @contextlib.contextmanager
-    def activate(self, turn_id: str, cancellation: CancellationToken) -> Iterator[TurnModelBudget]:
+    def activate(
+        self,
+        turn_id: str,
+        cancellation: CancellationToken,
+        *,
+        correlation_id: str | None = None,
+    ) -> Iterator[TurnModelBudget]:
         budget = TurnModelBudget(
             turn_id=turn_id,
             cancellation=cancellation,
+            correlation_id=correlation_id,
             max_logical_calls=self.max_hot_path_calls,
         )
         token = _ACTIVE_BUDGET.set(budget)
@@ -143,17 +151,30 @@ class RoutedLLMClient:
         self.metrics = metrics
 
     def chat(self, system: str, user: str, **kwargs: Any) -> JsonDict:
-        task = classify_model_task(user)
+        task = self._task_for(kwargs.get("workload"), user)
         budget = _ACTIVE_BUDGET.get()
         route = self.coordinator.route_for(task)
         if budget is None:
             return self.delegate.chat(system=system, user=user, **kwargs)
         ordinal = budget.reserve(task, route)
-        call_kwargs = self._apply_route(kwargs, route)
+        call_kwargs = self._apply_route(
+            kwargs,
+            route,
+            task,
+            budget.turn_id,
+            budget.correlation_id,
+        )
         started = time.perf_counter()
         try:
             budget.cancellation.raise_if_cancelled()
-            result = self._invoke(delegate=self.delegate, system=system, user=user, kwargs=call_kwargs, budget=budget)
+            result = self._invoke(
+                delegate=self.delegate,
+                system=system,
+                user=user,
+                kwargs=call_kwargs,
+                budget=budget,
+                task=task,
+            )
         except Exception as exc:
             budget.calls[ordinal - 1]["status"] = "failed"
             if self.journal is not None:
@@ -198,9 +219,10 @@ class RoutedLLMClient:
         user: str,
         kwargs: JsonDict,
         budget: TurnModelBudget,
+        task: ModelTask,
     ) -> JsonDict:
         stream_chat = getattr(delegate, "stream_chat", None)
-        if not callable(stream_chat) or classify_model_task(user) != ModelTask.RESPONSE_GENERATION:
+        if not callable(stream_chat) or task != ModelTask.RESPONSE_GENERATION:
             return delegate.chat(system=system, user=user, cancellation_token=budget.cancellation, **kwargs)
         chunks: list[str] = []
         usage: JsonDict = {}
@@ -261,8 +283,18 @@ class RoutedLLMClient:
         }
 
     @staticmethod
-    def _apply_route(kwargs: JsonDict, route: ModelRoute) -> JsonDict:
+    def _apply_route(
+        kwargs: JsonDict,
+        route: ModelRoute,
+        task: ModelTask,
+        turn_id: str,
+        correlation_id: str | None,
+    ) -> JsonDict:
         routed = dict(kwargs)
+        routed["workload"] = task.value
+        routed["_sora_turn_id"] = turn_id
+        if correlation_id:
+            routed["correlation_id"] = correlation_id
         if route.model:
             routed["model"] = route.model
         routed.setdefault("temperature", route.temperature)
@@ -270,6 +302,15 @@ class RoutedLLMClient:
         if route.thinking_disabled:
             routed["thinking"] = {"type": "disabled"}
         return routed
+
+    @staticmethod
+    def _task_for(explicit_workload: Any, user_payload: str) -> ModelTask:
+        if explicit_workload is not None:
+            try:
+                return ModelTask(str(explicit_workload))
+            except ValueError:
+                return ModelTask.DOMAIN_BACKGROUND
+        return classify_model_task(user_payload)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.delegate, name)
