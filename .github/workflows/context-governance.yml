@@ -1,0 +1,48 @@
+name: Project context governance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: context-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-context:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate context records
+        run: python scripts/project_context.py validate
+
+      - name: Run governance tests
+        run: python -m unittest tests.test_project_context
+
+      - name: Enforce context impact record
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if ($env:EVENT_NAME -eq "pull_request") {
+            $base = $env:PR_BASE_SHA
+          } elseif ($env:PUSH_BEFORE_SHA -and $env:PUSH_BEFORE_SHA -notmatch '^0+$') {
+            $base = $env:PUSH_BEFORE_SHA
+          } else {
+            $base = "HEAD^"
+          }
+          python scripts/project_context.py check-impact --base-ref $base

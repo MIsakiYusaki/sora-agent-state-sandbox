@@ -1,0 +1,43 @@
+{
+  "active_workstream_stale_hours": 72,
+  "catalogs": {
+    "artifacts": "docs/context/catalog/artifacts.json",
+    "milestones": "docs/context/catalog/milestones.json",
+    "open_items": "docs/context/catalog/open-items.json",
+    "systems": "docs/context/catalog/systems.json"
+  },
+  "agent_instructions": "AGENTS.md",
+  "architecture_sensitive_paths": [
+    "contracts",
+    "src/sora_sandbox/contracts.py",
+    "src/sora_sandbox/runtime_stack.py",
+    "src/sora_sandbox/subsystems.py"
+  ],
+  "architecture_update_paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/decisions"
+  ],
+  "context_revision": 3,
+  "ledger": "docs/context/PROJECT_LEDGER.md",
+  "context_update_paths": [
+    "AGENTS.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/context-manifest.json",
+    "docs/context/workstreams",
+    "docs/context/decisions"
+  ],
+  "governed_paths": [
+    "apps/desktop",
+    "contracts",
+    "packaging",
+    "prompts",
+    "scripts",
+    "seeds",
+    "src/sora_sandbox",
+    "package.json",
+    "pyproject.toml"
+  ],
+  "schema_version": "ProjectContextManifest.v1",
+  "snapshot": "docs/PROJECT_CONTEXT.md",
+  "workstream_protocol": "docs/context/README.md"
+}

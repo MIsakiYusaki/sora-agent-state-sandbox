@@ -1,0 +1,52 @@
+{
+  "base_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "changed_paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog",
+    "docs/context/context-manifest.json",
+    "docs/context/decisions/adr-20260831-tiered-project-ledger.json"
+  ],
+  "completed_at_utc": "2026-08-30T16:22:28Z",
+  "decision_ids": [
+    "adr-20260831-tiered-project-ledger"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-08-30T16:07:18Z",
+      "summary": "Expand the bootstrap context snapshot into a comprehensive, structured project ledger covering architecture, systems, plans, implementation progress, canonical artifacts, risks, and maintenance rules."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-08-30T16:22:28Z",
+      "summary": "Expanded the bootstrap snapshot into a detailed Project Sora engineering ledger with system, artifact, milestone and open-item catalogs covering verified architecture, plans, implementation progress, audits, risks and next work."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-08-30T16:22:28Z",
+      "summary": "Expanded the bootstrap snapshot into a detailed Project Sora engineering ledger with system, artifact, milestone and open-item catalogs covering verified architecture, plans, implementation progress, audits, risks and next work."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog",
+    "docs/context/context-manifest.json"
+  ],
+  "result_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-08-30T16:07:18Z",
+  "status": "completed",
+  "summary": "Expanded the bootstrap snapshot into a detailed Project Sora engineering ledger with system, artifact, milestone and open-item catalogs covering verified architecture, plans, implementation progress, audits, risks and next work.",
+  "title": "Project knowledge ledger and context backfill",
+  "updated_at_utc": "2026-08-30T16:22:28Z",
+  "verification": [
+    "catalog referential validation: OK",
+    "snapshot and manifest revision 3 parity: OK",
+    "Markdown trailing-whitespace check: OK",
+    "394 Python tests discovered; 2 collection errors recorded due missing fastapi in current system environment"
+  ],
+  "workstream_id": "ws-project-ledger-v1"
+}

@@ -1,0 +1,55 @@
+{
+  "base_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "changed_paths": [
+    ".github/workflows/context-governance.yml",
+    "AGENTS.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context",
+    "scripts/project_context.py",
+    "tests/test_project_context.py"
+  ],
+  "completed_at_utc": "2026-08-30T11:22:00Z",
+  "decision_ids": [
+    "adr-20260830-repository-context-governance"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-08-30T11:18:48Z",
+      "summary": "Implement repository-native context synchronization, concurrency coordination, ADRs, and CI enforcement."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-08-30T11:22:00Z",
+      "summary": "Delivered repository-native multi-task context governance with authoritative snapshot discovery, workstream ownership, immutable ADRs, overlap detection, completion evidence, and CI impact enforcement."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-08-30T11:22:00Z",
+      "summary": "Delivered repository-native multi-task context governance with authoritative snapshot discovery, workstream ownership, immutable ADRs, overlap detection, completion evidence, and CI impact enforcement."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    ".github/workflows/context-governance.yml",
+    "AGENTS.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context",
+    "scripts/project_context.py",
+    "tests/test_project_context.py"
+  ],
+  "result_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-08-30T11:18:48Z",
+  "status": "completed",
+  "summary": "Delivered repository-native multi-task context governance with authoritative snapshot discovery, workstream ownership, immutable ADRs, overlap detection, completion evidence, and CI impact enforcement.",
+  "title": "Project context governance v1",
+  "updated_at_utc": "2026-08-30T11:22:00Z",
+  "verification": [
+    "python -m py_compile scripts/project_context.py",
+    "python -m unittest tests.test_project_context -v: 6 passed",
+    "python scripts/project_context.py validate: OK",
+    "pre-finish impact gate rejected active-only implementation as expected"
+  ],
+  "workstream_id": "ws-context-governance-v1"
+}

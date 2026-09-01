@@ -1,0 +1,85 @@
+{
+  "base_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "changed_paths": [
+    ".github/workflows/desktop-quality.yml",
+    ".gitignore",
+    "apps/desktop",
+    "apps/desktop/src",
+    "apps/desktop/src-tauri/src",
+    "contracts/desktop",
+    "package.json",
+    "packaging",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "pyproject.toml",
+    "scripts/build_desktop_release.ps1",
+    "scripts/build_desktop_sidecar.ps1",
+    "scripts/desktop_gateway_entry.py",
+    "scripts/export_desktop_contracts.py",
+    "scripts/verify_desktop_release.ps1",
+    "src/sora_sandbox/app.py",
+    "src/sora_sandbox/conversation_gateway",
+    "src/sora_sandbox/desktop_contracts.py",
+    "src/sora_sandbox/model_provider",
+    "src/sora_sandbox/paths.py",
+    "tests/test_app.py",
+    "tests/test_conversation_gateway.py",
+    "tests/test_desktop_contracts.py",
+    "tests/test_model_provider.py"
+  ],
+  "completed_at_utc": "2026-09-01T12:38:12Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-08-30T11:19:37Z",
+      "summary": "Migrate the accepted desktop prototype page-by-page into production, preserve real runtime integrations, add safe user-facing contracts, verify, and rebuild the Windows installer."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-08-31T14:16:54Z",
+      "summary": "Prototype-faithful production desktop flows are implemented and verified; the NSIS candidate is built. Developer Mode real plumbing plus signing/update/rollback/SBOM/Beta release operations remain explicit follow-up work."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-01T12:38:12Z",
+      "summary": "Delivered the production Tauri/React desktop client aligned to the accepted prototype, with typed Gateway/Provider/Memory/Control contracts, trusted-host recovery semantics, packaging, installer verification, and release CI."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-01T12:38:12Z",
+      "summary": "Delivered the production Tauri/React desktop client aligned to the accepted prototype, with typed Gateway/Provider/Memory/Control contracts, trusted-host recovery semantics, packaging, installer verification, and release CI."
+    }
+  ],
+  "owner": "codex-desktop-fidelity-20260830",
+  "paths": [
+    "apps/desktop",
+    "scripts/build_desktop_release.ps1",
+    "scripts/verify_desktop_release.ps1",
+    "src/sora_sandbox/conversation_gateway",
+    "src/sora_sandbox/interruptibility.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "tests/test_conversation_gateway.py"
+  ],
+  "result_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-08-30T11:19:37Z",
+  "status": "completed",
+  "summary": "Delivered the production Tauri/React desktop client aligned to the accepted prototype, with typed Gateway/Provider/Memory/Control contracts, trusted-host recovery semantics, packaging, installer verification, and release CI.",
+  "title": "Desktop prototype fidelity and installer",
+  "updated_at_utc": "2026-09-01T12:38:12Z",
+  "verification": [
+    "Frontend Vitest: 18 passed; TypeScript and Vite production build passed",
+    "Rust desktop host: 5 passed, including TURN_CONFLICT safe-detail mapping",
+    "Desktop contracts, Gateway and model provider: 52 passed; generated contracts in sync",
+    "Native release screenshots reviewed at 1180x760 and 420x560 on 150% DPI; composer remains visible and content scrolls",
+    "NSIS verified: Project Sora_0.1.0_x64-setup.exe, SHA256 8FA436EE532A560C55F9621A5A16049DE735D3C09B78998084BEA9EFC53A2289",
+    "Python suite: 423 passed",
+    "Desktop Vitest: 18 passed",
+    "Desktop production build: passed",
+    "Rust host tests: 5 passed",
+    "Desktop contracts: in sync",
+    "NSIS release verified: 28,570,039-byte installer and sidecar hash manifest"
+  ],
+  "workstream_id": "ws-desktop-prototype-fidelity"
+}

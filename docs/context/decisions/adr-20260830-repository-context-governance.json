@@ -1,0 +1,19 @@
+{
+  "consequences": [
+    "New tasks can recover current architecture, active ownership, decisions, and verification without relying on another conversation history.",
+    "Every governed change must be claimed by a workstream and completed with verification before it passes the impact gate.",
+    "Already-running tasks must rerun the status check to observe changes made after they started."
+  ],
+  "context": "Codex tasks share repository files but do not share private conversation state, so project decisions and active ownership must be recoverable from versioned files.",
+  "decided_at_utc": "2026-08-30T11:21:25Z",
+  "decision": "Use a curated project snapshot, independent workstream records, immutable architecture decision records, active path-overlap detection, and a CI impact gate as the authoritative cross-task coordination protocol.",
+  "decision_id": "adr-20260830-repository-context-governance",
+  "references": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/README.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Repository-native multi-task context governance",
+  "workstream_id": "ws-context-governance-v1"
+}

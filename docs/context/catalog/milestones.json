@@ -1,0 +1,29 @@
+{
+  "schema_version": "ProjectSoraMilestoneCatalog.v1",
+  "refreshed_at": "2026-08-31",
+  "source": "git log --all --reverse at baseline a77ea7a",
+  "milestones": [
+    {"commit": "f138fa6", "title": "Initial Sora response orchestrator PoC", "area": "runtime-origin"},
+    {"commit": "eb7aa67", "title": "Gate proactive chat on interruptibility", "area": "interruptibility-origin"},
+    {"commit": "5909853", "title": "Add turn interpretation and memory runtime", "area": "memory-foundation"},
+    {"commit": "a1cadef", "title": "Implement memory module gate and extractor architecture", "area": "memory-extractor-gate"},
+    {"commit": "935eb5f", "title": "Productionize memory retrieval", "area": "memory-retrieval"},
+    {"commit": "fd31939", "title": "Implement module 06 recall planner", "area": "memory-planner"},
+    {"commit": "f317a07", "title": "Generalize memory rules for user domains", "area": "product-generalization"},
+    {"commit": "b04ba43", "title": "Implement memory surface policy and real LLM defaults", "area": "memory-surface"},
+    {"commit": "097e3d9", "title": "Implement memory lifecycle module", "area": "memory-lifecycle"},
+    {"commit": "39d7c6b", "title": "Implement memory projection gateway audit fixes", "area": "memory-projection"},
+    {"commit": "1606897", "title": "Implement memory quality ops and fast auxiliary inference", "area": "quality-and-latency"},
+    {"commit": "8912ded", "title": "Implement production interruptibility and persona systems", "area": "companion-systems"},
+    {"commit": "d42ee54", "title": "Harden persona lifecycle and audit compliance", "area": "persona-quality"},
+    {"commit": "c0982db", "title": "Implement production Affect system", "area": "affect"},
+    {"commit": "57d77dc", "title": "Implement production Relationship System", "area": "relationship"},
+    {"commit": "4e85a63", "title": "Harden Relationship System quality and governance", "area": "relationship-quality"},
+    {"commit": "a584809", "title": "Integrate Relationship quality release gate", "area": "relationship-release"},
+    {"commit": "9298f65", "title": "Implement production WorldOps narrative system", "area": "worldops"},
+    {"commit": "37f97f8", "title": "Harden WorldOps sync and production controls", "area": "worldops-quality"},
+    {"commit": "73dc016", "title": "Implement production text conversation runtime", "area": "conversation-runtime"},
+    {"commit": "025c074", "title": "Implement production conversation gateway", "area": "conversation-gateway"},
+    {"commit": "a77ea7a", "title": "Implement model provider and BYOK system", "area": "model-provider"}
+  ]
+}

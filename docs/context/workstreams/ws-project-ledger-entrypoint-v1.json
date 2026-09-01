@@ -1,0 +1,41 @@
+{
+  "base_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "changed_paths": [
+    "AGENTS.md"
+  ],
+  "completed_at_utc": "2026-08-30T16:22:28Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-08-30T16:20:08Z",
+      "summary": "Make the detailed ledger and relevant catalog record mandatory context for system planning, review, and implementation tasks."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-08-30T16:22:28Z",
+      "summary": "Made the detailed ledger, relevant system catalog record and canonical artifact mandatory inputs for system work."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-08-30T16:22:28Z",
+      "summary": "Made the detailed ledger, relevant system catalog record and canonical artifact mandatory inputs for system work."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "AGENTS.md"
+  ],
+  "result_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-08-30T16:20:08Z",
+  "status": "completed",
+  "summary": "Made the detailed ledger, relevant system catalog record and canonical artifact mandatory inputs for system work.",
+  "title": "Project ledger task entrypoint",
+  "updated_at_utc": "2026-08-30T16:22:28Z",
+  "verification": [
+    "python scripts/project_context.py status --check: revision 3 OK",
+    "mandatory context load reviewed"
+  ],
+  "workstream_id": "ws-project-ledger-entrypoint-v1"
+}

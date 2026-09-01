@@ -1,0 +1,44 @@
+{
+  "base_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "changed_paths": [
+    "apps/desktop-design-prototype/scripts/build-offline.mjs",
+    "outputs/desktop-design-prototype/Project-Sora-Desktop-Prototype.html"
+  ],
+  "completed_at_utc": "2026-08-31T14:20:56Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-08-31T14:14:52Z",
+      "summary": "Fix premature inline script/style termination, generate the verified standalone prototype, and replace the user's Desktop copy."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-08-31T14:20:56Z",
+      "summary": "Fixed standalone prototype parsing by escaping raw-text end tags and using callback replacements so bundled dollar substitutions cannot re-inject external script tags; replaced and opened the Desktop copy."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-08-31T14:20:56Z",
+      "summary": "Fixed standalone prototype parsing by escaping raw-text end tags and using callback replacements so bundled dollar substitutions cannot re-inject external script tags; replaced and opened the Desktop copy."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "apps/desktop-design-prototype/scripts/build-offline.mjs",
+    "outputs/desktop-design-prototype"
+  ],
+  "result_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-08-31T14:14:52Z",
+  "status": "completed",
+  "summary": "Fixed standalone prototype parsing by escaping raw-text end tags and using callback replacements so bundled dollar substitutions cannot re-inject external script tags; replaced and opened the Desktop copy.",
+  "title": "Fix offline prototype script parsing",
+  "updated_at_utc": "2026-08-31T14:20:56Z",
+  "verification": [
+    "pnpm --dir apps/desktop-design-prototype run build:offline: passed",
+    "offline HTML contains exactly one real script close tag and one safely escaped runtime literal",
+    "repository output and Desktop copy SHA-256 match"
+  ],
+  "workstream_id": "ws-prototype-offline-export-v2"
+}

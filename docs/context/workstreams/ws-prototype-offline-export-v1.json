@@ -1,0 +1,45 @@
+{
+  "base_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "changed_paths": [
+    "apps/desktop-design-prototype/package.json",
+    "apps/desktop-design-prototype/scripts/build-offline.mjs",
+    "outputs/desktop-design-prototype/Project-Sora-Desktop-Prototype.html"
+  ],
+  "completed_at_utc": "2026-08-31T14:12:49Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-08-31T12:05:35Z",
+      "summary": "Restore the local desktop design prototype server and add a reusable self-contained HTML export that opens without a dev server."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-08-31T14:12:49Z",
+      "summary": "Restored the desktop design prototype server and added a reproducible self-contained offline HTML export with inlined application, styles and Sora artwork."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-08-31T14:12:49Z",
+      "summary": "Restored the desktop design prototype server and added a reproducible self-contained offline HTML export with inlined application, styles and Sora artwork."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "apps/desktop-design-prototype",
+    "outputs/desktop-design-prototype"
+  ],
+  "result_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-08-31T12:05:35Z",
+  "status": "completed",
+  "summary": "Restored the desktop design prototype server and added a reproducible self-contained offline HTML export with inlined application, styles and Sora artwork.",
+  "title": "Desktop prototype offline export",
+  "updated_at_utc": "2026-08-31T14:12:49Z",
+  "verification": [
+    "pnpm --dir apps/desktop-design-prototype run build:offline: passed",
+    "http://127.0.0.1:1421 returned HTTP 200",
+    "offline export contains inline JS, CSS and PNG with no external script or stylesheet"
+  ],
+  "workstream_id": "ws-prototype-offline-export-v1"
+}

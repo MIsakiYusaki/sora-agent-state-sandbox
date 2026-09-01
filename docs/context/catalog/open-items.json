@@ -1,0 +1,18 @@
+{
+  "schema_version": "ProjectSoraOpenItems.v1",
+  "refreshed_at": "2026-08-31",
+  "items": [
+    {"id": "desktop-production-migration", "priority": "P0", "status": "in_progress", "owner_workstream": "ws-desktop-prototype-fidelity", "area": "desktop", "summary": "Migrate the accepted prototype into apps/desktop without replacing real runtime integrations."},
+    {"id": "desktop-real-contract-wiring", "priority": "P0", "status": "open", "area": "desktop", "summary": "Connect conversation, history, memory/privacy, controls, provider settings and Developer Mode to real typed Host/Gateway/Runtime contracts."},
+    {"id": "desktop-release-readiness", "priority": "P0", "status": "open", "area": "release", "summary": "Complete signing, updates, N-1 migration, rollback, SBOM, canary, target-hardware performance and Beta gates."},
+    {"id": "python-env-fastapi", "priority": "P1", "status": "open", "area": "tooling", "summary": "The current system Python environment lacks fastapi; pytest collection found 394 tests but failed on conversation gateway and desktop contract imports."},
+    {"id": "provider-catalog-ui", "priority": "P1", "status": "in_progress", "area": "model-provider", "summary": "Expose capability-based provider/model choices, existing credential migration and custom compatible endpoints without hardcoding DeepSeek Chat."},
+    {"id": "developer-mode-real-plumbing", "priority": "P1", "status": "open", "area": "desktop-debug", "summary": "Back Developer Mode with typed snapshots, events, correlation IDs, capabilities and audited commands; no arbitrary shell, SQL, Python or eval."},
+    {"id": "production-vector-deployment", "priority": "P1", "status": "open", "area": "memory-retrieval", "summary": "Provision and benchmark a production vector backend; adapters and tests exist but deployment topology is environment-specific."},
+    {"id": "real-traffic-quality-calibration", "priority": "P1", "status": "open", "area": "quality", "summary": "Calibrate extractor, recall, planner, surface, lifecycle, persona, affect and relationship thresholds on consented Beta traces."},
+    {"id": "worldops-production-services", "priority": "P1", "status": "open", "area": "worldops", "summary": "Deploy content distribution/editorial services and author signed production content packs."},
+    {"id": "catalog-missing-current-doc-links", "priority": "P2", "status": "open", "area": "documentation", "summary": "Confirm and catalog standalone current WorldOps, Text Runtime, Gateway and Model Provider Feishu design URLs where the repository currently has only local canonical docs or historical links."},
+    {"id": "memory-trace-lifecycle-link", "priority": "P2", "status": "open", "area": "memory", "summary": "Implement the intentionally deferred Recall trace retention linkage with Module 08 forgetting/lifecycle policy."},
+    {"id": "multimodal-presence", "priority": "deferred", "status": "deferred", "area": "future", "summary": "Desktop perception, vision, voice and always-on visual presence remain outside the text-first release."}
+  ]
+}

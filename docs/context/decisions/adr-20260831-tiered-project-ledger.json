@@ -1,0 +1,20 @@
+{
+  "consequences": [
+    "New tasks receive stable global context and must load the relevant detailed system record before planning or editing.",
+    "Catalog validation rejects broken artifact references, unresolved repository paths and snapshot revision drift.",
+    "System-level progress must update the ledger/catalog while only universally required facts enter the compact snapshot."
+  ],
+  "context": "The compact task snapshot was too small to preserve Project Sora's system plans, implementation progress, audits, artifacts and open work, while a single ever-growing Markdown file would create noise and concurrent edit conflicts.",
+  "decided_at_utc": "2026-08-30T16:21:46Z",
+  "decision": "Maintain a mandatory compact snapshot, a detailed engineering ledger, and machine-readable system/artifact/milestone/open-item catalogs. Preserve effective engineering facts and evidence, not verbatim conversation transcripts.",
+  "decision_id": "adr-20260831-tiered-project-ledger",
+  "references": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/README.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Tiered project ledger instead of transcript context",
+  "workstream_id": "ws-project-ledger-v1"
+}
