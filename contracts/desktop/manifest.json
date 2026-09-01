@@ -1,0 +1,16 @@
+{
+  "contract_version": "1.0.0",
+  "generated_files": [
+    "contracts/desktop/desktop-contracts.schema.json",
+    "apps/desktop/src/contracts/generated.ts"
+  ],
+  "golden_payloads": [
+    "contracts/desktop/golden/gateway-event.json",
+    "contracts/desktop/golden/provider-create.json",
+    "contracts/desktop/golden/shell-error.json",
+    "contracts/desktop/golden/turn-submit.json"
+  ],
+  "schema_sha256": "532b63ae6d65994d09e5ef78d9f55b950479db1dd9983369018c09f1f555a351",
+  "schema_version": "DesktopContractManifest.v1",
+  "source": "sora_sandbox.desktop_contracts.DesktopContractBundle"
+}

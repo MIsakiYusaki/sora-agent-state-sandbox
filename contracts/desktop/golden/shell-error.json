@@ -1,0 +1,10 @@
+{
+  "action": "open_provider_settings",
+  "code": "PROVIDER_REQUIRED",
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "message": "请先连接一个可用模型。",
+  "retry_after_ms": null,
+  "retryable": false,
+  "safe_details": {},
+  "schema_version": "ShellError.v1"
+}

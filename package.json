@@ -1,0 +1,14 @@
+{
+  "name": "project-sora-workspace",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "desktop:dev": "pnpm --dir apps/desktop dev",
+    "desktop:build": "pnpm --dir apps/desktop build",
+    "desktop:sidecar": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_desktop_sidecar.ps1",
+    "desktop:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_desktop_release.ps1",
+    "desktop:test": "pnpm --dir apps/desktop test",
+    "desktop:test:watch": "pnpm --dir apps/desktop test:watch",
+    "desktop:tauri": "pnpm --dir apps/desktop tauri"
+  }
+}

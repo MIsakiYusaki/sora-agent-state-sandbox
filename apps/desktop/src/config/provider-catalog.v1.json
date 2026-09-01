@@ -1,0 +1,135 @@
+{
+  "schema_version": "SoraProviderCatalog.v1",
+  "catalog_version": "2026.08.2",
+  "presets": [
+    {
+      "id": "deepseek-official",
+      "label": "DeepSeek",
+      "provider_kind": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "endpoint_mode": "remote",
+      "custom_endpoint": false,
+      "auth_scheme": "bearer",
+      "protocol": "openai_chat_completions",
+      "models": [
+        {
+          "model_id": "deepseek-v4-flash",
+          "label": "DeepSeek V4 Flash",
+          "capability_kind": "chat",
+          "thinking_control": true
+        },
+        {
+          "model_id": "deepseek-v4-pro",
+          "label": "DeepSeek V4 Pro",
+          "capability_kind": "chat",
+          "thinking_control": true
+        }
+      ]
+    },
+    {
+      "id": "openai-official",
+      "label": "OpenAI",
+      "provider_kind": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "endpoint_mode": "remote",
+      "custom_endpoint": false,
+      "auth_scheme": "bearer",
+      "protocol": "openai_responses",
+      "models": [
+        {
+          "model_id": "gpt-5-mini",
+          "label": "GPT-5 mini",
+          "capability_kind": "chat",
+          "thinking_control": true
+        }
+      ]
+    },
+    {
+      "id": "anthropic-official",
+      "label": "Anthropic",
+      "provider_kind": "anthropic",
+      "base_url": "https://api.anthropic.com",
+      "endpoint_mode": "remote",
+      "custom_endpoint": false,
+      "auth_scheme": "anthropic_api_key",
+      "protocol": "anthropic_messages",
+      "models": [
+        {
+          "model_id": "claude-sonnet-4-5",
+          "label": "Claude Sonnet",
+          "capability_kind": "chat",
+          "thinking_control": true
+        }
+      ]
+    },
+    {
+      "id": "gemini-official",
+      "label": "Google Gemini",
+      "provider_kind": "gemini",
+      "base_url": "https://generativelanguage.googleapis.com",
+      "endpoint_mode": "remote",
+      "custom_endpoint": false,
+      "auth_scheme": "google_api_key",
+      "protocol": "gemini_native",
+      "models": [
+        {
+          "model_id": "gemini-2.5-flash",
+          "label": "Gemini Flash",
+          "capability_kind": "chat",
+          "thinking_control": true
+        }
+      ]
+    }
+  ],
+  "custom_provider_options": [
+    {
+      "provider_kind": "openai_compatible",
+      "label": "OpenAI 兼容服务",
+      "protocols": ["openai_chat_completions", "openai_embeddings"],
+      "endpoint_modes": ["remote", "local"],
+      "default_auth_scheme": "bearer"
+    },
+    {
+      "provider_kind": "ollama",
+      "label": "Ollama",
+      "protocols": ["openai_chat_completions", "openai_embeddings"],
+      "endpoint_modes": ["local"],
+      "default_auth_scheme": "none"
+    },
+    {
+      "provider_kind": "http_rerank",
+      "label": "Rerank 服务",
+      "protocols": ["http_rerank"],
+      "endpoint_modes": ["remote"],
+      "default_auth_scheme": "bearer"
+    },
+    {
+      "provider_kind": "deepseek",
+      "label": "DeepSeek 兼容网关",
+      "protocols": ["openai_chat_completions"],
+      "endpoint_modes": ["remote"],
+      "default_auth_scheme": "bearer"
+    },
+    {
+      "provider_kind": "openai",
+      "label": "OpenAI 兼容网关",
+      "protocols": ["openai_chat_completions", "openai_responses", "openai_embeddings"],
+      "endpoint_modes": ["remote"],
+      "default_auth_scheme": "bearer"
+    },
+    {
+      "provider_kind": "anthropic",
+      "label": "Anthropic 兼容网关",
+      "protocols": ["anthropic_messages"],
+      "endpoint_modes": ["remote"],
+      "default_auth_scheme": "anthropic_api_key"
+    },
+    {
+      "provider_kind": "gemini",
+      "label": "Gemini 兼容网关",
+      "protocols": ["gemini_native"],
+      "endpoint_modes": ["remote"],
+      "default_auth_scheme": "google_api_key"
+    }
+  ]
+}

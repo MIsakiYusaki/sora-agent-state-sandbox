@@ -1,0 +1,13 @@
+{
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "created_at_ms": 1780000000000,
+  "event_type": "response.delta",
+  "payload": {
+    "delta": "我在。"
+  },
+  "protocol_version": "1.0",
+  "replayed": false,
+  "schema_version": "GatewayEvent.v1",
+  "sequence": 4,
+  "turn_id": "turn_00000001"
+}

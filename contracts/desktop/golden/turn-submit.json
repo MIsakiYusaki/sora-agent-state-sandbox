@@ -1,0 +1,12 @@
+{
+  "branch_id": "main",
+  "client_instance_id": "desktop_00000001",
+  "client_message_id": "message_00000001",
+  "conversation_id": "conversation_main",
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "expected_conversation_version": 3,
+  "protocol_version": "1.0",
+  "request_id": "request_00000001",
+  "schema_version": "TurnSubmit.v1",
+  "text": "今天也一起把事情做好吧。"
+}

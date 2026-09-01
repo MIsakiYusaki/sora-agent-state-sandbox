@@ -17,6 +17,11 @@ dependencies = [
     "websockets>=15.0,<17.0",
 ]
 
+[project.optional-dependencies]
+desktop-build = [
+    "pyinstaller==6.22.2",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

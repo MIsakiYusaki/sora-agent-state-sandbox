@@ -1,0 +1,9 @@
+{
+  "auth_scheme": "bearer",
+  "base_url": "https://api.deepseek.com",
+  "custom_endpoint": false,
+  "display_name": "DeepSeek",
+  "endpoint_mode": "remote",
+  "protocol": "openai_chat_completions",
+  "provider_kind": "deepseek"
+}

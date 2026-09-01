@@ -1,0 +1,2022 @@
+{
+  "$defs": {
+    "AckCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "event.ack",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "turn_id",
+        "sequence"
+      ],
+      "title": "AckCommand",
+      "type": "object"
+    },
+    "BindWorkloadRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "cross_provider_fallback": {
+          "default": false,
+          "title": "Cross Provider Fallback",
+          "type": "boolean"
+        },
+        "expected_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Revision"
+        },
+        "fallbacks": {
+          "items": {
+            "$ref": "#/$defs/WorkloadTargetInput"
+          },
+          "maxItems": 3,
+          "title": "Fallbacks",
+          "type": "array"
+        },
+        "primary": {
+          "$ref": "#/$defs/WorkloadTargetInput"
+        },
+        "requirements": {
+          "items": {
+            "$ref": "#/$defs/Capability"
+          },
+          "title": "Requirements",
+          "type": "array"
+        },
+        "workload": {
+          "$ref": "#/$defs/Workload"
+        }
+      },
+      "required": [
+        "workload",
+        "primary"
+      ],
+      "title": "BindWorkloadRequest",
+      "type": "object"
+    },
+    "CancelCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "reason": {
+          "default": "user_cancelled",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "turn.cancel",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "conversation_id",
+        "turn_id"
+      ],
+      "title": "CancelCommand",
+      "type": "object"
+    },
+    "CancelRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "reason": {
+          "default": "user_cancelled",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "CancelRequest.v1",
+          "default": "CancelRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "title": "CancelRequest",
+      "type": "object"
+    },
+    "Capability": {
+      "enum": [
+        "chat",
+        "streaming",
+        "structured_output",
+        "thinking_control",
+        "cancellation",
+        "usage_reporting",
+        "embedding",
+        "rerank"
+      ],
+      "title": "Capability",
+      "type": "string"
+    },
+    "ConnectionReady": {
+      "additionalProperties": false,
+      "properties": {
+        "connection_id": {
+          "title": "Connection Id",
+          "type": "string"
+        },
+        "heartbeat_interval_ms": {
+          "minimum": 1000,
+          "title": "Heartbeat Interval Ms",
+          "type": "integer"
+        },
+        "max_frame_bytes": {
+          "minimum": 1024,
+          "title": "Max Frame Bytes",
+          "type": "integer"
+        },
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "ConnectionReady.v1",
+          "default": "ConnectionReady.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection_id",
+        "heartbeat_interval_ms",
+        "max_frame_bytes"
+      ],
+      "title": "ConnectionReady",
+      "type": "object"
+    },
+    "CreateProfileRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "auth_scheme": {
+          "default": "bearer",
+          "enum": [
+            "none",
+            "bearer",
+            "anthropic_api_key",
+            "google_api_key",
+            "custom_headers"
+          ],
+          "title": "Auth Scheme",
+          "type": "string"
+        },
+        "base_url": {
+          "title": "Base Url",
+          "type": "string"
+        },
+        "custom_endpoint": {
+          "default": false,
+          "title": "Custom Endpoint",
+          "type": "boolean"
+        },
+        "display_name": {
+          "title": "Display Name",
+          "type": "string"
+        },
+        "endpoint_mode": {
+          "$ref": "#/$defs/EndpointMode",
+          "default": "remote"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ProviderProtocol"
+        },
+        "provider_kind": {
+          "$ref": "#/$defs/ProviderKind"
+        }
+      },
+      "required": [
+        "display_name",
+        "provider_kind",
+        "protocol",
+        "base_url"
+      ],
+      "title": "CreateProfileRequest",
+      "type": "object"
+    },
+    "DeleteProfileRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation": {
+          "title": "Confirmation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "confirmation"
+      ],
+      "title": "DeleteProfileRequest",
+      "type": "object"
+    },
+    "DesktopCancelTurnRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "reason": {
+          "default": "user_cancelled",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "DesktopCancelTurnRequest.v1",
+          "default": "DesktopCancelTurnRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversation_id",
+        "turn_id"
+      ],
+      "title": "DesktopCancelTurnRequest",
+      "type": "object"
+    },
+    "DesktopEventEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Conversation Id"
+        },
+        "kind": {
+          "enum": [
+            "gateway_event",
+            "shell_status",
+            "shell_error"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "DesktopEventEnvelope.v1",
+          "default": "DesktopEventEnvelope.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "turn_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Turn Id"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ],
+      "title": "DesktopEventEnvelope",
+      "type": "object"
+    },
+    "DesktopHistoryRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "before_sequence": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Before Sequence"
+        },
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "DesktopHistoryRequest.v1",
+          "default": "DesktopHistoryRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversation_id"
+      ],
+      "title": "DesktopHistoryRequest",
+      "type": "object"
+    },
+    "DesktopProviderCredentialPromptRequest": {
+      "additionalProperties": false,
+      "description": "Secret-free request sent by WebView to the native credential prompt.",
+      "properties": {
+        "profile_id": {
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "DesktopProviderCredentialPromptRequest.v1",
+          "default": "DesktopProviderCredentialPromptRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "verification": {
+          "$ref": "#/$defs/VerifyModelRequest"
+        }
+      },
+      "required": [
+        "profile_id",
+        "verification"
+      ],
+      "title": "DesktopProviderCredentialPromptRequest",
+      "type": "object"
+    },
+    "DesktopProviderRotatePromptRequest": {
+      "additionalProperties": false,
+      "description": "Secret-free rotation request; the old credential remains active on failure.",
+      "properties": {
+        "profile_id": {
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "DesktopProviderRotatePromptRequest.v1",
+          "default": "DesktopProviderRotatePromptRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "verification": {
+          "$ref": "#/$defs/VerifyModelRequest"
+        }
+      },
+      "required": [
+        "profile_id",
+        "verification"
+      ],
+      "title": "DesktopProviderRotatePromptRequest",
+      "type": "object"
+    },
+    "DesktopProviderSetupOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/ProviderProfile"
+        },
+        "routing": {
+          "$ref": "#/$defs/ProviderRoutingSetupResult"
+        },
+        "schema_version": {
+          "const": "DesktopProviderSetupOutcome.v1",
+          "default": "DesktopProviderSetupOutcome.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile",
+        "routing"
+      ],
+      "title": "DesktopProviderSetupOutcome",
+      "type": "object"
+    },
+    "DesktopStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "client_instance_id": {
+          "title": "Client Instance Id",
+          "type": "string"
+        },
+        "gateway_ready": {
+          "title": "Gateway Ready",
+          "type": "boolean"
+        },
+        "phase": {
+          "enum": [
+            "starting",
+            "provider_setup_required",
+            "ready",
+            "degraded",
+            "restarting",
+            "stopped"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "profile_id": {
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "provider_ready": {
+          "title": "Provider Ready",
+          "type": "boolean"
+        },
+        "recoverable": {
+          "default": true,
+          "title": "Recoverable",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "DesktopStatus.v1",
+          "default": "DesktopStatus.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status_message": {
+          "anyOf": [
+            {
+              "maxLength": 240,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status Message"
+        }
+      },
+      "required": [
+        "phase",
+        "profile_id",
+        "client_instance_id",
+        "gateway_ready",
+        "provider_ready"
+      ],
+      "title": "DesktopStatus",
+      "type": "object"
+    },
+    "DesktopSubmitTurnRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "branch_id": {
+          "default": "main",
+          "title": "Branch Id",
+          "type": "string"
+        },
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "expected_conversation_version": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Conversation Version"
+        },
+        "schema_version": {
+          "const": "DesktopSubmitTurnRequest.v1",
+          "default": "DesktopSubmitTurnRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversation_id",
+        "text"
+      ],
+      "title": "DesktopSubmitTurnRequest",
+      "type": "object"
+    },
+    "EndpointMode": {
+      "enum": [
+        "remote",
+        "local"
+      ],
+      "title": "EndpointMode",
+      "type": "string"
+    },
+    "GatewayBootstrap": {
+      "additionalProperties": false,
+      "properties": {
+        "base_url": {
+          "title": "Base Url",
+          "type": "string"
+        },
+        "capability_id": {
+          "title": "Capability Id",
+          "type": "string"
+        },
+        "capability_token": {
+          "minLength": 32,
+          "title": "Capability Token",
+          "type": "string"
+        },
+        "client_instance_id": {
+          "title": "Client Instance Id",
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "minimum": 0,
+          "title": "Expires At Ms",
+          "type": "integer"
+        },
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "ConversationGatewayBootstrap.v1",
+          "default": "ConversationGatewayBootstrap.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "base_url",
+        "capability_token",
+        "capability_id",
+        "expires_at_ms",
+        "client_instance_id"
+      ],
+      "title": "GatewayBootstrap",
+      "type": "object"
+    },
+    "GatewayError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/GatewayErrorCode"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retry_after_ms": {
+          "anyOf": [
+            {
+              "maximum": 3600000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry After Ms"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "GatewayError.v1",
+          "default": "GatewayError.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "GatewayError",
+      "type": "object"
+    },
+    "GatewayErrorCode": {
+      "enum": [
+        "AUTH_REQUIRED",
+        "FORBIDDEN",
+        "ORIGIN_REJECTED",
+        "PROTOCOL_UNSUPPORTED",
+        "INVALID_REQUEST",
+        "PAYLOAD_TOO_LARGE",
+        "RATE_LIMITED",
+        "IDEMPOTENCY_CONFLICT",
+        "VERSION_CONFLICT",
+        "TURN_IN_PROGRESS",
+        "TURN_NOT_FOUND",
+        "TURN_TIMEOUT",
+        "DRAINING",
+        "INTERNAL_ERROR"
+      ],
+      "title": "GatewayErrorCode",
+      "type": "string"
+    },
+    "GatewayEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "correlation_id": {
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "created_at_ms": {
+          "minimum": 0,
+          "title": "Created At Ms",
+          "type": "integer"
+        },
+        "event_type": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Event Type",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "replayed": {
+          "default": false,
+          "title": "Replayed",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "GatewayEvent.v1",
+          "default": "GatewayEvent.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "turn_id",
+        "sequence",
+        "event_type",
+        "correlation_id",
+        "created_at_ms"
+      ],
+      "title": "GatewayEvent",
+      "type": "object"
+    },
+    "HistoryItem": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "created_at_ms": {
+          "minimum": 0,
+          "title": "Created At Ms",
+          "type": "integer"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "sora"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content",
+        "turn_id",
+        "sequence",
+        "created_at_ms"
+      ],
+      "title": "HistoryItem",
+      "type": "object"
+    },
+    "HistoryPage": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "conversation_version": {
+          "minimum": 0,
+          "title": "Conversation Version",
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/HistoryItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "next_before_sequence": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Before Sequence"
+        },
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "HistoryPage.v1",
+          "default": "HistoryPage.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversation_id",
+        "conversation_version",
+        "items"
+      ],
+      "title": "HistoryPage",
+      "type": "object"
+    },
+    "ModelCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "cancellation": {
+          "default": false,
+          "title": "Cancellation",
+          "type": "boolean"
+        },
+        "chat": {
+          "default": false,
+          "title": "Chat",
+          "type": "boolean"
+        },
+        "context_window": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Window"
+        },
+        "embedding": {
+          "default": false,
+          "title": "Embedding",
+          "type": "boolean"
+        },
+        "embedding_dimension": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Embedding Dimension"
+        },
+        "max_output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Output Tokens"
+        },
+        "rerank": {
+          "default": false,
+          "title": "Rerank",
+          "type": "boolean"
+        },
+        "streaming": {
+          "default": false,
+          "title": "Streaming",
+          "type": "boolean"
+        },
+        "structured_output": {
+          "default": false,
+          "title": "Structured Output",
+          "type": "boolean"
+        },
+        "thinking_control": {
+          "default": false,
+          "title": "Thinking Control",
+          "type": "boolean"
+        },
+        "usage_reporting": {
+          "default": false,
+          "title": "Usage Reporting",
+          "type": "boolean"
+        }
+      },
+      "title": "ModelCapabilities",
+      "type": "object"
+    },
+    "ModelDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/ModelCapabilities"
+        },
+        "display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Display Name"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "provider_profile_id": {
+          "title": "Provider Profile Id",
+          "type": "string"
+        },
+        "revision": {
+          "default": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "source": {
+          "default": "probe",
+          "title": "Source",
+          "type": "string"
+        },
+        "verified_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verified At"
+        }
+      },
+      "required": [
+        "provider_profile_id",
+        "model_id",
+        "capabilities"
+      ],
+      "title": "ModelDescriptor",
+      "type": "object"
+    },
+    "ModelTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "provider_profile_id": {
+          "title": "Provider Profile Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_profile_id",
+        "model_id"
+      ],
+      "title": "ModelTarget",
+      "type": "object"
+    },
+    "OwnerScope": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {
+          "default": "sora_default",
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "tenant_id": {
+          "default": "local",
+          "title": "Tenant Id",
+          "type": "string"
+        },
+        "user_id": {
+          "default": "local-user",
+          "title": "User Id",
+          "type": "string"
+        }
+      },
+      "title": "OwnerScope",
+      "type": "object"
+    },
+    "PingCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "nonce": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nonce"
+        },
+        "type": {
+          "const": "ping",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PingCommand",
+      "type": "object"
+    },
+    "ProfileStatus": {
+      "enum": [
+        "draft",
+        "credential_bound",
+        "verifying",
+        "verified",
+        "degraded",
+        "disabled",
+        "deleted"
+      ],
+      "title": "ProfileStatus",
+      "type": "string"
+    },
+    "ProviderEndpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "base_url": {
+          "title": "Base Url",
+          "type": "string"
+        },
+        "custom": {
+          "default": false,
+          "title": "Custom",
+          "type": "boolean"
+        },
+        "mode": {
+          "$ref": "#/$defs/EndpointMode",
+          "default": "remote"
+        }
+      },
+      "required": [
+        "base_url"
+      ],
+      "title": "ProviderEndpoint",
+      "type": "object"
+    },
+    "ProviderKind": {
+      "enum": [
+        "sora_managed",
+        "openai",
+        "deepseek",
+        "anthropic",
+        "gemini",
+        "openai_compatible",
+        "ollama",
+        "http_rerank"
+      ],
+      "title": "ProviderKind",
+      "type": "string"
+    },
+    "ProviderProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "auth_scheme": {
+          "default": "bearer",
+          "title": "Auth Scheme",
+          "type": "string"
+        },
+        "capability_revision": {
+          "default": 0,
+          "title": "Capability Revision",
+          "type": "integer"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "credential_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Ref"
+        },
+        "display_name": {
+          "title": "Display Name",
+          "type": "string"
+        },
+        "endpoint": {
+          "$ref": "#/$defs/ProviderEndpoint"
+        },
+        "owner": {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        "policy_revision": {
+          "default": 1,
+          "title": "Policy Revision",
+          "type": "integer"
+        },
+        "profile_id": {
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ProviderProtocol"
+        },
+        "provider_kind": {
+          "$ref": "#/$defs/ProviderKind"
+        },
+        "status": {
+          "$ref": "#/$defs/ProfileStatus",
+          "default": "draft"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "owner",
+        "display_name",
+        "provider_kind",
+        "protocol",
+        "endpoint"
+      ],
+      "title": "ProviderProfile",
+      "type": "object"
+    },
+    "ProviderProtocol": {
+      "enum": [
+        "openai_chat_completions",
+        "openai_responses",
+        "anthropic_messages",
+        "gemini_native",
+        "openai_embeddings",
+        "http_rerank"
+      ],
+      "title": "ProviderProtocol",
+      "type": "string"
+    },
+    "ProviderRoutingSetupResult": {
+      "additionalProperties": false,
+      "properties": {
+        "bound_workloads": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Workload"
+          },
+          "title": "Bound Workloads",
+          "type": "array"
+        },
+        "missing_conversation_workloads": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Workload"
+          },
+          "title": "Missing Conversation Workloads",
+          "type": "array"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelDescriptor"
+        },
+        "preserved_workloads": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Workload"
+          },
+          "title": "Preserved Workloads",
+          "type": "array"
+        },
+        "profile_id": {
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "ready_for_conversation": {
+          "default": false,
+          "title": "Ready For Conversation",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "default": "ProviderRoutingSetupResult.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "unsupported_workloads": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/WorkloadCompatibility"
+          },
+          "title": "Unsupported Workloads",
+          "type": "array"
+        }
+      },
+      "required": [
+        "profile_id",
+        "model"
+      ],
+      "title": "ProviderRoutingSetupResult",
+      "type": "object"
+    },
+    "ResumeCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "after_sequence": {
+          "default": 0,
+          "minimum": 0,
+          "title": "After Sequence",
+          "type": "integer"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "stream.resume",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "turn_id"
+      ],
+      "title": "ResumeCommand",
+      "type": "object"
+    },
+    "SetupModelRoutesRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_id"
+      ],
+      "title": "SetupModelRoutesRequest",
+      "type": "object"
+    },
+    "ShellError": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "default": "none",
+          "enum": [
+            "none",
+            "retry",
+            "open_provider_settings",
+            "restart_gateway",
+            "reload_conversation"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "code": {
+          "$ref": "#/$defs/ShellErrorCode"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retry_after_ms": {
+          "anyOf": [
+            {
+              "maximum": 3600000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry After Ms"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "safe_details": {
+          "additionalProperties": true,
+          "title": "Safe Details",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "ShellError.v1",
+          "default": "ShellError.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ShellError",
+      "type": "object"
+    },
+    "ShellErrorCode": {
+      "enum": [
+        "GATEWAY_UNAVAILABLE",
+        "GATEWAY_RESTARTING",
+        "AUTH_EXPIRED",
+        "PROTOCOL_MISMATCH",
+        "INVALID_REQUEST",
+        "TURN_CONFLICT",
+        "PROVIDER_REQUIRED",
+        "PROVIDER_UNAVAILABLE",
+        "CREDENTIAL_CANCELLED",
+        "CREDENTIAL_REJECTED",
+        "STORAGE_UNAVAILABLE",
+        "INTERNAL_ERROR"
+      ],
+      "title": "ShellErrorCode",
+      "type": "string"
+    },
+    "SubmitCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "payload": {
+          "$ref": "#/$defs/TurnSubmit"
+        },
+        "type": {
+          "const": "turn.submit",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "payload"
+      ],
+      "title": "SubmitCommand",
+      "type": "object"
+    },
+    "TurnAccepted": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "conversation_version": {
+          "minimum": 0,
+          "title": "Conversation Version",
+          "type": "integer"
+        },
+        "correlation_id": {
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "events_url": {
+          "title": "Events Url",
+          "type": "string"
+        },
+        "idempotent_replay": {
+          "default": false,
+          "title": "Idempotent Replay",
+          "type": "boolean"
+        },
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "TurnAccepted.v1",
+          "default": "TurnAccepted.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "committed",
+            "cancelled",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "turn_id",
+        "request_id",
+        "conversation_id",
+        "correlation_id",
+        "status",
+        "conversation_version",
+        "events_url"
+      ],
+      "title": "TurnAccepted",
+      "type": "object"
+    },
+    "TurnStatusView": {
+      "additionalProperties": false,
+      "properties": {
+        "committed_at_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Committed At Ms"
+        },
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "correlation_id": {
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "created_at_ms": {
+          "minimum": 0,
+          "title": "Created At Ms",
+          "type": "integer"
+        },
+        "product_status": {
+          "enum": [
+            "active",
+            "committed",
+            "cancelled",
+            "failed"
+          ],
+          "title": "Product Status",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "runtime_status": {
+          "title": "Runtime Status",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "TurnStatusView.v1",
+          "default": "TurnStatusView.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        },
+        "updated_at_ms": {
+          "minimum": 0,
+          "title": "Updated At Ms",
+          "type": "integer"
+        },
+        "visible_output_started": {
+          "title": "Visible Output Started",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "turn_id",
+        "request_id",
+        "conversation_id",
+        "correlation_id",
+        "runtime_status",
+        "product_status",
+        "stage",
+        "revision",
+        "visible_output_started",
+        "created_at_ms",
+        "updated_at_ms"
+      ],
+      "title": "TurnStatusView",
+      "type": "object"
+    },
+    "TurnSubmit": {
+      "additionalProperties": false,
+      "properties": {
+        "branch_id": {
+          "default": "main",
+          "title": "Branch Id",
+          "type": "string"
+        },
+        "client_instance_id": {
+          "title": "Client Instance Id",
+          "type": "string"
+        },
+        "client_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Message Id"
+        },
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "expected_conversation_version": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Conversation Version"
+        },
+        "protocol_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "TurnSubmit.v1",
+          "default": "TurnSubmit.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "conversation_id",
+        "client_instance_id",
+        "text"
+      ],
+      "title": "TurnSubmit",
+      "type": "object"
+    },
+    "VerifyModelRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "capability_kind": {
+          "default": "chat",
+          "enum": [
+            "chat",
+            "embedding",
+            "rerank"
+          ],
+          "title": "Capability Kind",
+          "type": "string"
+        },
+        "context_window": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Window"
+        },
+        "embedding_dimension": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Embedding Dimension"
+        },
+        "max_output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Output Tokens"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "thinking_control": {
+          "default": false,
+          "title": "Thinking Control",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "model_id"
+      ],
+      "title": "VerifyModelRequest",
+      "type": "object"
+    },
+    "Workload": {
+      "enum": [
+        "turn_interpretation",
+        "semantic_arbitration",
+        "response_generation",
+        "interruptibility_resolution",
+        "memory_extraction",
+        "memory_recall_planning",
+        "memory_surface",
+        "memory_consolidation",
+        "persona_candidate",
+        "affect_appraisal",
+        "relationship_evidence",
+        "worldops_interpretation",
+        "domain_background",
+        "embedding_documents",
+        "embedding_query",
+        "memory_rerank"
+      ],
+      "title": "Workload",
+      "type": "string"
+    },
+    "WorkloadBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "cross_provider_fallback": {
+          "default": false,
+          "title": "Cross Provider Fallback",
+          "type": "boolean"
+        },
+        "fallbacks": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ModelTarget"
+          },
+          "title": "Fallbacks",
+          "type": "array"
+        },
+        "owner": {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        "primary": {
+          "$ref": "#/$defs/ModelTarget"
+        },
+        "requirements": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Capability"
+          },
+          "title": "Requirements",
+          "type": "array"
+        },
+        "revision": {
+          "default": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        },
+        "workload": {
+          "$ref": "#/$defs/Workload"
+        }
+      },
+      "required": [
+        "binding_id",
+        "owner",
+        "workload",
+        "primary"
+      ],
+      "title": "WorkloadBinding",
+      "type": "object"
+    },
+    "WorkloadCompatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "missing_capabilities": {
+          "items": {
+            "$ref": "#/$defs/Capability"
+          },
+          "title": "Missing Capabilities",
+          "type": "array"
+        },
+        "requirements": {
+          "items": {
+            "$ref": "#/$defs/Capability"
+          },
+          "title": "Requirements",
+          "type": "array"
+        },
+        "workload": {
+          "$ref": "#/$defs/Workload"
+        }
+      },
+      "required": [
+        "workload",
+        "requirements",
+        "missing_capabilities"
+      ],
+      "title": "WorkloadCompatibility",
+      "type": "object"
+    },
+    "WorkloadTargetInput": {
+      "additionalProperties": false,
+      "properties": {
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "provider_profile_id": {
+          "title": "Provider Profile Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_profile_id",
+        "model_id"
+      ],
+      "title": "WorkloadTargetInput",
+      "type": "object"
+    }
+  },
+  "$id": "https://project-sora.local/contracts/desktop/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Schema-only root that keeps every Desktop boundary type in one graph.",
+  "properties": {
+    "ack_command": {
+      "$ref": "#/$defs/AckCommand"
+    },
+    "cancel_command": {
+      "$ref": "#/$defs/CancelCommand"
+    },
+    "cancel_request": {
+      "$ref": "#/$defs/CancelRequest"
+    },
+    "connection_ready": {
+      "$ref": "#/$defs/ConnectionReady"
+    },
+    "desktop_cancel_turn_request": {
+      "$ref": "#/$defs/DesktopCancelTurnRequest"
+    },
+    "desktop_event_envelope": {
+      "$ref": "#/$defs/DesktopEventEnvelope"
+    },
+    "desktop_history_request": {
+      "$ref": "#/$defs/DesktopHistoryRequest"
+    },
+    "desktop_provider_credential_prompt_request": {
+      "$ref": "#/$defs/DesktopProviderCredentialPromptRequest"
+    },
+    "desktop_provider_rotate_prompt_request": {
+      "$ref": "#/$defs/DesktopProviderRotatePromptRequest"
+    },
+    "desktop_provider_setup_outcome": {
+      "$ref": "#/$defs/DesktopProviderSetupOutcome"
+    },
+    "desktop_status": {
+      "$ref": "#/$defs/DesktopStatus"
+    },
+    "desktop_submit_turn_request": {
+      "$ref": "#/$defs/DesktopSubmitTurnRequest"
+    },
+    "gateway_bootstrap": {
+      "$ref": "#/$defs/GatewayBootstrap"
+    },
+    "gateway_error": {
+      "$ref": "#/$defs/GatewayError"
+    },
+    "gateway_event": {
+      "$ref": "#/$defs/GatewayEvent"
+    },
+    "history_page": {
+      "$ref": "#/$defs/HistoryPage"
+    },
+    "ping_command": {
+      "$ref": "#/$defs/PingCommand"
+    },
+    "provider_bind_request": {
+      "$ref": "#/$defs/BindWorkloadRequest"
+    },
+    "provider_binding": {
+      "$ref": "#/$defs/WorkloadBinding"
+    },
+    "provider_capabilities": {
+      "$ref": "#/$defs/ModelCapabilities"
+    },
+    "provider_create_request": {
+      "$ref": "#/$defs/CreateProfileRequest"
+    },
+    "provider_delete_request": {
+      "$ref": "#/$defs/DeleteProfileRequest"
+    },
+    "provider_model": {
+      "$ref": "#/$defs/ModelDescriptor"
+    },
+    "provider_profile": {
+      "$ref": "#/$defs/ProviderProfile"
+    },
+    "provider_routing_setup_result": {
+      "$ref": "#/$defs/ProviderRoutingSetupResult"
+    },
+    "provider_setup_routes_request": {
+      "$ref": "#/$defs/SetupModelRoutesRequest"
+    },
+    "provider_verify_request": {
+      "$ref": "#/$defs/VerifyModelRequest"
+    },
+    "resume_command": {
+      "$ref": "#/$defs/ResumeCommand"
+    },
+    "schema_version": {
+      "const": "DesktopContractBundle.v1",
+      "default": "DesktopContractBundle.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "shell_error": {
+      "$ref": "#/$defs/ShellError"
+    },
+    "submit_command": {
+      "$ref": "#/$defs/SubmitCommand"
+    },
+    "turn_accepted": {
+      "$ref": "#/$defs/TurnAccepted"
+    },
+    "turn_status": {
+      "$ref": "#/$defs/TurnStatusView"
+    },
+    "turn_submit": {
+      "$ref": "#/$defs/TurnSubmit"
+    }
+  },
+  "required": [
+    "desktop_status",
+    "desktop_submit_turn_request",
+    "desktop_cancel_turn_request",
+    "desktop_history_request",
+    "desktop_provider_credential_prompt_request",
+    "desktop_provider_rotate_prompt_request",
+    "desktop_provider_setup_outcome",
+    "desktop_event_envelope",
+    "shell_error",
+    "gateway_bootstrap",
+    "gateway_error",
+    "gateway_event",
+    "turn_submit",
+    "turn_accepted",
+    "turn_status",
+    "cancel_request",
+    "history_page",
+    "connection_ready",
+    "submit_command",
+    "cancel_command",
+    "resume_command",
+    "ack_command",
+    "ping_command",
+    "provider_create_request",
+    "provider_verify_request",
+    "provider_setup_routes_request",
+    "provider_bind_request",
+    "provider_delete_request",
+    "provider_profile",
+    "provider_model",
+    "provider_capabilities",
+    "provider_binding",
+    "provider_routing_setup_result"
+  ],
+  "title": "DesktopContractBundle",
+  "type": "object",
+  "x-sora-contract-version": "1.0.0"
+}
