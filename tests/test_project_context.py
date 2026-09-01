@@ -131,6 +131,17 @@ class ContextGovernanceTests(unittest.TestCase):
         ])
         self.assertTrue(any("not covered" in error for error in errors))
 
+    def test_impact_accepts_directory_level_changed_path_coverage(self) -> None:
+        self.begin("ws-directory-impact", "apps/desktop")
+        self.finish("ws-directory-impact", "src/model_provider")
+
+        errors, _ = self.repository.check_impact([
+            "src/model_provider/contracts.py",
+            "docs/context/workstreams/ws-directory-impact.json",
+        ])
+
+        self.assertEqual(errors, [])
+
     def test_architecture_change_requires_snapshot_or_adr(self) -> None:
         self.begin("ws-architecture", "src/contracts.py")
         self.finish("ws-architecture", "src/contracts.py")

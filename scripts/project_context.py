@@ -487,7 +487,10 @@ class ContextRepository:
             for governed_path in governed:
                 covered = any(
                     any(path_contains(governed_path, claim) for claim in record.get("paths", []))
-                    or governed_path in record.get("changed_paths", [])
+                    or any(
+                        path_contains(governed_path, changed_path)
+                        for changed_path in record.get("changed_paths", [])
+                    )
                     for record in completed_records
                 )
                 if not covered:

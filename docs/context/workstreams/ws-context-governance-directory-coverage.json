@@ -1,0 +1,43 @@
+{
+  "base_head": "6efa5710539dc423861f71b04d6c5c334db194ae",
+  "changed_paths": [
+    "scripts/project_context.py",
+    "tests/test_project_context.py"
+  ],
+  "completed_at_utc": "2026-09-01T13:15:25Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-01T13:12:17Z",
+      "summary": "Treat directory-level changed_paths in completed workstreams as coverage for governed descendant files and add regression tests."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-01T13:15:25Z",
+      "summary": "Fixed context impact coverage so directory-level changed_paths cover governed descendant files, with a regression test reproducing the desktop/provider CI failure."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-01T13:15:25Z",
+      "summary": "Fixed context impact coverage so directory-level changed_paths cover governed descendant files, with a regression test reproducing the desktop/provider CI failure."
+    }
+  ],
+  "owner": "codex-current-thread",
+  "paths": [
+    "scripts/project_context.py",
+    "tests/test_project_context.py"
+  ],
+  "result_head": "6efa5710539dc423861f71b04d6c5c334db194ae",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-01T13:12:17Z",
+  "status": "completed",
+  "summary": "Fixed context impact coverage so directory-level changed_paths cover governed descendant files, with a regression test reproducing the desktop/provider CI failure.",
+  "title": "Fix directory coverage in context impact checks",
+  "updated_at_utc": "2026-09-01T13:15:25Z",
+  "verification": [
+    "python -m unittest tests.test_project_context: 9 passed",
+    "check-impact replay from a77ea7a: passed with only the expected large-change warning"
+  ],
+  "workstream_id": "ws-context-governance-directory-coverage"
+}
