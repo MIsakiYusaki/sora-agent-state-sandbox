@@ -11,7 +11,7 @@ from fastapi import FastAPI, Header, Query, Request, WebSocket, WebSocketDisconn
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from ..model_provider.admin import (
     BindWorkloadRequest,
@@ -20,6 +20,7 @@ from ..model_provider.admin import (
     DeleteProfileRequest,
     ModelProviderAdminService,
     RotateCredentialRequest,
+    SetupModelRoutesRequest,
     VerifyModelRequest,
 )
 from ..model_provider.errors import ModelProviderError, RevisionConflict
@@ -45,6 +46,19 @@ from .security import CapabilityError, LocalCapabilityProvider, VerifiedIdentity
 from .service import ConversationGatewayService, GatewayServiceError
 
 
+class MemoryVisibilityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    visible: bool
+
+
+class ConversationControlUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    control: str
+    value: Any
+    scope: str = "session"
+    duration_seconds: int | None = None
+
+
 def create_gateway_app(
     service: ConversationGatewayService,
     capability_provider: LocalCapabilityProvider,
@@ -53,6 +67,8 @@ def create_gateway_app(
     allowed_hosts: tuple[str, ...] = ("127.0.0.1", "localhost", "testserver"),
     shutdown_callback: Callable[[], None] | None = None,
     model_provider_admin: ModelProviderAdminService | None = None,
+    memory_runtime: Any | None = None,
+    interruptibility_service: Any | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -75,6 +91,8 @@ def create_gateway_app(
     app.state.gateway_service = service
     app.state.capability_provider = capability_provider
     app.state.model_provider_admin = model_provider_admin
+    app.state.memory_runtime = memory_runtime
+    app.state.interruptibility_service = interruptibility_service
     trusted_hosts = tuple(host.lower() for host in allowed_hosts)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(trusted_hosts))
 
@@ -204,6 +222,20 @@ def create_gateway_app(
             _require_path_identifier(profile_id, field="profile_id")
             return await _run_provider_admin(
                 model_provider_admin.verify_model, profile_id, payload
+            )
+
+        @app.post("/v1/model-providers/{profile_id}/setup-default-routes")
+        async def setup_model_provider_routes(
+            request: Request, profile_id: str, payload: SetupModelRoutesRequest
+        ):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="model_provider.bind"
+            )
+            _require_provider_owner(identity, model_provider_admin)
+            _require_path_identifier(profile_id, field="profile_id")
+            return await _run_provider_admin(
+                model_provider_admin.setup_model_routes, profile_id, payload
             )
 
         @app.post("/v1/model-providers/{profile_id}/credential/rotate")
@@ -354,6 +386,181 @@ def create_gateway_app(
             limit=limit,
             before_sequence=before_sequence,
         )
+
+    @app.get("/v1/conversations")
+    async def list_conversations(
+        request: Request,
+        limit: int = Query(default=100, ge=1, le=200),
+    ):
+        _require_protocol(request)
+        identity = _authenticate(request, capability_provider, permission="history.read")
+        return service.conversations(identity, limit=limit)
+
+    if memory_runtime is not None:
+        @app.get("/v1/memories")
+        async def list_memories(
+            request: Request,
+            query: str = Query(default="", max_length=200),
+        ):
+            _require_protocol(request)
+            identity = _authenticate(request, capability_provider, permission="memory.read")
+            _require_memory_owner(identity, memory_runtime)
+            raw = (
+                memory_runtime.search(query, top_k=100)
+                if query.strip()
+                else memory_runtime.list_memories()
+            )
+            items = [_user_memory(item) for item in raw if str(item.get("status")) == "active"]
+            return {
+                "schema_version": "UserMemoryPage.v1",
+                "items": items,
+                "summary": {
+                    "available": len(items),
+                    "visible": sum(1 for item in items if item["visible"]),
+                    "hidden": sum(1 for item in items if not item["visible"]),
+                    "archived": sum(
+                        1
+                        for item in items
+                        if str((item.get("lifecycle") or {}).get("tier")) == "archived"
+                    ),
+                },
+            }
+
+        @app.put("/v1/memories/{memory_id}/visibility")
+        async def set_memory_visibility(
+            request: Request,
+            memory_id: str,
+            payload: MemoryVisibilityRequest,
+        ):
+            _require_protocol(request)
+            identity = _authenticate(request, capability_provider, permission="memory.write")
+            _require_memory_owner(identity, memory_runtime)
+            _require_path_identifier(memory_id, field="memory_id")
+            try:
+                result = (
+                    memory_runtime.clear_surface_override(memory_id)
+                    if payload.visible
+                    else memory_runtime.hide_memory(memory_id)
+                )
+            except ValueError as exc:
+                raise GatewayServiceError(
+                    GatewayErrorCode.INVALID_REQUEST,
+                    "memory could not be updated",
+                    status_code=404,
+                ) from exc
+            return {
+                "schema_version": "UserMemoryMutation.v1",
+                "memory": _user_memory(result["memory"]),
+            }
+
+        @app.delete("/v1/memories/{memory_id}")
+        async def forget_memory(request: Request, memory_id: str):
+            _require_protocol(request)
+            identity = _authenticate(request, capability_provider, permission="memory.write")
+            _require_memory_owner(identity, memory_runtime)
+            _require_path_identifier(memory_id, field="memory_id")
+            try:
+                result = memory_runtime.forget_memory(
+                    memory_id,
+                    reason="desktop_user_forget",
+                    actor="desktop_user",
+                )
+            except ValueError as exc:
+                raise GatewayServiceError(
+                    GatewayErrorCode.INVALID_REQUEST,
+                    "memory could not be forgotten",
+                    status_code=404,
+                ) from exc
+            return {
+                "schema_version": "UserMemoryForgetReceipt.v1",
+                "memory_id": memory_id,
+                "status": str(result.get("status") or "accepted"),
+            }
+
+    if interruptibility_service is not None:
+        @app.get("/v1/conversations/{conversation_id}/controls")
+        async def get_conversation_controls(request: Request, conversation_id: str):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="controls.read"
+            )
+            _require_path_identifier(conversation_id, field="conversation_id")
+            with service.state_repository.turn_state(
+                identity.profile_id,
+                conversation_id,
+                user_id=identity.subject_id,
+                agent_id=identity.agent_id,
+                pair_id=identity.pair_id,
+            ) as state:
+                status = interruptibility_service.status(state)
+            return {
+                "schema_version": "ConversationControls.v1",
+                "conversation_id": conversation_id,
+                "controls": status.get("controls", {}),
+                "initiative_lease": status.get("initiative_lease"),
+            }
+
+        @app.put("/v1/conversations/{conversation_id}/controls")
+        async def update_conversation_controls(
+            request: Request,
+            conversation_id: str,
+            payload: ConversationControlUpdate,
+        ):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="controls.write"
+            )
+            _require_path_identifier(conversation_id, field="conversation_id")
+            with service.state_repository.turn_state(
+                identity.profile_id,
+                conversation_id,
+                user_id=identity.subject_id,
+                agent_id=identity.agent_id,
+                pair_id=identity.pair_id,
+            ) as state:
+                try:
+                    result = interruptibility_service.set_control(
+                        state,
+                        control=payload.control,
+                        value=payload.value,
+                        scope=payload.scope,
+                        duration_seconds=payload.duration_seconds,
+                    )
+                except ValueError as exc:
+                    raise GatewayServiceError(
+                        GatewayErrorCode.INVALID_REQUEST,
+                        "conversation control is not supported",
+                        status_code=400,
+                    ) from exc
+            return {
+                "schema_version": "ConversationControls.v1",
+                "conversation_id": conversation_id,
+                "controls": result["status"].get("controls", {}),
+                "initiative_lease": result["status"].get("initiative_lease"),
+            }
+
+        @app.delete("/v1/conversations/{conversation_id}/controls")
+        async def reset_conversation_controls(request: Request, conversation_id: str):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="controls.write"
+            )
+            _require_path_identifier(conversation_id, field="conversation_id")
+            with service.state_repository.turn_state(
+                identity.profile_id,
+                conversation_id,
+                user_id=identity.subject_id,
+                agent_id=identity.agent_id,
+                pair_id=identity.pair_id,
+            ) as state:
+                interruptibility_service.revoke(state, "all")
+                status = interruptibility_service.status(state)
+            return {
+                "schema_version": "ConversationControls.v1",
+                "conversation_id": conversation_id,
+                "controls": status.get("controls", {}),
+                "initiative_lease": status.get("initiative_lease"),
+            }
 
     @app.websocket("/v1/stream")
     async def websocket_stream(websocket: WebSocket) -> None:
@@ -595,6 +802,37 @@ def _require_provider_owner(
             "capability identity does not own this provider configuration",
             status_code=403,
         )
+
+
+def _require_memory_owner(identity: VerifiedIdentity, memory_runtime: Any) -> None:
+    if (
+        identity.subject_id != str(memory_runtime.owner_user_id)
+        or identity.agent_id != str(memory_runtime.agent_id)
+    ):
+        raise GatewayServiceError(
+            GatewayErrorCode.FORBIDDEN,
+            "capability identity does not own this memory store",
+            status_code=403,
+        )
+
+
+def _user_memory(item: dict[str, Any]) -> dict[str, Any]:
+    permission = str(item.get("surface_permission") or "auto")
+    lifecycle = item.get("lifecycle")
+    return {
+        "id": str(item.get("id") or ""),
+        "type": str(item.get("type") or "memory"),
+        "summary": str(item.get("summary") or item.get("content") or ""),
+        "tags": [str(value) for value in item.get("tags") or []][:20],
+        "confidence": float(item.get("confidence") or 0.0),
+        "sensitivity": str(item.get("sensitivity") or "low"),
+        "evidence_count": len(item.get("evidence_ids") or []),
+        "surface_permission": permission,
+        "visible": permission not in {"none", "hidden", "deny"},
+        "lifecycle": lifecycle if isinstance(lifecycle, dict) else {},
+        "created_at": item.get("created_at"),
+        "updated_at": item.get("updated_at"),
+    }
 
 
 async def _run_provider_admin(operation: Callable[..., Any], *args: Any):

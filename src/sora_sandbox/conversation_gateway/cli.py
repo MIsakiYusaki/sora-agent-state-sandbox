@@ -6,6 +6,7 @@ import json
 import os
 import socket
 import sys
+from pathlib import Path
 
 import uvicorn
 
@@ -13,7 +14,7 @@ from ..app import configure_stdio, make_llm
 from ..credentials import CredentialError
 from ..model_provider import OwnerScope
 from ..model_provider.admin import ModelProviderAdminService
-from ..paths import workspace_state_dir
+from ..paths import user_config_dir, workspace_state_dir
 from ..runtime_stack import SoraRuntimeStack
 from .host import create_gateway_app
 from .registry import GatewayRegistry
@@ -30,6 +31,10 @@ ALL_PERMISSIONS = frozenset(
         "turn.read",
         "turn.cancel",
         "history.read",
+        "memory.read",
+        "memory.write",
+        "controls.read",
+        "controls.write",
         "gateway.shutdown",
         "model_provider.read",
         "model_provider.write",
@@ -77,6 +82,20 @@ def main(argv: list[str] | None = None) -> int:
     if not args.origin and not args.allow_missing_origin:
         print("at least one --origin or --allow-missing-origin is required", file=sys.stderr)
         return 2
+    identity_material = "\x1f".join(
+        (args.profile_id, args.subject_id, args.agent_id)
+    )
+    identity_digest = hashlib.sha256(identity_material.encode("utf-8")).hexdigest()
+    configured_root = os.environ.get("SORA_GATEWAY_STATE_ROOT")
+    if configured_root:
+        root_state_dir = Path(configured_root).expanduser().resolve()
+    elif os.environ.get("SORA_SANDBOX_STATE_DIR"):
+        root_state_dir = workspace_state_dir()
+    else:
+        root_state_dir = user_config_dir() / "runtime"
+    profile_state_dir = root_state_dir / "gateway-identities" / identity_digest
+    os.environ["SORA_SANDBOX_STATE_DIR"] = str(profile_state_dir)
+
     try:
         llm = make_llm(
             "deepseek",
@@ -87,18 +106,12 @@ def main(argv: list[str] | None = None) -> int:
                 user_id=args.subject_id,
                 agent_id=args.agent_id,
             ),
+            allow_unconfigured=True,
         )
     except CredentialError as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
-    root_state_dir = workspace_state_dir()
-    identity_material = "\x1f".join(
-        (args.profile_id, args.subject_id, args.agent_id)
-    )
-    identity_digest = hashlib.sha256(identity_material.encode("utf-8")).hexdigest()
-    profile_state_dir = root_state_dir / "gateway-identities" / identity_digest
-    os.environ["SORA_SANDBOX_STATE_DIR"] = str(profile_state_dir)
     stack = SoraRuntimeStack.build(
         llm,
         owner_user_id=args.subject_id,
@@ -144,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
             if stack.model_provider_system is not None
             else None
         ),
+        memory_runtime=stack.memory,
+        interruptibility_service=stack.interruptibility,
     )
     config = uvicorn.Config(
         app,

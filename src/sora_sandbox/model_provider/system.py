@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 import uuid
 from pathlib import Path
 from typing import Iterable
@@ -12,18 +13,22 @@ from .broker import CredentialedHTTPBroker
 from .client import ProviderLLMClient
 from .contracts import (
     Capability,
+    CONVERSATION_REQUIRED_WORKLOADS,
     EndpointMode,
     ModelCapabilities,
     ModelDescriptor,
     ModelTarget,
     OwnerScope,
     ProfileStatus,
+    ProviderRoutingSetupResult,
     ProviderEndpoint,
     ProviderKind,
     ProviderProfile,
     ProviderProtocol,
     Workload,
     WorkloadBinding,
+    WorkloadCompatibility,
+    WORKLOAD_REQUIREMENTS,
 )
 from .endpoint_policy import EndpointPolicy
 from .probe import CapabilityProbe
@@ -32,21 +37,7 @@ from .router import WorkloadRouter
 from .secrets import OSKeyringSecretStore, SecretMaterial, SecretStore
 
 
-LEGACY_CHAT_WORKLOADS = (
-    Workload.TURN_INTERPRETATION,
-    Workload.SEMANTIC_ARBITRATION,
-    Workload.RESPONSE_GENERATION,
-    Workload.INTERRUPTIBILITY_RESOLUTION,
-    Workload.MEMORY_EXTRACTION,
-    Workload.MEMORY_RECALL_PLANNING,
-    Workload.MEMORY_SURFACE,
-    Workload.MEMORY_CONSOLIDATION,
-    Workload.PERSONA_CANDIDATE,
-    Workload.AFFECT_APPRAISAL,
-    Workload.RELATIONSHIP_EVIDENCE,
-    Workload.WORLDOPS_INTERPRETATION,
-    Workload.DOMAIN_BACKGROUND,
-)
+LEGACY_CHAT_WORKLOADS = CONVERSATION_REQUIRED_WORKLOADS
 
 
 class ModelProviderSystem:
@@ -88,6 +79,7 @@ class ModelProviderSystem:
             adapters=self.adapters,
         )
         self.llm.provider_system = self
+        self._configuration_lock = threading.RLock()
 
     @classmethod
     def default(
@@ -268,22 +260,85 @@ class ModelProviderSystem:
         cross_provider_fallback: bool = False,
         expected_revision: int | None = None,
     ) -> WorkloadBinding:
-        existing = self.registry.get_binding(self.owner, workload, required=False)
-        binding = WorkloadBinding(
-            binding_id=existing.binding_id if existing else f"wb_{uuid.uuid4().hex}",
-            owner=self.owner,
-            workload=workload,
-            primary=primary,
-            fallbacks=tuple(fallbacks),
-            requirements=tuple(requirements),
-            cross_provider_fallback=cross_provider_fallback,
-        )
-        self.router.validate_binding(binding)
-        return self.registry.put_binding(
-            binding,
-            expected_revision=expected_revision,
-            actor="user",
-        )
+        with self._configuration_lock:
+            existing = self.registry.get_binding(self.owner, workload, required=False)
+            binding = WorkloadBinding(
+                binding_id=existing.binding_id if existing else f"wb_{uuid.uuid4().hex}",
+                owner=self.owner,
+                workload=workload,
+                primary=primary,
+                fallbacks=tuple(fallbacks),
+                requirements=tuple(requirements),
+                cross_provider_fallback=cross_provider_fallback,
+            )
+            self.router.validate_binding(binding)
+            return self.registry.put_binding(
+                binding,
+                expected_revision=expected_revision,
+                actor="user",
+            )
+
+    def configure_compatible_workloads(
+        self,
+        profile_id: str,
+        model_id: str,
+    ) -> ProviderRoutingSetupResult:
+        """Bind only routes the verified model can satisfy, preserving user choices."""
+
+        with self._configuration_lock:
+            model = self.registry.get_model(profile_id, model_id)
+            existing = {
+                binding.workload: binding
+                for binding in self.registry.list_bindings(self.owner)
+            }
+            bound: list[Workload] = []
+            preserved: list[Workload] = []
+            unsupported: list[WorkloadCompatibility] = []
+            target = ModelTarget(provider_profile_id=profile_id, model_id=model_id)
+            for workload in Workload:
+                requirements = WORKLOAD_REQUIREMENTS[workload]
+                if workload in existing:
+                    preserved.append(workload)
+                    continue
+                missing = tuple(
+                    requirement
+                    for requirement in requirements
+                    if not model.capabilities.supports(requirement)
+                )
+                if missing:
+                    unsupported.append(
+                        WorkloadCompatibility(
+                            workload=workload,
+                            requirements=requirements,
+                            missing_capabilities=missing,
+                        )
+                    )
+                    continue
+                self.bind_workload(
+                    workload,
+                    target,
+                    requirements=requirements,
+                )
+                bound.append(workload)
+
+            configured = {
+                binding.workload
+                for binding in self.registry.list_bindings(self.owner)
+            }
+            missing_conversation = tuple(
+                workload
+                for workload in CONVERSATION_REQUIRED_WORKLOADS
+                if workload not in configured
+            )
+            return ProviderRoutingSetupResult(
+                profile_id=profile_id,
+                model=model,
+                bound_workloads=tuple(bound),
+                preserved_workloads=tuple(preserved),
+                unsupported_workloads=tuple(unsupported),
+                missing_conversation_workloads=missing_conversation,
+                ready_for_conversation=not missing_conversation,
+            )
 
     def delete_profile(self, profile_id: str) -> None:
         profile = self.registry.get_profile(profile_id)
@@ -313,16 +368,32 @@ class ModelProviderSystem:
             )
         )
         profile_id = "pp_legacy_deepseek_" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:20]
-        try:
-            profile = self.registry.get_profile(profile_id)
-        except Exception:
+        profile = next(
+            (
+                candidate
+                for candidate in self.registry.list_profiles(self.owner)
+                if candidate.provider_kind == ProviderKind.DEEPSEEK
+                and candidate.protocol == ProviderProtocol.OPENAI_CHAT_COMPLETIONS
+                and candidate.endpoint.base_url.rstrip("/") == base_url.rstrip("/")
+                and candidate.status == ProfileStatus.DRAFT
+                and candidate.credential_ref is None
+            ),
+            None,
+        )
+        if profile is None:
+            try:
+                profile = self.registry.get_profile(profile_id)
+            except Exception:
+                profile = None
+        if profile is None:
             profile = self.create_profile(
                 profile_id=profile_id,
-                display_name="Legacy DeepSeek Development Profile",
+                display_name="DeepSeek（从旧版配置导入）",
                 provider_kind=ProviderKind.DEEPSEEK,
                 protocol=ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
                 base_url=base_url,
             )
+        profile_id = profile.profile_id
         secret_ref = profile.credential_ref or f"cred_{hashlib.sha256((profile_id + ':api-key').encode()).hexdigest()[:32]}"
         self.secret_store.put(
             profile_id,
@@ -485,17 +556,24 @@ class ModelProviderSystem:
             if not credential_health.get(profile_id, False)
         )
         registry_health = self.registry.health()
+        configured_workloads = {binding.workload for binding in bindings}
+        missing_conversation_workloads = [
+            workload.value
+            for workload in CONVERSATION_REQUIRED_WORKLOADS
+            if workload not in configured_workloads
+        ]
+        healthy = (
+            registry_health.get("status") == "ok"
+            and not active_credential_failures
+        )
         return {
-            "status": (
-                "ok"
-                if registry_health.get("status") == "ok"
-                and not active_credential_failures
-                else "degraded"
-            ),
+            "status": "ok" if healthy else "degraded",
             "registry": registry_health,
             "credential_health": credential_health,
             "active_credential_failures": active_credential_failures,
             "binding_count": len(bindings),
+            "missing_conversation_workloads": missing_conversation_workloads,
+            "conversation_ready": healthy and not missing_conversation_workloads,
         }
 
     @staticmethod

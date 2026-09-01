@@ -62,6 +62,10 @@ class RotateCredentialRequest(AdminModel):
     verification: VerifyModelRequest
 
 
+class SetupModelRoutesRequest(AdminModel):
+    model_id: str
+
+
 class WorkloadTargetInput(AdminModel):
     provider_profile_id: str
     model_id: str
@@ -180,6 +184,16 @@ class ModelProviderAdminService:
             expected_revision=request.expected_revision,
         )
         return binding.model_dump(mode="json")
+
+    def setup_model_routes(
+        self,
+        profile_id: str,
+        request: SetupModelRoutesRequest,
+    ) -> dict:
+        return self.system.configure_compatible_workloads(
+            profile_id,
+            request.model_id,
+        ).model_dump(mode="json")
 
     def delete_profile(self, profile_id: str, request: DeleteProfileRequest) -> dict:
         expected = f"delete:{profile_id}"

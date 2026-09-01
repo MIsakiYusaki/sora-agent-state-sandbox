@@ -231,6 +231,23 @@ class WorkloadBinding(StrictModel):
         return self
 
 
+class WorkloadCompatibility(StrictModel):
+    workload: Workload
+    requirements: tuple[Capability, ...]
+    missing_capabilities: tuple[Capability, ...]
+
+
+class ProviderRoutingSetupResult(StrictModel):
+    schema_version: str = "ProviderRoutingSetupResult.v1"
+    profile_id: str
+    model: ModelDescriptor
+    bound_workloads: tuple[Workload, ...] = ()
+    preserved_workloads: tuple[Workload, ...] = ()
+    unsupported_workloads: tuple[WorkloadCompatibility, ...] = ()
+    missing_conversation_workloads: tuple[Workload, ...] = ()
+    ready_for_conversation: bool = False
+
+
 class ResolvedTarget(StrictModel):
     profile: ProviderProfile
     model: ModelDescriptor
@@ -283,3 +300,20 @@ WORKLOAD_REQUIREMENTS: dict[Workload, tuple[Capability, ...]] = {
     Workload.EMBEDDING_QUERY: (Capability.EMBEDDING,),
     Workload.MEMORY_RERANK: (Capability.RERANK,),
 }
+
+
+CONVERSATION_REQUIRED_WORKLOADS: tuple[Workload, ...] = (
+    Workload.TURN_INTERPRETATION,
+    Workload.SEMANTIC_ARBITRATION,
+    Workload.RESPONSE_GENERATION,
+    Workload.INTERRUPTIBILITY_RESOLUTION,
+    Workload.MEMORY_EXTRACTION,
+    Workload.MEMORY_RECALL_PLANNING,
+    Workload.MEMORY_SURFACE,
+    Workload.MEMORY_CONSOLIDATION,
+    Workload.PERSONA_CANDIDATE,
+    Workload.AFFECT_APPRAISAL,
+    Workload.RELATIONSHIP_EVIDENCE,
+    Workload.WORLDOPS_INTERPRETATION,
+    Workload.DOMAIN_BACKGROUND,
+)

@@ -280,6 +280,7 @@ class ConversationGatewayTests(unittest.TestCase):
         events = self._sse_events(events_response.text)
         self.assertEqual(events[0]["event_type"], "turn.accepted")
         self.assertEqual(events[-1]["event_type"], "turn.committed")
+        self.assertEqual(events[-1]["payload"]["conversation_version"], 1)
         self.assertEqual(sum(e["event_type"] == "turn.committed" for e in events), 1)
         self.assertEqual(
             [event["sequence"] for event in events],
@@ -315,6 +316,25 @@ class ConversationGatewayTests(unittest.TestCase):
             "/v1/conversations/conversation-001/history", headers=self.headers()
         ).json()
         self.assertEqual(len(second_history["items"]), 2)
+
+    def test_first_run_history_is_an_empty_page(self) -> None:
+        response = self.client.get(
+            "/v1/conversations/new-conversation/history",
+            headers=self.headers(),
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json(),
+            {
+                "schema_version": "HistoryPage.v1",
+                "protocol_version": "1.0",
+                "conversation_id": "new-conversation",
+                "conversation_version": 0,
+                "items": [],
+                "next_before_sequence": None,
+            },
+        )
 
     def test_idempotency_conflict_and_optimistic_version_conflict(self) -> None:
         accepted = self.client.post(

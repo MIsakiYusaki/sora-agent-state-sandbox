@@ -42,6 +42,7 @@ def make_llm(
     no_prompt_key: bool,
     *,
     owner: OwnerScope | None = None,
+    allow_unconfigured: bool = False,
 ):
     if provider != "deepseek":
         raise CredentialError(f"Unsupported bootstrap provider: {provider}")
@@ -50,6 +51,18 @@ def make_llm(
         configured = system.configured_client()
         if configured is not None:
             return configured
+        if allow_unconfigured:
+            # Desktop startup must stay non-interactive, but an existing legacy
+            # credential can be migrated without exposing it to the WebView.
+            try:
+                key = CredentialManager().get_api_key(prompt_if_missing=False)
+            except (CredentialError, OSError, ValueError):
+                return system.llm
+            return system.bootstrap_legacy_deepseek(
+                api_key=key,
+                model=model,
+                base_url=os.environ.get("OPENAI_BASE_URL", "https://api.deepseek.com"),
+            )
         manager = CredentialManager()
         key = manager.get_api_key(prompt_if_missing=not no_prompt_key)
         return system.bootstrap_legacy_deepseek(

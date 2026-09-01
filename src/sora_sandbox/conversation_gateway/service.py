@@ -471,10 +471,11 @@ class ConversationGatewayService:
             external_conversation_id=conversation_id,
         )
         if binding is None:
-            raise GatewayServiceError(
-                GatewayErrorCode.TURN_NOT_FOUND,
-                "conversation was not found",
-                status_code=404,
+            return HistoryPage(
+                conversation_id=conversation_id,
+                conversation_version=0,
+                items=(),
+                next_before_sequence=None,
             )
         bounded = min(
             max(1, limit or self.policy.history_page_limit),
@@ -504,6 +505,60 @@ class ConversationGatewayService:
             items=items,
             next_before_sequence=next_before,
         )
+
+    def conversations(
+        self,
+        identity: VerifiedIdentity,
+        *,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        """Build the user-facing conversation index from identity-scoped bindings."""
+        self._consume_rate_limit(
+            identity,
+            "history.read",
+            limit=self.policy.read_requests_per_minute,
+        )
+        self._require_permission(identity, "history.read")
+        bindings = self.registry.list_conversations_for_identity(
+            profile_id=identity.profile_id,
+            subject_id=identity.subject_id,
+            agent_id=identity.agent_id,
+            limit=limit,
+        )
+        items: list[dict[str, object]] = []
+        for binding in bindings:
+            records = self.runtime.history_page(
+                binding.runtime_conversation_id,
+                limit=200,
+                before_sequence=None,
+            )
+            if not records:
+                continue
+            first_user = next(
+                (item for item in records if str(item.get("role")) == "user"),
+                records[0],
+            )
+            last = records[-1]
+            title = str(first_user.get("content") or "新的对话").strip()
+            preview = str(last.get("content") or "").strip()
+            items.append(
+                {
+                    "conversation_id": binding.external_conversation_id,
+                    "title": title[:42] or "新的对话",
+                    "preview": preview[:96],
+                    "created_at_ms": binding.created_at_ms,
+                    "updated_at_ms": int(last.get("created_at_ms") or binding.created_at_ms),
+                    "message_count": len(records),
+                    "conversation_version": self.runtime.conversation_version(
+                        binding.runtime_conversation_id
+                    ),
+                }
+            )
+        items.sort(key=lambda item: int(item["updated_at_ms"]), reverse=True)
+        return {
+            "schema_version": "ConversationIndex.v1",
+            "items": items,
+        }
 
     def readiness(self) -> dict[str, object]:
         runtime = self.runtime.health()
@@ -616,9 +671,8 @@ class ConversationGatewayService:
             return "failed"
         return "active"
 
-    @staticmethod
     def _map_event(
-        binding: TurnBinding, event: ClientEvent, *, replayed: bool
+        self, binding: TurnBinding, event: ClientEvent, *, replayed: bool
     ) -> GatewayEvent:
         event_type = event.event_type
         payload = dict(event.payload)
@@ -629,6 +683,9 @@ class ConversationGatewayService:
             payload["delta"] = payload.pop("text")
         elif event_type == "response.completed" and bool(payload.get("committed")):
             event_type = "turn.committed"
+            payload["conversation_version"] = self.runtime.conversation_version(
+                binding.runtime_conversation_id
+            )
         return GatewayEvent(
             turn_id=event.turn_id,
             sequence=event.sequence,

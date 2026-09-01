@@ -215,6 +215,71 @@ class ModelProviderSystemTests(unittest.TestCase):
             )
         self.assertEqual(caught.exception.code, ProviderErrorCode.CAPABILITY_MISMATCH)
 
+    def test_compatible_setup_preserves_routes_and_never_binds_unsupported_workloads(self) -> None:
+        system = self._system()
+        profile = system.create_profile(
+            profile_id="pp_auto_setup",
+            display_name="Auto Setup",
+            provider_kind=ProviderKind.OPENAI_COMPATIBLE,
+            protocol=ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+            base_url="https://auto-setup.example/v1",
+            custom_endpoint=True,
+            auth_scheme="none",
+        )
+        system.register_model(profile.profile_id, "chat-model", CHAT_CAPABILITIES)
+        system.registry.set_profile_status(profile.profile_id, ProfileStatus.VERIFIED)
+        system.bind_workload(
+            Workload.DOMAIN_BACKGROUND,
+            ModelTarget(provider_profile_id=profile.profile_id, model_id="chat-model"),
+        )
+
+        result = system.configure_compatible_workloads(profile.profile_id, "chat-model")
+
+        self.assertTrue(result.ready_for_conversation)
+        self.assertEqual(result.missing_conversation_workloads, ())
+        self.assertIn(Workload.DOMAIN_BACKGROUND, result.preserved_workloads)
+        self.assertNotIn(Workload.DOMAIN_BACKGROUND, result.bound_workloads)
+        unsupported = {item.workload for item in result.unsupported_workloads}
+        self.assertEqual(
+            unsupported,
+            {
+                Workload.EMBEDDING_DOCUMENTS,
+                Workload.EMBEDDING_QUERY,
+                Workload.MEMORY_RERANK,
+            },
+        )
+        health = system.health()
+        self.assertTrue(health["conversation_ready"])
+        self.assertEqual(health["missing_conversation_workloads"], [])
+
+    def test_compatible_setup_reports_missing_conversation_routes(self) -> None:
+        system = self._system()
+        profile = system.create_profile(
+            profile_id="pp_limited_setup",
+            display_name="Limited Setup",
+            provider_kind=ProviderKind.OPENAI_COMPATIBLE,
+            protocol=ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+            base_url="https://limited-setup.example/v1",
+            custom_endpoint=True,
+            auth_scheme="none",
+        )
+        system.register_model(
+            profile.profile_id,
+            "chat-only",
+            ModelCapabilities(chat=True),
+        )
+        system.registry.set_profile_status(profile.profile_id, ProfileStatus.VERIFIED)
+
+        result = system.configure_compatible_workloads(profile.profile_id, "chat-only")
+
+        self.assertFalse(result.ready_for_conversation)
+        self.assertIn(Workload.RESPONSE_GENERATION, result.missing_conversation_workloads)
+        self.assertEqual(
+            set(result.bound_workloads),
+            {Workload.MEMORY_CONSOLIDATION, Workload.DOMAIN_BACKGROUND},
+        )
+        self.assertFalse(system.health()["conversation_ready"])
+
     def test_turn_snapshot_is_stable_across_binding_change(self) -> None:
         system = self._system()
         profile = system.create_profile(
@@ -602,6 +667,31 @@ class ModelProviderSystemTests(unittest.TestCase):
             model="deepseek-test",
         )
         self.assertEqual(system.registry.revision, revision)
+
+    def test_legacy_migration_reuses_an_unconfigured_official_deepseek_profile(self) -> None:
+        system = self._system()
+        draft = system.create_profile(
+            display_name="DeepSeek",
+            provider_kind=ProviderKind.DEEPSEEK,
+            protocol=ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+            base_url="https://api.deepseek.com",
+        )
+
+        system.bootstrap_legacy_deepseek(
+            api_key="sk-legacy",
+            base_url="https://api.deepseek.com",
+            model="deepseek-v4-flash",
+        )
+
+        profiles = system.registry.list_profiles(OWNER)
+        self.assertEqual([profile.profile_id for profile in profiles], [draft.profile_id])
+        migrated = profiles[0]
+        self.assertEqual(migrated.status, ProfileStatus.VERIFIED)
+        self.assertIsNotNone(migrated.credential_ref)
+        self.assertEqual(
+            system.registry.get_model(draft.profile_id, "deepseek-v4-flash").model_id,
+            "deepseek-v4-flash",
+        )
 
     def test_native_provider_streams_are_normalized(self) -> None:
         cases = [
