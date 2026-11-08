@@ -7,6 +7,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -15,7 +16,9 @@ from sora_sandbox.agent import AgentRunner, build_default_subsystem_registry
 from sora_sandbox.conversation_runtime.context import (
     GENERATION_CONTEXT_MARKER,
     ContextBudget,
+    ContextBudgetExceeded,
     ConversationContextPacker,
+    estimate_tokens,
 )
 from sora_sandbox.conversation_runtime.contracts import (
     CancellationToken,
@@ -148,6 +151,121 @@ class ConversationRuntimeTests(unittest.TestCase):
         finally:
             journal.close()
 
+    def test_stale_recovery_respects_live_lease_and_repairs_failure_event(self) -> None:
+        runtime = self.runtime()
+        journal = runtime.journal
+        try:
+            context, _ = journal.create_turn(
+                conversation_id="c1", request_id="crashed", user_input="synthetic test"
+            )
+            journal.transition(context.turn_id, TurnStatus.PREPARING, stage="prepare")
+            journal.transition(context.turn_id, TurnStatus.GENERATING, stage="generate")
+            with journal.transaction() as connection:
+                connection.execute(
+                    "UPDATE runtime_turn SET updated_at_ms=? WHERE turn_id=?",
+                    (int(time.time() * 1000) - 600_000, context.turn_id),
+                )
+            self.assertTrue(journal.acquire_lease("c1", context.turn_id, "live-owner", ttl_ms=5_000))
+            self.assertEqual(runtime.recover(stale_after_ms=1_000)["recovered_turn_ids"], [])
+            self.assertEqual(journal.get_turn(context.turn_id).status, TurnStatus.GENERATING)
+            with journal.transaction() as connection:
+                connection.execute(
+                    "UPDATE runtime_execution_lease SET expires_at_ms=0 WHERE turn_id=?",
+                    (context.turn_id,),
+                )
+            self.assertEqual(
+                runtime.recover(stale_after_ms=1_000)["recovered_turn_ids"],
+                [context.turn_id],
+            )
+            self.assertEqual(journal.get_turn(context.turn_id).status, TurnStatus.FAILED)
+            events = runtime.reconnect(context.turn_id)
+            self.assertEqual(events[-1].event_type, "turn.failed")
+            self.assertEqual(events[-1].payload["error_code"], "STALE_INCOMPLETE_TURN")
+            self.assertEqual(runtime.journal.get_turn(context.turn_id).stage, "stale_recovery")
+            self.assertEqual(runtime.recover(stale_after_ms=1_000)["recovered_turn_ids"], [])
+            self.assertEqual(len(runtime.reconnect(context.turn_id)), len(events))
+            self.assertEqual(journal.history_page("c1"), [])
+            self.assertEqual(journal.claim_outbox(worker_id="check"), [])
+        finally:
+            runtime.close()
+
+    def test_stale_recovery_rechecks_lease_renewed_after_scan(self) -> None:
+        runtime = self.runtime()
+        journal = runtime.journal
+        other = self.journal()
+        try:
+            context, _ = journal.create_turn(
+                conversation_id="c1", request_id="stale-race", user_input="synthetic"
+            )
+            journal.transition(context.turn_id, TurnStatus.PREPARING, stage="prepare")
+            journal.transition(context.turn_id, TurnStatus.GENERATING, stage="generate")
+            journal.acquire_lease("c1", context.turn_id, "live-owner", ttl_ms=5_000)
+            with journal.transaction() as connection:
+                connection.execute(
+                    "UPDATE runtime_turn SET updated_at_ms=? WHERE turn_id=?",
+                    (int(time.time() * 1000) - 600_000, context.turn_id),
+                )
+                connection.execute("UPDATE runtime_execution_lease SET expires_at_ms=0")
+            original_scan = journal.recover_incomplete
+
+            def renew_after_scan(*, stale_before_ms):
+                candidates = original_scan(stale_before_ms=stale_before_ms)
+                self.assertEqual([item.turn_id for item in candidates], [context.turn_id])
+                self.assertTrue(other.renew_lease("c1", context.turn_id, "live-owner", ttl_ms=5_000))
+                return candidates
+
+            with patch.object(journal, "recover_incomplete", side_effect=renew_after_scan):
+                self.assertEqual(runtime.recover(stale_after_ms=1_000)["recovered_turn_ids"], [])
+            self.assertEqual(journal.get_turn(context.turn_id).status, TurnStatus.GENERATING)
+            self.assertEqual(journal.client_events(context.turn_id), [])
+        finally:
+            other.close()
+            runtime.close()
+
+    def test_stale_recovery_rechecks_turn_refreshed_after_scan(self) -> None:
+        runtime = self.runtime()
+        journal = runtime.journal
+        other = self.journal()
+        try:
+            context, _ = journal.create_turn(
+                conversation_id="c1", request_id="fresh-race", user_input="synthetic"
+            )
+            journal.transition(context.turn_id, TurnStatus.PREPARING, stage="prepare")
+            with journal.transaction() as connection:
+                connection.execute(
+                    "UPDATE runtime_turn SET updated_at_ms=? WHERE turn_id=?",
+                    (int(time.time() * 1000) - 600_000, context.turn_id),
+                )
+            original_scan = journal.recover_incomplete
+
+            def refresh_after_scan(*, stale_before_ms):
+                candidates = original_scan(stale_before_ms=stale_before_ms)
+                self.assertEqual([item.turn_id for item in candidates], [context.turn_id])
+                other.transition(context.turn_id, TurnStatus.GENERATING, stage="resumed")
+                return candidates
+
+            with patch.object(journal, "recover_incomplete", side_effect=refresh_after_scan):
+                self.assertEqual(runtime.recover(stale_after_ms=1_000)["recovered_turn_ids"], [])
+            self.assertEqual(journal.get_turn(context.turn_id).stage, "resumed")
+            self.assertEqual(journal.client_events(context.turn_id), [])
+        finally:
+            other.close()
+            runtime.close()
+
+    def test_terminal_turn_cannot_acquire_or_renew_execution_lease(self) -> None:
+        journal = self.journal()
+        try:
+            context, _ = journal.create_turn(
+                conversation_id="c1", request_id="terminal-lease", user_input="synthetic"
+            )
+            self.assertFalse(journal.acquire_lease("wrong-conversation", context.turn_id, "owner", ttl_ms=5_000))
+            self.assertTrue(journal.acquire_lease("c1", context.turn_id, "owner", ttl_ms=5_000))
+            journal.transition(context.turn_id, TurnStatus.FAILED, stage="stale_recovery")
+            self.assertFalse(journal.renew_lease("c1", context.turn_id, "owner", ttl_ms=5_000))
+            self.assertFalse(journal.acquire_lease("c1", context.turn_id, "owner", ttl_ms=5_000))
+        finally:
+            journal.close()
+
     def test_atomic_commit_contains_history_result_and_outbox(self) -> None:
         journal = self.journal()
         try:
@@ -263,6 +381,147 @@ class ConversationRuntimeTests(unittest.TestCase):
         self.assertEqual(delegate.calls[1]["thinking"], {"type": "disabled"})
         self.assertNotIn("thinking", delegate.calls[2])
 
+    def test_model_call_usage_preserves_unknown_and_migrates_legacy_zero(self) -> None:
+        journal = self.journal()
+        context, _ = journal.create_turn(
+            conversation_id="c1", request_id="usage-migration", user_input="hello"
+        )
+        journal.close()
+
+        connection = sqlite3.connect(self.root / "conversation.db")
+        try:
+            connection.execute("PRAGMA foreign_keys=OFF")
+            connection.executescript(
+                """
+                DELETE FROM runtime_schema_version WHERE version >= 2;
+                DROP TABLE runtime_model_call;
+                CREATE TABLE runtime_model_call (
+                    call_id TEXT PRIMARY KEY,
+                    turn_id TEXT NOT NULL REFERENCES runtime_turn(turn_id) ON DELETE CASCADE,
+                    logical_task TEXT NOT NULL,
+                    route TEXT NOT NULL,
+                    model TEXT,
+                    status TEXT NOT NULL,
+                    thinking_disabled INTEGER NOT NULL,
+                    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                    completion_tokens INTEGER NOT NULL DEFAULT 0,
+                    latency_ms REAL NOT NULL DEFAULT 0,
+                    error_code TEXT,
+                    created_at_ms INTEGER NOT NULL
+                );
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO runtime_model_call (
+                    call_id, turn_id, logical_task, route, model, status,
+                    thinking_disabled, prompt_tokens, completion_tokens,
+                    latency_ms, error_code, created_at_ms
+                ) VALUES (?, ?, 'legacy', 'response', 'legacy-model', 'completed',
+                          0, 0, 0, 12.5, NULL, 1)
+                """,
+                ("legacy-call", context.turn_id),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        class InterruptedMigration(ConversationJournal):
+            @staticmethod
+            def _migrate_model_call_usage_nullability(connection):
+                if not connection.in_transaction:
+                    raise AssertionError("migration lost its transaction")
+                ConversationJournal._migrate_model_call_usage_nullability(connection)
+                raise RuntimeError("injected upgrade interruption after table replacement")
+
+        with self.assertRaisesRegex(RuntimeError, "injected upgrade interruption"):
+            InterruptedMigration(self.root / "conversation.db", journal.cipher)
+        connection = sqlite3.connect(self.root / "conversation.db")
+        try:
+            self.assertEqual(connection.execute(
+                "SELECT MAX(version) FROM runtime_schema_version"
+            ).fetchone()[0], 1)
+            self.assertEqual(connection.execute(
+                "SELECT prompt_tokens, completion_tokens FROM runtime_model_call"
+            ).fetchone(), (0, 0))
+            self.assertIsNone(connection.execute(
+                "SELECT name FROM sqlite_master WHERE name='runtime_model_call_v2'"
+            ).fetchone())
+            connection.execute(
+                """INSERT INTO runtime_model_call
+                SELECT 'legacy-nonzero', turn_id, 'legacy-nonzero', route, model,
+                       status, thinking_disabled, 17, 9, latency_ms, error_code, created_at_ms
+                FROM runtime_model_call WHERE call_id='legacy-call'"""
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        migrated = self.journal()
+        try:
+            columns = {
+                row["name"]: row
+                for row in migrated._conn.execute(
+                    "PRAGMA table_info(runtime_model_call)"
+                )
+            }
+            self.assertEqual(migrated.health()["schema_version"], 2)
+            self.assertEqual(columns["prompt_tokens"]["notnull"], 0)
+            self.assertEqual(columns["completion_tokens"]["notnull"], 0)
+
+            migrated.record_model_call(
+                context.turn_id,
+                logical_task="missing",
+                route="response",
+                model="provider-model",
+                status="completed",
+                thinking_disabled=False,
+                usage={},
+            )
+            migrated.record_model_call(
+                context.turn_id,
+                logical_task="reported-zero",
+                route="response",
+                model="provider-model",
+                status="completed",
+                thinking_disabled=False,
+                usage={"prompt_tokens": 0, "completion_tokens": 0},
+            )
+            for task, usage in (
+                ("aliases", {"input_tokens": 3, "output_tokens": 2}),
+                ("zero-precedence", {"prompt_tokens": 0, "input_tokens": 3,
+                                     "completion_tokens": 0, "output_tokens": 2}),
+            ):
+                migrated.record_model_call(
+                    context.turn_id, logical_task=task, route="response",
+                    model="provider-model", status="completed",
+                    thinking_disabled=False, usage=usage,
+                )
+
+            calls = {item["logical_task"]: item for item in migrated.model_calls(context.turn_id)}
+            self.assertIsNone(calls["legacy"]["prompt_tokens"])
+            self.assertIsNone(calls["legacy"]["completion_tokens"])
+            self.assertIsNone(calls["missing"]["prompt_tokens"])
+            self.assertIsNone(calls["missing"]["completion_tokens"])
+            self.assertEqual(calls["reported-zero"]["prompt_tokens"], 0)
+            self.assertEqual(calls["reported-zero"]["completion_tokens"], 0)
+            self.assertEqual(calls["legacy-nonzero"]["prompt_tokens"], 17)
+            self.assertEqual(calls["legacy-nonzero"]["completion_tokens"], 9)
+            self.assertEqual(calls["aliases"]["prompt_tokens"], 3)
+            self.assertEqual(calls["aliases"]["completion_tokens"], 2)
+            self.assertEqual(calls["zero-precedence"]["prompt_tokens"], 0)
+            self.assertEqual(calls["zero-precedence"]["completion_tokens"], 0)
+        finally:
+            migrated.close()
+        reopened = self.journal()
+        try:
+            self.assertEqual(reopened.health()["schema_version"], 2)
+            self.assertEqual(reopened.model_calls(context.turn_id), list(calls.values()))
+            self.assertEqual(reopened._conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+            self.assertEqual(reopened._conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+        finally:
+            reopened.close()
+
     def test_runtime_e2e_and_request_replay(self) -> None:
         runtime = self.runtime()
         state = seed_state()
@@ -304,6 +563,29 @@ class ConversationRuntimeTests(unittest.TestCase):
                 event.sequence > events[1].sequence for event in resumed
             ))
             self.assertEqual(resumed[-1].event_type, "response.completed")
+        finally:
+            runtime.close()
+
+    def test_diagnostic_turns_project_real_timing_without_conversation_content(self) -> None:
+        runtime = self.runtime()
+        state = seed_state()
+        secret_input = "diagnostic-secret-user-message"
+        try:
+            result = runtime.run(state, secret_input, request_id="diagnostic-request")
+            diagnostics = runtime.diagnostic_turns("local-sandbox")
+
+            self.assertEqual(len(diagnostics), 1)
+            turn = diagnostics[0]
+            self.assertEqual(turn["turn_id"], result["runtime"]["turn_id"])
+            self.assertTrue(turn["terminal"])
+            self.assertEqual(turn["status"], "committed")
+            self.assertGreaterEqual(turn["duration_ms"], 0)
+            self.assertIsNotNone(turn["first_output_latency_ms"])
+            self.assertGreaterEqual(len(turn["events"]), 4)
+            self.assertGreaterEqual(len(turn["model_calls"]), 1)
+            self.assertTrue(any(item["frame_id"] == "turn_frame" for item in turn["frames"]))
+            self.assertNotIn(secret_input, str(turn))
+            self.assertFalse(any("payload" in item for item in turn["events"]))
         finally:
             runtime.close()
 
@@ -423,6 +705,52 @@ class ConversationRuntimeTests(unittest.TestCase):
         relationship = packed.context["relationship_frame"]
         self.assertEqual(relationship["bond_stage"], "close")
         self.assertNotIn("bond_bands", relationship)
+
+    def test_context_packer_deduplicates_interpretation_without_losing_controls(self) -> None:
+        interpretation = {
+            "context_reference": {"resolved_targets": ["synthetic referent " * 90]},
+            "explicit_commands": {"control": "no_follow_up"},
+            "domain": {"primary": "world_lore"},
+        }
+        source = {
+            "turn_frame": {"interpretation": copy.deepcopy(interpretation), "blocked_inferences": ["no_assumptions"]},
+            "turn_interpretation": interpretation,
+            "interruptibility_frame": {"follow_up_permission": "none", "budgets": {"question_budget": 0}},
+        }
+        original = copy.deepcopy(source)
+        packer = ConversationContextPacker(ContextBudget(control_frames=650))
+        self.assertGreater(estimate_tokens(source), packer.budget.control_frames)
+        packed = packer.pack(source)
+        self.assertEqual(source, original)
+        self.assertNotIn("interpretation", packed.context["turn_frame"])
+        self.assertEqual(packed.context["turn_interpretation"], interpretation)
+        self.assertEqual(packed.context["turn_frame"]["blocked_inferences"], ["no_assumptions"])
+        self.assertEqual(packed.context["interruptibility_frame"], source["interruptibility_frame"])
+        self.assertLessEqual(packed.pools["control_frames"], 650)
+        repacked = packer.pack(packed.context)
+        for key in packer.CONTROL_KEYS:
+            self.assertEqual(repacked.context.get(key), packed.context.get(key))
+
+    def test_context_packer_preserves_nonduplicate_and_nested_only_interpretations(self) -> None:
+        packer = ConversationContextPacker()
+        nested = {"intent": {"primary": "clarify"}}
+        for top in (None, {"intent": {"primary": "answer"}}):
+            with self.subTest(top=top):
+                source = {"turn_frame": {"interpretation": nested}}
+                if top is not None:
+                    source["turn_interpretation"] = top
+                packed = packer.pack(source)
+                self.assertEqual(packed.context["turn_frame"]["interpretation"], nested)
+                if top is not None:
+                    self.assertEqual(packed.context["turn_interpretation"], top)
+
+    def test_unique_control_data_still_fails_closed_when_over_budget(self) -> None:
+        interpretation = {"context_reference": {"resolved_targets": ["x" * 12000]}}
+        with self.assertRaises(ContextBudgetExceeded):
+            ConversationContextPacker().pack({
+                "turn_interpretation": interpretation,
+                "turn_frame": {"interpretation": copy.deepcopy(interpretation)},
+            })
 
     def test_generation_context_gate_runs_before_response_and_reserves_reply_tokens(self) -> None:
         class CaptureLLM(FakeLLMClient):

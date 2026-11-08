@@ -1,0 +1,46 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/MEMORY_PRD_IMPLEMENTATION_ALIGNMENT.md",
+    "docs/PRD_INDEX.md",
+    "docs/context/catalog/artifacts.json",
+    "outputs/memory-prd-alignment-20261030"
+  ],
+  "completed_at_utc": "2026-10-29T17:29:19Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-29T17:07:56Z",
+      "summary": "Fresh-read ten Memory PRDs and trace actual services/default wiring/tests. Classify exact matches,conditional implementations,missing target behavior and stale/mixed prose. Evidence-backed report and targeted documentation clarification only; no runtime edits or real model requests."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T17:29:19Z",
+      "summary": "Completed ten Memory PRD/current-code audit; published and read back detailed report plus ten targeted PRD clarifications. Five implementation findings remain open, including two P1s; no runtime changes."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-29T17:29:19Z",
+      "summary": "Completed ten Memory PRD/current-code audit; published and read back detailed report plus ten targeted PRD clarifications. Five implementation findings remain open, including two P1s; no runtime changes."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "docs/MEMORY_PRD_IMPLEMENTATION_ALIGNMENT.md",
+    "docs/PRD_INDEX.md",
+    "docs/context/catalog/artifacts.json",
+    "outputs/memory-prd-alignment-20261030"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-29T17:07:56Z",
+  "status": "completed",
+  "summary": "Completed ten Memory PRD/current-code audit; published and read back detailed report plus ten targeted PRD clarifications. Five implementation findings remain open, including two P1s; no runtime changes.",
+  "title": "Audit Memory01-10 PRDs against implementation",
+  "updated_at_utc": "2026-10-29T17:29:19Z",
+  "verification": [
+    "23 isolated tests pass; four temporary-database probes reproduce open correctness gaps; all ten PRD readbacks and resources/links verified; catalog revisions match; 48 source hashes and HEAD unchanged; scoped diff check and context validate pass with pre-existing workstream warnings. See outputs/memory-prd-alignment-20261030/COMPLETION.md."
+  ],
+  "workstream_id": "ws-memory-prd-alignment-20261030"
+}

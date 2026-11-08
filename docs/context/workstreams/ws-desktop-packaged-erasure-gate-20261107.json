@@ -1,0 +1,40 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "scripts/verify_packaged_gateway.py"
+  ],
+  "completed_at_utc": "2026-11-07T04:51:49Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-07T04:38:25Z",
+      "summary": "Extend existing no-model package verifier to create an isolated extended-length compatibility state file after graceful shutdown, run the real packaged erasure CLI, and verify removal plus startup fence. Prevent recurrence of installed long-path cleanup failure."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-07T04:51:49Z",
+      "summary": "Release verifier now tests actual packaged startup/auth/debug/shutdown plus extended-length erasure and erased-identity startup fence using an isolated zero-model identity. Old installed r3 fails new gate; repaired r4 build/installed exe passes."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-07T04:51:49Z",
+      "summary": "Release verifier now tests actual packaged startup/auth/debug/shutdown plus extended-length erasure and erased-identity startup fence using an isolated zero-model identity. Old installed r3 fails new gate; repaired r4 build/installed exe passes."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "scripts/verify_packaged_gateway.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-07T04:38:25Z",
+  "status": "completed",
+  "summary": "Release verifier now tests actual packaged startup/auth/debug/shutdown plus extended-length erasure and erased-identity startup fence using an isolated zero-model identity. Old installed r3 fails new gate; repaired r4 build/installed exe passes.",
+  "title": "Verify packaged erasure and erased-identity startup fence",
+  "updated_at_utc": "2026-11-07T04:51:49Z",
+  "verification": [
+    "outputs/desktop-install-20261106/packaged-erasure-before-fix.json fails; packaged-erasure-after-fix.json and installed-sidecar-r4.json pass including fence exit5"
+  ],
+  "workstream_id": "ws-desktop-packaged-erasure-gate-20261107"
+}

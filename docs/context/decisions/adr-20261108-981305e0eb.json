@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "Story completion is separate from durable memory approval. Gate failure rolls back evidence and candidate; successful effects leave an actionable review. Legacy effects already marked completed by older builds are not silently reprocessed."
+  ],
+  "context": "Actual r8 installed acceptance found WorldOps shared episode candidates left pending outside the reviewer queue.",
+  "decided_at_utc": "2026-11-08T10:17:25Z",
+  "decision": "Within one Memory owner transaction, persist the evidence and candidate and immediately run its deterministic Gate. Include worldops_episode in never-auto-commit types, resume pending materialization on effect retries and expose the actual review result. Retain r8 evidence and ship a rebuilt r9.",
+  "decision_id": "adr-20261108-981305e0eb",
+  "references": [
+    "docs/context/decisions/adr-20261108-15045fae46.json",
+    "outputs/narrative-client-20261108/gate-final.xml"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Narrative shared memories enter real review",
+  "workstream_id": "ws-narrative-memory-gate-20261108"
+}

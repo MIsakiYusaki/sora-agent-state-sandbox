@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import sqlite3
@@ -79,6 +80,7 @@ PERMISSIONS = {
     "turn.read",
     "turn.cancel",
     "history.read",
+    "debug.read",
     "gateway.shutdown",
     "model_provider.read",
     "model_provider.write",
@@ -86,6 +88,145 @@ PERMISSIONS = {
     "model_provider.bind",
     "model_provider.delete",
 }
+
+
+class _DebugHealthComponent:
+    def __init__(self, health: dict[str, object]) -> None:
+        self._health = health
+
+    def health(self) -> dict[str, object]:
+        return self._health
+
+
+class _DebugMemoryComponent(_DebugHealthComponent):
+    def quality_dashboard(self) -> dict[str, object]:
+        return {
+            "status": "warn",
+            "latest_quality_runs": [{"id": "quality-run"}],
+            "baselines": [{"id": "baseline"}],
+            "open_events": [{"id": "event"}],
+            "raw_prompt": "never-return-this-prompt",
+        }
+
+    def list_quality_eval_suites(self) -> list[dict[str, str]]:
+        return [{"name": "memory"}, {"name": "worldops"}]
+
+    def list_admin_action_specs(self) -> list[dict[str, str]]:
+        return [
+            {"name": "memory_rebuild"},
+            {"name": "worldops_replay"},
+            {"name": "provider_verify"},
+        ]
+
+
+class _DebugInterruptibilityComponent:
+    def evaluate(self) -> None:
+        return None
+
+    def status(self) -> None:
+        return None
+
+    def set_control(self) -> None:
+        return None
+
+    def revoke(self) -> None:
+        return None
+
+
+class _FailingDebugHealthComponent:
+    def health(self) -> dict[str, object]:
+        raise RuntimeError("health unavailable")
+
+
+class _FailingDebugMemoryComponent(_FailingDebugHealthComponent):
+    def quality_dashboard(self) -> dict[str, object]:
+        raise RuntimeError("quality unavailable")
+
+    def list_quality_eval_suites(self) -> list[dict[str, str]]:
+        raise RuntimeError("suite registry unavailable")
+
+    def list_admin_action_specs(self) -> list[dict[str, str]]:
+        raise RuntimeError("admin registry unavailable")
+
+
+class _DebugRuntimeStack:
+    def __init__(self) -> None:
+        self.interruptibility = _DebugInterruptibilityComponent()
+        self.memory = _DebugMemoryComponent(
+            {
+                "status": "ok",
+                "database": r"C:\private\memory.db",
+                "api_key": "sk-never-return-this",
+                "active_memories": 7,
+                "pending_candidates": 1,
+                "open_reviews": 2,
+                "active_quarantines": 3,
+                "pending_extraction_jobs": 5,
+                "failed_extraction_jobs": 6,
+                "canonical_store": {
+                    "index_outbox": {"pending": 2, "failed": 1, "dead_letter": 1},
+                    "projectors": {"pending": 3, "failed": 2, "dead_letter": 1},
+                },
+            }
+        )
+        self.persona = _DebugHealthComponent(
+            {
+                "status": "healthy",
+                "worker": {"enabled": True, "alive": True, "queued": 4},
+            }
+        )
+        self.affect = _DebugHealthComponent(
+            {
+                "status": "degraded",
+                "rollout_mode": "active",
+                "write_coordinator": {"queue_depth": 1},
+                "worker": {
+                    "enabled": True,
+                    "alive": True,
+                    "pending": 2,
+                    "dead_letter": 1,
+                },
+                "outbox": {"pending": 1, "failed": 1, "dead_letter": 1},
+            }
+        )
+        self.relationship = _DebugHealthComponent(
+            {
+                "status": "ok",
+                "rollout_mode": "active",
+                "worker_alive": True,
+                "pending_inbox": 3,
+                "dead_letters": 2,
+                "write_queue_depth": 1,
+            }
+        )
+        self.worldops = _DebugHealthComponent(
+            {
+                "status": "healthy",
+                "deployment": "local",
+                "worker": {"running": True},
+                "write_coordinator": {
+                    "queue_depth": 1,
+                    "under_backpressure": False,
+                },
+                "outbox": {
+                    "pending": 2,
+                    "dead_letter": 1,
+                    "incomplete_consumer_effects": 1,
+                },
+                "open_sync_conflicts": 1,
+                "signing_private_key": "never-return-this-key",
+            }
+        )
+        self.model_provider_system = _DebugHealthComponent(
+            {
+                "status": "ok",
+                "conversation_ready": True,
+                "binding_count": 4,
+                "missing_conversation_workloads": [],
+                "active_credential_failures": [],
+                "credential": "never-return-this-credential",
+            }
+        )
 
 
 class ConversationGatewayTests(unittest.TestCase):
@@ -135,6 +276,7 @@ class ConversationGatewayTests(unittest.TestCase):
                 resolver=lambda _host, _port: ("93.184.216.34",)
             ),
         )
+        self.debug_stack = _DebugRuntimeStack()
         self.token, _ = self.capabilities.issue(
             profile_id="profile-a",
             subject_id="user-a",
@@ -157,6 +299,7 @@ class ConversationGatewayTests(unittest.TestCase):
             self.service,
             self.capabilities,
             model_provider_admin=ModelProviderAdminService(self.model_provider_system),
+            runtime_stack=self.debug_stack,
         )
         self.client_context = TestClient(app)
         self.client = self.client_context.__enter__()
@@ -264,6 +407,126 @@ class ConversationGatewayTests(unittest.TestCase):
         self.assertEqual(denied.headers["x-content-type-options"], "nosniff")
         self.assertEqual(denied.headers["x-sora-protocol-version"], "1.0")
         self.assertEqual(self.client.get("/docs").status_code, 404)
+
+    def test_debug_snapshot_requires_scope_and_redacts_runtime_health(self) -> None:
+        limited_token, _ = self.capabilities.issue(
+            profile_id="profile-a",
+            subject_id="user-a",
+            agent_id="sora",
+            client_instance_id="desktop-a",
+            permissions=PERMISSIONS - {"debug.read"},
+            allowed_origins={"app://sora"},
+            allow_missing_origin=True,
+        )
+        unauthenticated_headers = self.headers()
+        unauthenticated_headers.pop("Authorization")
+        unauthenticated = self.client.get(
+            "/v1/debug/snapshot?conversation_id=conversation-debug",
+            headers=unauthenticated_headers,
+        )
+        denied = self.client.get(
+            "/v1/debug/snapshot?conversation_id=conversation-debug",
+            headers=self.headers(limited_token),
+        )
+        response = self.client.get(
+            "/v1/debug/snapshot?conversation_id=conversation-debug",
+            headers=self.headers(),
+        )
+
+        self.assertEqual(unauthenticated.status_code, 401)
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertEqual(payload["schema_version"], "DesktopDebugSnapshot.v1")
+        self.assertEqual(payload["conversation_id"], "conversation-debug")
+        self.assertEqual(
+            payload["profile_id_hash"],
+            hashlib.sha256(b"profile-a").hexdigest()[:16],
+        )
+        self.assertNotEqual(payload["profile_id_hash"], "profile-a")
+
+        systems = {
+            item["subsystem_id"]: item for item in payload["systems"]
+        }
+        self.assertEqual(systems["memory"]["status"], "active")
+        self.assertEqual(systems["persona"]["status"], "active")
+        self.assertEqual(systems["affect"]["status"], "degraded")
+        self.assertEqual(systems["relationship"]["status"], "active")
+        self.assertEqual(systems["worldops"]["status"], "active")
+        self.assertEqual(systems["model_provider"]["status"], "active")
+        self.assertEqual(systems["module_10"]["status"], "degraded")
+        self.assertIn("已组装", systems["memory"]["summary"])
+        self.assertNotIn("已组装", systems["affect"]["summary"])
+        self.assertIn("健康证据不完整", systems["affect"]["summary"])
+        self.assertNotIn("已组装", systems["module_10"]["summary"])
+        self.assertEqual(payload["quality"]["eval_suite_count"], 2)
+        self.assertEqual(payload["quality"]["admin_action_count"], 3)
+        # Memory 5+2+3, Persona 4, Affect 2+1, Relationship 3, WorldOps 1+2.
+        self.assertEqual(payload["async_work"]["pending"], 23)
+        self.assertEqual(payload["async_work"]["persona"]["pending"], 4)
+        self.assertEqual(payload["async_work"]["failed"], 10)
+        self.assertEqual(payload["async_work"]["dead_letter"], 8)
+        self.assertFalse(payload["async_work"]["failure_coverage_complete"])
+        self.assertIn("memory.extraction_jobs", payload["async_work"]["failure_coverage"])
+
+        serialized = response.text
+        for secret in (
+            "profile-a",
+            r"C:\private\memory.db",
+            "sk-never-return-this",
+            "never-return-this-prompt",
+            "never-return-this-key",
+            "never-return-this-credential",
+        ):
+            self.assertNotIn(secret, serialized)
+
+    def test_debug_snapshot_preserves_unobserved_metrics_as_null(self) -> None:
+        self.debug_stack.memory = _FailingDebugMemoryComponent()
+        self.debug_stack.persona = _FailingDebugHealthComponent()
+        self.debug_stack.affect = _FailingDebugHealthComponent()
+        self.debug_stack.relationship = _FailingDebugHealthComponent()
+        self.debug_stack.worldops = _FailingDebugHealthComponent()
+        self.debug_stack.model_provider_system = _FailingDebugHealthComponent()
+        self.debug_stack.interruptibility = None
+
+        response = self.client.get(
+            "/v1/debug/snapshot?conversation_id=conversation-debug",
+            headers=self.headers(),
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertIsNone(payload["memory"]["active_memories"])
+        self.assertIsNone(payload["memory"]["index_pending"])
+        self.assertIsNone(payload["async_work"]["pending"])
+        self.assertIsNone(payload["async_work"]["failed"])
+        self.assertIsNone(payload["async_work"]["dead_letter"])
+        self.assertIsNone(payload["quality"]["eval_suite_count"])
+        self.assertIsNone(payload["quality"]["admin_action_count"])
+        self.assertIsNone(payload["quality"]["eval_suites"])
+        self.assertIsNone(payload["quality"]["latest_runs"])
+        self.assertIsNone(payload["routes"]["binding_count"])
+        self.assertIsNone(payload["routes"]["bindings"])
+
+        systems = {item["subsystem_id"]: item for item in payload["systems"]}
+        self.assertEqual(systems["interruptibility"]["status"], "unavailable")
+        self.assertEqual(systems["interruptibility"]["details"]["binding"], "missing")
+        self.assertIn("当前不可用", systems["interruptibility"]["summary"])
+        self.assertNotIn("已在运行", systems["interruptibility"]["summary"])
+        for subsystem in systems.values():
+            if subsystem["status"] != "active":
+                self.assertNotIn("已组装", subsystem["summary"])
+        self.assertIsNone(systems["module_10"]["details"]["eval_suite_count"])
+
+    def test_partial_failure_metric_loss_does_not_become_zero_or_complete_coverage(self) -> None:
+        self.debug_stack.memory._health.pop("failed_extraction_jobs")
+        result = self.client.get("/v1/debug/snapshot?conversation_id=conversation-debug", headers=self.headers())
+        self.assertEqual(result.status_code, 200, result.text)
+        payload = result.json()["async_work"]
+        self.assertEqual(payload["pending"], 23)
+        self.assertIsNone(payload["failed"])
+        self.assertFalse(payload["failure_coverage_complete"])
+        self.assertIsNone(payload["memory"]["failed_extraction_jobs"])
 
     def test_submit_stream_status_history_and_idempotent_replay(self) -> None:
         payload = self.payload()
@@ -621,6 +884,46 @@ class ConversationGatewayTests(unittest.TestCase):
         finally:
             second_service.close()
             second_registry.close()
+
+    def test_running_gateway_reaps_stale_crash_turn_without_another_restart(self) -> None:
+        polling_registry = GatewayRegistry(self.root / "polling-gateway.db")
+        polling_service = ConversationGatewayService(
+            LocalConversationRuntimeAdapter(self.runtime),
+            registry=polling_registry,
+            state_repository=ProfileStateRepository(
+                self.root / "polling-profiles", profile_scope="profile-a"
+            ),
+            policy=GatewayPolicy(
+                stale_recovery_after_ms=1_000,
+                stale_recovery_poll_ms=20,
+                shutdown_grace_ms=1_000,
+            ),
+            identity_scope=("profile-a", "user-a", "sora"),
+        )
+        polling_service.start()
+        try:
+            context, _ = self.runtime.journal.create_turn(
+                conversation_id="crashed-conversation",
+                request_id="crashed-request",
+                user_input="synthetic test",
+            )
+            self.runtime.journal.transition(context.turn_id, TurnStatus.PREPARING, stage="prepare")
+            self.runtime.journal.transition(context.turn_id, TurnStatus.GENERATING, stage="generate")
+            with self.runtime.journal.transaction() as connection:
+                connection.execute(
+                    "UPDATE runtime_turn SET updated_at_ms=? WHERE turn_id=?",
+                    (int(time.time() * 1000) - 5_000, context.turn_id),
+                )
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                if self.runtime.journal.get_turn(context.turn_id).status == TurnStatus.FAILED:
+                    break
+                time.sleep(0.02)
+            self.assertEqual(self.runtime.journal.get_turn(context.turn_id).status, TurnStatus.FAILED)
+            self.assertEqual(self.runtime.reconnect(context.turn_id)[-1].event_type, "turn.failed")
+        finally:
+            polling_service.close()
+            polling_registry.close()
 
     def test_drain_rejects_new_work_but_readiness_remains_introspectable(self) -> None:
         self.service.begin_drain()
@@ -1288,7 +1591,7 @@ class _HangingRuntimePort:
             raise KeyError(turn_id)
         return [self.event] if self.event is not None and after_sequence < 1 else []
 
-    def cancel(self, conversation_id, *, reason):
+    def cancel(self, conversation_id, *, reason, turn_id=None):
         self.cancel_calls += 1
         return False
 
@@ -1333,9 +1636,11 @@ class _ControlledRuntimePort(_HangingRuntimePort):
         if self.block:
             self._release.wait(timeout=2)
 
-    def cancel(self, conversation_id, *, reason):
+    def cancel(self, conversation_id, *, reason, turn_id=None):
         self.cancel_calls += 1
         if self.context is None or self.event is None:
+            return False
+        if turn_id is not None and self.context.turn_id != turn_id:
             return False
         timestamp = int(time.time() * 1000)
         self.context = replace(

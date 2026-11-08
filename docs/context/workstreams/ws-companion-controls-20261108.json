@@ -1,0 +1,82 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/transport",
+    "apps/desktop/src/views/CompanionGovernance.tsx",
+    "apps/desktop/src/views/CompanionSettings.test.tsx",
+    "apps/desktop/src/views/CompanionSettings.tsx",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "apps/desktop/src/views/SettingsView.tsx",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/context-manifest.json",
+    "outputs/companion-controls-20261108",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "src/sora_sandbox/conversation_gateway/desktop_companion.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/persona/store.py",
+    "src/sora_sandbox/relationship/store.py",
+    "src/sora_sandbox/relationship/system.py",
+    "tests/test_desktop_companion.py"
+  ],
+  "completed_at_utc": "2026-11-08T09:16:00Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T08:16:13Z",
+      "summary": "User explicitly reprioritized B3 then B4 then B2. Reviewed same-chat overlap with existing functional-repair/native-settings and installed-e2e broad claims; preserve unrelated dirty changes. Implement B3 using existing canonical Persona/Relationship owners with scoped user controls, stale-write checks, truthful bounded governance records and tests; no raw evidence/secrets, daily-data changes or unapproved content operations."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T09:16:00Z",
+      "summary": "Delivered B3 companion core in installed unsigned r7: real scoped Persona/Relationship controls, staged readable agreements, checked repair transitions, actual domain records and dedicated short native exact-revision governance. Preserved r6/day data. Protected approvals and remaining domains/fault/release matrices remain open. User sequence persists B3 then B4 then B2."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T09:16:00Z",
+      "summary": "Delivered B3 companion core in installed unsigned r7: real scoped Persona/Relationship controls, staged readable agreements, checked repair transitions, actual domain records and dedicated short native exact-revision governance. Preserved r6/day data. Protected approvals and remaining domains/fault/release matrices remain open. User sequence persists B3 then B4 then B2."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/transport",
+    "apps/desktop/src/views/CompanionGovernance.tsx",
+    "apps/desktop/src/views/CompanionSettings.test.tsx",
+    "apps/desktop/src/views/CompanionSettings.tsx",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "apps/desktop/src/views/SettingsView.tsx",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/context-manifest.json",
+    "outputs/companion-controls-20261108",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "src/sora_sandbox/conversation_gateway/desktop_companion.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/persona/store.py",
+    "src/sora_sandbox/relationship/store.py",
+    "src/sora_sandbox/relationship/system.py",
+    "tests/test_desktop_companion.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T08:16:13Z",
+  "status": "completed",
+  "summary": "Delivered B3 companion core in installed unsigned r7: real scoped Persona/Relationship controls, staged readable agreements, checked repair transitions, actual domain records and dedicated short native exact-revision governance. Preserved r6/day data. Protected approvals and remaining domains/fault/release matrices remain open. User sequence persists B3 then B4 then B2.",
+  "title": "Connect companion controls and domain governance",
+  "updated_at_utc": "2026-11-08T09:16:00Z",
+  "verification": [
+    "outputs/companion-controls-20261108/VERIFICATION.md; Python654 sealed; backend19; frontend138; Host18+2ignored;8visual fixtures; frozen build/installed7checks each; actual Host/WebView read screenshots; r7installer28926239bytes SHA256 ba9b2b82bd9882b453bead9f2c99520ea8bf88f1d5cac7b53080b33dd2bdba94; installation0 and exact program integrity"
+  ],
+  "workstream_id": "ws-companion-controls-20261108"
+}

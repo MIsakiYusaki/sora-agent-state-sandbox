@@ -203,8 +203,10 @@ class PersonaSystem:
         *,
         reason: str = "manual_review_rejected",
         actor: str = "local_admin",
+        expected_revision: str | None = None,
+        expected_user_id: str | None = None,
     ) -> JsonDict:
-        return self.store.set_candidate_status(candidate_id, "rejected", reason=reason, actor=actor)
+        return self.store.set_candidate_status(candidate_id, "rejected", reason=reason, actor=actor, expected_revision=expected_revision, expected_user_id=expected_user_id)
 
     def rollback_contribution(
         self,
@@ -212,8 +214,10 @@ class PersonaSystem:
         *,
         reason: str = "manual_rollback",
         actor: str = "local_admin",
+        expected_revision: str | None = None,
+        expected_user_id: str | None = None,
     ) -> JsonDict:
-        result = self.store.rollback_contribution(contribution_id, reason=reason, actor=actor)
+        result = self.store.rollback_contribution(contribution_id, reason=reason, actor=actor, expected_revision=expected_revision, expected_user_id=expected_user_id)
         self._ensure_base_frame(force=True)
         return result
 

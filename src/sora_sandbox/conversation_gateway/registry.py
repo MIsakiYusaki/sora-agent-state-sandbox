@@ -148,18 +148,28 @@ class GatewayRegistry:
         subject_id: str,
         agent_id: str,
         limit: int = 100,
+        offset: int = 0,
     ) -> list[ConversationBinding]:
         """Return only conversations owned by the verified local identity."""
-        bounded = max(1, min(int(limit), 200))
+        bounded = max(1, min(int(limit), 201))
         with self._lock:
             rows = self._conn.execute(
                 """
                 SELECT * FROM gateway_conversation
                 WHERE profile_id=? AND subject_id=? AND agent_id=?
-                ORDER BY created_at_ms DESC
-                LIMIT ?
+                ORDER BY created_at_ms DESC, external_conversation_id DESC
+                LIMIT ? OFFSET ?
                 """,
-                (profile_id, subject_id, agent_id, bounded),
+                (profile_id, subject_id, agent_id, bounded, max(0, int(offset))),
+            ).fetchall()
+        return [self._conversation_from_row(row) for row in rows]
+
+    def all_conversations_for_identity(self, *, profile_id: str, subject_id: str, agent_id: str) -> list[ConversationBinding]:
+        """Ownership metadata only; message bodies never enter this registry."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM gateway_conversation WHERE profile_id=? AND subject_id=? AND agent_id=?",
+                (profile_id, subject_id, agent_id),
             ).fetchall()
         return [self._conversation_from_row(row) for row in rows]
 

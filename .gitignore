@@ -37,6 +37,8 @@ state.json
 outputs/
 *.zip
 sora-sandbox-state-export.json
+Project-Sora-diagnostic*.json
+Project-Sora-memory-summary*.json
 
 # Editors and OS
 .idea/

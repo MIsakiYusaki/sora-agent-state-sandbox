@@ -1,0 +1,67 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/MEMORY_BACKGROUND_INGESTION.md",
+    "docs/MEMORY_PRD_IMPLEMENTATION_ALIGNMENT.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "completed_at_utc": "2026-11-08T10:26:28Z",
+  "decision_ids": [
+    "adr-20261108-15045fae46",
+    "adr-20261108-981305e0eb",
+    "adr-20261108-fbc38b01b2"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T10:01:45Z",
+      "summary": "Reviewed stale installed-e2e documentation claim and same-chat active feature workstreams. Synchronize B4 client loop/current local-preview deployment and B2 A03/A04/default deterministic lifecycle evidence. Preserve formal content deployment and release gates; no cloud writes or broad completion claim."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T10:26:28Z",
+      "summary": "Record r9 installed delivery, B4 local-preview/external release boundary, B2 completed baseline, remaining A05 and B1 next. Snapshot33 ledger27."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T10:26:28Z",
+      "summary": "Record r9 installed delivery, B4 local-preview/external release boundary, B2 completed baseline, remaining A05 and B1 next. Snapshot33 ledger27."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/MEMORY_BACKGROUND_INGESTION.md",
+    "docs/MEMORY_PRD_IMPLEMENTATION_ALIGNMENT.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T10:01:45Z",
+  "status": "completed",
+  "summary": "Record r9 installed delivery, B4 local-preview/external release boundary, B2 completed baseline, remaining A05 and B1 next. Snapshot33 ledger27.",
+  "title": "Record narrative and memory delivery",
+  "updated_at_utc": "2026-11-08T10:26:28Z",
+  "verification": [
+    "Installed r9 candidate SHA256 4d6aa3c95319be0b7762d808f7faef344265e1cfd367d14560cf3e45796a4384; exact Host/Gateway integrity",
+    "Evidence report and active workstream boundary reviewed; no remote writes or commit/push"
+  ],
+  "workstream_id": "ws-main-feature-context-20261108"
+}

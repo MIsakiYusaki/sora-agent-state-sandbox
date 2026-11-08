@@ -1,6 +1,7 @@
 import { ArrowLeft, BellOff, Check, Clock3, MessageCircle, Save, Sparkles, VolumeX } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ConversationControlUpdate, ConversationControlsView } from "../transport";
+import type { DefaultControlsRequest } from "../transport/DesktopTransport";
 import { PageHeader, Segmented, Tag } from "../components/ui";
 
 type Depth = "brief" | "natural" | "deep";
@@ -18,19 +19,36 @@ export function ControlsView({
   error,
   onBack,
   onUpdate,
+  onRetry,
+  onDefaults,
 }: {
   controls: ConversationControlsView | null;
   loading: boolean;
   error: string | null;
   onBack: () => void;
   onUpdate: (request: ConversationControlUpdate) => Promise<void>;
+  onRetry?: () => void;
+  onDefaults?: (request: DefaultControlsRequest) => Promise<void>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const saving = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [depth, setDepth] = useState<Depth>("natural");
   const [followUp, setFollowUp] = useState<FollowUp>("allowed");
   const [initiative, setInitiative] = useState<Initiative>("follow");
   const [memoryMode, setMemoryMode] = useState<MemoryMode>("natural");
   const [quiet, setQuiet] = useState(false);
+  const [nightQuiet, setNightQuiet] = useState(false);
+  const [clock, setClock] = useState(Date.now());
+  const [defaultsAction, setDefaultsAction] = useState<"save" | "reset" | null>(null);
+  const [defaultsConfirmed, setDefaultsConfirmed] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const quietUntil = controls?.controls.quiet?.expires_at;
+  useEffect(() => {
+    if (!quietUntil || quietUntil <= Date.now()) return;
+    const timer = window.setTimeout(() => { setClock(Date.now()); onRetry?.(); }, quietUntil - Date.now());
+    return () => window.clearTimeout(timer);
+  }, [quietUntil, onRetry]);
 
   useEffect(() => {
     const replyDepth = String(valueOf(controls, "reply_depth", "balanced"));
@@ -45,16 +63,35 @@ export function ControlsView({
       : String(surface);
     setMemoryMode(memoryValue === "explicit" || memoryValue === "explicit_consent" ? "explicit" : memoryValue === "none" || memoryValue === "silent" ? "off" : "natural");
     setQuiet(Boolean(valueOf(controls, "response_mute", false)));
-  }, [controls]);
+    setNightQuiet(Boolean(valueOf(controls, "quiet", false)) && (!quietUntil || quietUntil > clock));
+  }, [controls, quietUntil, clock]);
 
   const update = async (name: string, request: ConversationControlUpdate, optimistic: () => void) => {
-    optimistic();
+    if (saving.current || loading || !controls) return;
+    saving.current = true;
     setBusy(name);
+    setSaveError(null);
     try {
-      await onUpdate({ ...request, scope: "session" });
+      await onUpdate({ ...request, scope: request.scope ?? "session" });
+      optimistic();
+    } catch {
+      setSaveError("这项设置尚未确认保存。界面保留上次确认的选择，请重新读取后重试。");
     } finally {
+      saving.current = false;
       setBusy(null);
     }
+  };
+
+  const saveDefaults = async () => {
+    if (!onDefaults || !defaultsAction || !defaultsConfirmed || saving.current || !controls) return;
+    saving.current = true; setBusy("defaults"); setSaveError(null); setNotice(null);
+    try {
+      await onDefaults({ action: defaultsAction, confirmed: true, reply_depth: depth === "natural" ? "balanced" : depth,
+        follow_up: followUp === "none" ? "none" : "one", topic_shift: initiative === "follow" ? "same_topic" : "adjacent", memory_mode: memoryMode });
+      setNotice(defaultsAction === "save" ? "已保存为这个数据空间的默认方式，新对话会继承；暂停回应不保存为默认。" : "已恢复默认方式，并撤销回应节奏与记忆使用的临时覆盖；不会删除记忆。");
+      setDefaultsAction(null);
+    } catch { setSaveError("默认方式未获得完整保存确认。请重新读取后核对，不会自动重试。"); }
+    finally { saving.current = false; setBusy(null); setDefaultsConfirmed(false); }
   };
 
   const depthLabel = depth === "brief" ? "短一点" : depth === "deep" ? "认真聊聊" : "自然回复";
@@ -72,10 +109,13 @@ export function ControlsView({
       />
       <section className="scope-strip preference-intro">
         <div><strong>仅用于这次聊天</strong><span>会由真实运行时在下一条消息中执行</span></div>
-        <Tag tone={loading ? "neutral" : "mint"}>{loading ? "正在读取" : "即时生效"}</Tag>
+        <Tag tone={loading || error || saveError || !controls ? "neutral" : "mint"}>{loading ? "正在读取" : error || saveError || !controls ? "状态未确认" : "已读取真实设置"}</Tag>
       </section>
       {error && <div className="inline-error" role="alert">{error}</div>}
-
+      {saveError && <div className="inline-error" role="alert">{saveError}</div>}
+      {notice && <p role="status">{notice}</p>}
+      {(error || saveError || !controls) && onRetry && <button className="button button--secondary" type="button" onClick={() => { setSaveError(null); onRetry(); }}>重新读取设置</button>}
+      <fieldset className="control-fields" disabled={loading || busy !== null || !controls || !!error || !!saveError}>
       <section className="control-group">
         <header><span className="control-icon control-icon--blue"><MessageCircle size={18} /></span><div><h2>回应节奏</h2><p>让 Sora 按你现在需要的方式回应。</p></div></header>
         <div className="control-row"><div><strong>回复多长</strong><small>由运行时的 reply_depth 控制</small></div><Segmented value={depth} options={[{ value: "brief", label: "短一点" }, { value: "natural", label: "自然" }, { value: "deep", label: "认真聊聊" }]} onChange={(value) => void update("depth", { control: "reply_depth", value: value === "natural" ? "balanced" : value }, () => setDepth(value))} label="回复长度" /></div>
@@ -93,16 +133,21 @@ export function ControlsView({
         <header><span className="control-icon control-icon--mint"><Clock3 size={18} /></span><div><h2>暂时安静一下</h2><p>需要一点空间时，可以暂停 Sora 的回应。</p></div></header>
         <div className="quick-control-grid">
           <button className={quiet ? "is-active" : ""} type="button" disabled={busy !== null} onClick={() => void update("mute", { control: "response_mute", value: !quiet }, () => setQuiet((current) => !current))}><VolumeX size={17} /><span><strong>{quiet ? "可以继续说话了" : "先别说话"}</strong><small>{quiet ? "恢复正常回应" : "直到我再次打开回应"}</small></span></button>
-          <button type="button" disabled title="需要独立主动提醒计划接口"><BellOff size={17} /><span><strong>今晚不主动提醒</strong><small>主动提醒计划接口尚未接入</small></span></button>
+          <button className={nightQuiet ? "is-active" : ""} type="button" aria-pressed={nightQuiet} onClick={() => {
+            const morning = new Date(); morning.setHours(8, 0, 0, 0); if (morning.getTime() <= Date.now()) morning.setDate(morning.getDate() + 1);
+            void update("night", { control: "quiet", value: !nightQuiet, scope: "duration", duration_seconds: Math.max(1, Math.ceil((morning.getTime() - Date.now()) / 1000)) }, () => setNightQuiet(!nightQuiet));
+          }}><BellOff size={17} /><span><strong>{nightQuiet ? "恢复本次聊天的主动提醒" : "今晚不主动提醒"}</strong><small>本次聊天安静到本地时间早上 8 点；你发消息仍会回应</small></span></button>
         </div>
       </section>
-
+      </fieldset>
       <div className="control-summary">
         <Check size={17} />
         <span><strong>这次聊天：</strong>{quiet ? "暂停回应" : `${depthLabel} · ${followUpLabel} · ${initiativeLabel} · ${memoryLabel}`}</span>
-        <Tag tone={busy ? "neutral" : "mint"}>{busy ? "保存中" : "已生效"}</Tag>
-        <button className="text-link" type="button" disabled title="持久默认值需要单独确认流程"><Save size={13} /> 设为我的默认方式</button>
+        <Tag tone={busy || error || saveError || !controls ? "neutral" : "mint"}>{busy ? "保存中" : error || saveError || !controls ? "尚未确认" : "已保存"}</Tag>
+        <button className="text-link" type="button" disabled={!onDefaults || !controls || loading || busy !== null || !!error || !!saveError} onClick={() => { setDefaultsAction("save"); setDefaultsConfirmed(false); }}><Save size={13} /> 设为我的默认方式</button>
+        <button className="text-link" type="button" disabled={!onDefaults || !controls || loading || busy !== null || !!error || !!saveError} onClick={() => { setDefaultsAction("reset"); setDefaultsConfirmed(false); }}>恢复默认方式</button>
       </div>
+      {defaultsAction && <section className="default-controls-confirm" aria-label="确认默认聊天方式"><h2>{defaultsAction === "save" ? "设为今后对话的默认方式？" : "恢复默认聊天方式？"}</h2><p>{defaultsAction === "save" ? `${depthLabel} · ${followUpLabel} · ${initiativeLabel} · ${memoryLabel}。此选择会持久保存于当前数据空间；暂停回应和今晚安静不会保存为默认。` : "将恢复自然回复、允许问一句、跟随当前话题和自然使用记忆；并清除这四项临时覆盖。不会撤销暂停回应或删除记忆。"}</p><label><input type="checkbox" checked={defaultsConfirmed} disabled={busy !== null} onChange={event => setDefaultsConfirmed(event.target.checked)} />我已核对保存范围与记忆使用方式</label><div><button className="button" type="button" disabled={!defaultsConfirmed || busy !== null || !!saveError} onClick={() => void saveDefaults()}>确认{defaultsAction === "save" ? "保存默认方式" : "恢复默认方式"}</button><button className="button button--secondary" type="button" disabled={busy !== null} onClick={() => setDefaultsAction(null)}>取消</button></div></section>}
     </main>
   );
 }

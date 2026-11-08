@@ -1,0 +1,78 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/provider-http-observability",
+    "src/sora_sandbox/llm.py",
+    "src/sora_sandbox/memory_embedding.py",
+    "src/sora_sandbox/memory_extractor_provider.py",
+    "src/sora_sandbox/memory_recall_planner.py",
+    "src/sora_sandbox/memory_reranker.py",
+    "src/sora_sandbox/memory_surface_policy.py",
+    "src/sora_sandbox/model_provider/broker.py",
+    "src/sora_sandbox/turn_observability.py",
+    "tests/test_provider_http_observability.py"
+  ],
+  "completed_at_utc": "2026-09-16T12:34:56Z",
+  "decision_ids": [
+    "adr-provider-http-evidence-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-16T12:14:28Z",
+      "summary": "Record content-free request intervals at actual HTTP exits for registry and compatibility providers, preserving routing and retry policies. Existing timeline renders added child spans unchanged. No TTFT or full wire-level claim."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-16T12:28:58Z",
+      "summary": "HTTP request lifetime spans implemented. Ten focused tests pass; real authorized two-turn sample captured six completed HTTP calls and both Memory jobs. Candidate built and sidecar smoke passed. Serial full regression pending after one intermittent Interruptibility gate failure; threshold unchanged."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-16T12:34:56Z",
+      "summary": "Completed request-lifetime monitoring, authorized real-model verification, serial regression and unsigned candidate packaging. Earlier intermittent gate failure retained; installed-app E2E remains open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-16T12:34:56Z",
+      "summary": "Completed request-lifetime monitoring, authorized real-model verification, serial regression and unsigned candidate packaging. Earlier intermittent gate failure retained; installed-app E2E remains open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/provider-http-observability",
+    "src/sora_sandbox/llm.py",
+    "src/sora_sandbox/memory_embedding.py",
+    "src/sora_sandbox/memory_extractor_provider.py",
+    "src/sora_sandbox/memory_recall_planner.py",
+    "src/sora_sandbox/memory_reranker.py",
+    "src/sora_sandbox/memory_surface_policy.py",
+    "src/sora_sandbox/model_provider/broker.py",
+    "src/sora_sandbox/turn_observability.py",
+    "tests/test_provider_http_observability.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-16T12:14:28Z",
+  "status": "completed",
+  "summary": "Completed request-lifetime monitoring, authorized real-model verification, serial regression and unsigned candidate packaging. Earlier intermittent gate failure retained; installed-app E2E remains open.",
+  "title": "Measure provider HTTP request lifetimes in existing turn evidence",
+  "updated_at_utc": "2026-09-16T12:34:56Z",
+  "verification": [
+    "Latest serial backend: 488 passed, zero failures/errors/skips, 76.31 seconds; pytest-serial-20260916.xml. Earlier intermittent Interruptibility gate failure retained; cause unconfirmed, threshold unchanged.",
+    "Frontend 28 passed; Rust Host 5 passed; TypeScript/Vite and NSIS build passed. No frontend change or new visual acceptance.",
+    "Authorized isolated real DeepSeek report live-evidence-1789561482058996400.json: two committed turns, six completed HTTP calls, both Memory jobs completed on attempt 1.",
+    "Unsigned Sept16 installer SHA256 202b1c8e4f2821fff80067cdcd74edf2e5810fe7a4a70b151320556ef9640faa; packaged isolated Gateway smoke passed health/auth/debug/shutdown."
+  ],
+  "workstream_id": "ws-provider-http-evidence-20260916"
+}

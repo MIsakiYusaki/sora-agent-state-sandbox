@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/prd-practice-audit-20261029/AUDIT.md",
+    "outputs/prd-practice-audit-20261029/manifest.json"
+  ],
+  "completed_at_utc": "2026-10-29T12:36:03Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-29T12:27:38Z",
+      "summary": "Read-only review of all28 indexed PRDs/overviews against current dirty source and existing evidence. Produce per-document disposition; no remote PRD writes or runtime edits."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T12:36:03Z",
+      "summary": "Reviewed all28 indexed current PRD/overview snapshots against current source and acceptance records. Produced per-document disposition:19 substantive implementation/contract refreshes,7 integration updates,2 planned designs retained. No remote writes or runtime changes."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-29T12:36:03Z",
+      "summary": "Reviewed all28 indexed current PRD/overview snapshots against current source and acceptance records. Produced per-document disposition:19 substantive implementation/contract refreshes,7 integration updates,2 planned designs retained. No remote writes or runtime changes."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "outputs/prd-practice-audit-20261029"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-29T12:27:38Z",
+  "status": "completed",
+  "summary": "Reviewed all28 indexed current PRD/overview snapshots against current source and acceptance records. Produced per-document disposition:19 substantive implementation/contract refreshes,7 integration updates,2 planned designs retained. No remote writes or runtime changes.",
+  "title": "Audit every PRD against current code practice",
+  "updated_at_utc": "2026-10-29T12:36:03Z",
+  "verification": [
+    "28 current cloud documents fetched as user, version/blockID full-text snapshots saved. Key claims statically checked against Memory scheduler, planner/surface/lifecycle/projection/quality, domain system ports, Runtime buffering/recovery/encryption, Gateway capabilities, Provider ownership and trusted Host code.",
+    "project_context.py validate passed; existing concurrent workstream warnings remain. Not a full field-by-field algorithm audit or release acceptance; no model requests, production data changes, tests rerun, remote PRD edits or commit/push. Evidence and limits: outputs/prd-practice-audit-20261029/AUDIT.md."
+  ],
+  "workstream_id": "ws-prd-practice-audit-20261029"
+}

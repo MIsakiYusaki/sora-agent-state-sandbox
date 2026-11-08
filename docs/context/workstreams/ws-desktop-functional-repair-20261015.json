@@ -1,0 +1,52 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "decision_ids": [
+    "adr-desktop-functional-truth-and-review-v1",
+    "adr-desktop-quality-event-resolution-v1",
+    "adr-memory-quarantine-disposition-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-15T12:20:31Z",
+      "summary": "Fix audited F01-F30 with truthful state, actual typed owner services, review governance, diagnostics drilldown, routes and safe native user flows; keep per-item implementation and verification status, no automatic high-risk execution."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-28T11:02:20Z",
+      "summary": "Resumed October 28. Close the failing async-coverage expectation, add missing queue/route/race regressions and refresh per-item progress before further functional scope. Still not packaged or all F01-F30 complete."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-28T11:52:01Z",
+      "summary": "Oct28 source batch sealed separately: F09/F14/F16/F21/F28 truth/race/quality/quarantine repairs, updated prior implemented items. Python585/frontend95/Host9/build pass; no new installer. Continue finite remaining F18/F19/F22-F25 plus F10/F11/F15/F17/F20/F30 and installed acceptance; do not claim all30 complete."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-29T11:02:48Z",
+      "summary": "Oct29 docs reconciled all F01-F30. Current frontend107/Host13 plus1diagnostic ignored/Python focused6 pass; Python585 remains Oct28 full baseline. F23 debug-native switch observed; F24 AUMID install unverified, F25 backend-only. Finite remaining F18/F19/F22/F30 and per-item partial gaps preserved; no new installer."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src",
+    "apps/desktop/src-tauri/src",
+    "outputs/desktop-functional-repair-20261015",
+    "src/sora_sandbox/conversation_gateway",
+    "tests/test_desktop_functional_repairs.py"
+  ],
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-15T12:20:31Z",
+  "status": "active",
+  "summary": "Oct29 docs reconciled all F01-F30. Current frontend107/Host13 plus1diagnostic ignored/Python focused6 pass; Python585 remains Oct28 full baseline. F23 debug-native switch observed; F24 AUMID install unverified, F25 backend-only. Finite remaining F18/F19/F22/F30 and per-item partial gaps preserved; no new installer.",
+  "title": "Repair all audited desktop functional gaps",
+  "updated_at_utc": "2026-10-29T11:02:48Z",
+  "verification": [
+    "outputs/desktop-functional-repair-20261028/VERIFICATION.md and outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "docs/DESKTOP_DELIVERY_STATUS.md and outputs/client-status-sync-20261029/verification.json; no daily data/model calls"
+  ],
+  "workstream_id": "ws-desktop-functional-repair-20261015"
+}

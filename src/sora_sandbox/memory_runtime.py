@@ -39,6 +39,8 @@ from .memory_lifecycle import MemoryLifecycleService
 from .memory_lifecycle_eval import MemoryLifecycleEvalService
 from .memory_observability import MemoryObservabilityService
 from .memory_projector import MemoryProjectorBus
+from .memory_transactions import MemoryConnection
+from .memory_change_delivery import MemoryChangeDelivery
 from .memory_quality_ops import AdminActionSpec, MemoryQualityOpsService
 from .memory_recall_planner import (
     HybridRecallPlanner,
@@ -78,8 +80,7 @@ from .memory_provider_routes import (
 )
 from .model_provider import ModelProviderSystem, Workload
 from .memory_vector_index import VectorIndex
-from .paths import SEEDS_DIR, workspace_state_dir
-from .state import load_jsonl
+from .paths import workspace_state_dir
 
 
 def _json(value: Any) -> str:
@@ -174,7 +175,7 @@ class MemoryRuntime:
             self.embedding_provider = self.embedding_provider or create_embedding_provider_from_env()
             self.reranker = self.reranker or create_reranker_from_env()
             self.surface_policy = self.surface_policy or create_surface_policy_from_env()
-        self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        self._conn = sqlite3.connect(self.path, check_same_thread=False, factory=MemoryConnection)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.execute("PRAGMA journal_mode = WAL")
@@ -201,7 +202,7 @@ class MemoryRuntime:
             self.reranker,
             self.surface_policy,
         )
-        self.projector_bus = MemoryProjectorBus(self._conn, lock=self._lock)
+        self.projector_bus = MemoryProjectorBus(self._conn, lock=self._lock, get_memory=self.get_memory)
         self.canonical_store = MemoryCanonicalStore(
             self._conn,
             lock=self._lock,
@@ -300,6 +301,10 @@ class MemoryRuntime:
             module_versions=self._memory_module_versions,
         )
         self._register_quality_ops()
+        self.change_delivery = MemoryChangeDelivery(self)
+        self._conn.after_commit = self.change_delivery.after_commit
+        self._conn.after_rollback = self.change_delivery.after_rollback
+        self.register_quality_export_section("memory_change_delivery", self.change_delivery.snapshot)
 
     @classmethod
     def default(
@@ -315,10 +320,10 @@ class MemoryRuntime:
             agent_id=agent_id,
             model_provider_system=model_provider_system,
         )
-        runtime.seed_if_empty(load_jsonl(SEEDS_DIR / "memory.seed.jsonl"))
         return runtime
 
     def close(self) -> None:
+        self.change_delivery.stop()
         with self._lock:
             self._conn.close()
 
@@ -404,6 +409,19 @@ class MemoryRuntime:
                     "note": "Projector events are idempotent; run projection rebuild for affected subsystems if needed.",
                 },
                 description="Process pending projection gateway outbox items.",
+            )
+        )
+        self.quality_ops.register_admin_action(
+            AdminActionSpec(
+                name="requeue_memory_event",
+                risk_level="medium",
+                preview=self.preview_queue_requeue,
+                execute=lambda params: self.requeue_queue_record(**params),
+                rollback_plan=lambda params: {
+                    "type": "inspect_queue_receipt",
+                    "note": "Requeue preserves the event identity and payload. Inspect the consumer outcome before any further recovery.",
+                },
+                description="Requeue one failed or dead-letter Memory event with an exact revision.",
             )
         )
         self.quality_ops.register_admin_action(
@@ -634,6 +652,8 @@ class MemoryRuntime:
                 DELETE FROM memory_projection_proposal;
                 DELETE FROM memory_projection_snapshot;
                 DELETE FROM memory_projection_rebuild_run;
+                DELETE FROM memory_review_resolution_audit;
+                DELETE FROM memory_change_delivery;
                 DELETE FROM memory_projector_checkpoint;
                 DELETE FROM memory_projector_outbox;
                 DELETE FROM memory_index_rebuild_run;
@@ -652,13 +672,15 @@ class MemoryRuntime:
                 DELETE FROM memory_record;
                 DELETE FROM evidence;
                 DELETE FROM delete_propagation;
+                DELETE FROM memory_turn_receipt;
+                DELETE FROM memory_extraction_checkpoint;
+                DELETE FROM memory_extraction_attempt;
                 DELETE FROM extraction_job;
                 DELETE FROM memory_event;
                 DELETE FROM memory_episode;
                 """
             )
             self._conn.commit()
-        self.seed_if_empty(load_jsonl(SEEDS_DIR / "memory.seed.jsonl"))
 
     def seed_if_empty(self, items: list[JsonDict]) -> None:
         with self._lock:
@@ -764,13 +786,18 @@ class MemoryRuntime:
         retention_policy: str = "persistent",
         visibility: str = "private",
         metadata: JsonDict | None = None,
+        idempotency_key: str | None = None,
+        _commit: bool = True,
     ) -> str:
         if sensitivity == "forbidden":
             raise ValueError("forbidden content must not be persisted")
-        evidence_id = _new_id("ev")
+        evidence_id = ("ev_" + hashlib.sha256(idempotency_key.encode()).hexdigest()
+                       if idempotency_key else _new_id("ev"))
         stored_raw_content = raw_content if raw_content is not None else content_summary
         content_hash = _content_hash(content_summary, stored_raw_content, raw_pointer)
         with self._lock:
+            if self._conn.execute("SELECT id FROM evidence WHERE id = ?", (evidence_id,)).fetchone():
+                return evidence_id
             self._conn.execute(
                 """
                 INSERT INTO evidence (
@@ -796,7 +823,8 @@ class MemoryRuntime:
                     _utc_now(),
                 ),
             )
-            self._conn.commit()
+            if _commit:
+                self._conn.commit()
         return evidence_id
 
     def propose(
@@ -822,6 +850,8 @@ class MemoryRuntime:
         schema_version: str = "legacy",
         trace: JsonDict | None = None,
         allow_auto_commit: bool = True,
+        idempotency_key: str | None = None,
+        _commit: bool = True,
     ) -> JsonDict:
         cleaned = summary.strip()
         operation = operation.upper()
@@ -842,7 +872,8 @@ class MemoryRuntime:
                 "reason": "tombstone_prevents_relearning",
                 "tombstone": tombstone,
             }
-        candidate_id = _new_id("mc")
+        candidate_id = ("mc_" + hashlib.sha256(idempotency_key.encode()).hexdigest()
+                        if idempotency_key else _new_id("mc"))
         local_only = detected == "sensitive"
         candidate_hash = compute_candidate_hash(
             {
@@ -854,6 +885,11 @@ class MemoryRuntime:
             }
         )
         with self._lock:
+            if self._conn.execute("SELECT id FROM memory_candidate WHERE id = ?", (candidate_id,)).fetchone():
+                return self.get_candidate(candidate_id)
+            proposal_trace = dict(trace or {})
+            if operation == "MERGE" and target_memory_id:
+                proposal_trace["merge_base_fingerprint"] = self._merge_fingerprint(self.get_memory(target_memory_id))
             self._conn.execute(
                 """
                 INSERT INTO memory_candidate (
@@ -887,10 +923,11 @@ class MemoryRuntime:
                     extraction_job_id,
                     schema_version,
                     candidate_hash,
-                    _json(trace or {}),
+                    _json(proposal_trace),
                 ),
             )
-            self._conn.commit()
+            if _commit:
+                self._conn.commit()
         candidate = self.get_candidate(candidate_id)
         if allow_auto_commit:
             gate_result = self.run_candidate_gate(candidate_id, actor="explicit_user_request")
@@ -903,22 +940,25 @@ class MemoryRuntime:
         candidates = self.observe_turn_candidates(user_input, reply)
         return candidates[0] if candidates else None
 
-    def observe_turn_candidates(self, user_input: str, reply: str) -> list[JsonDict]:
+    def observe_turn_candidates(
+        self, user_input: str, reply: str, *, ingest_trace: JsonDict | None = None,
+        source_key: str | None = None, _commit: bool = True,
+    ) -> list[JsonDict]:
         if not user_input.strip():
             return []
         updates: list[JsonDict] = []
-        with self._lock:
-            ingest_trace = self.ingestion.ingest_turn(
-                user_input=user_input,
-                reply=reply,
-                session_id="default",
-            )
-            self._conn.commit()
+        if ingest_trace is None:
+            with self._lock:
+                ingest_trace = self.ingestion.ingest_turn(
+                    user_input=user_input, reply=reply, session_id="default",
+                )
+                self._conn.commit()
         episode = ingest_trace["episode"]
         event_ids = [event["event_id"] for event in ingest_trace["events"]]
         extraction_job = ingest_trace["extraction_job"]
         extraction_job_id = extraction_job["job_id"] if extraction_job else None
-        for extraction in extract_memory_candidates(user_input, reply):
+        for index, extraction in enumerate(extract_memory_candidates(user_input, reply)):
+            item_key = f"{source_key}:rule:{index}" if source_key else None
             sensitivity = _detect_sensitivity(extraction.content)
             if sensitivity == "forbidden":
                 updates.append(
@@ -949,7 +989,10 @@ class MemoryRuntime:
                     "reply_summary": reply[:160],
                     "extraction_reason": extraction.reason,
                     "explicit_user_request": extraction.explicit_user_request,
+                    "source_identity": ingest_trace.get("source_identity", {}),
                 },
+                idempotency_key=item_key,
+                _commit=_commit,
             )
             updates.append(
                 self.propose(
@@ -961,6 +1004,9 @@ class MemoryRuntime:
                     sensitivity=sensitivity,
                     reason=extraction.reason,
                     explicit_user_request=extraction.explicit_user_request,
+                    allow_auto_commit=_commit,
+                    idempotency_key=item_key,
+                    _commit=_commit,
                 )
             )
         return updates
@@ -989,7 +1035,10 @@ class MemoryRuntime:
             self._conn.commit()
             return result
 
-    def observe_response_plan(self, response_plan: JsonDict) -> JsonDict | None:
+    def observe_response_plan(
+        self, response_plan: JsonDict, *, source_key: str | None = None,
+        source_identity: JsonDict | None = None, _commit: bool = True,
+    ) -> JsonDict | None:
         hook = response_plan.get("memory_hook_candidate")
         if not hook:
             return None
@@ -1001,7 +1050,10 @@ class MemoryRuntime:
             content_summary=summary,
             source_ref=str(hook.get("event_id")) if hook.get("event_id") else None,
             sensitivity="low",
-            metadata={"hook_id": hook.get("candidate_id"), "event_id": hook.get("event_id")},
+            metadata={"hook_id": hook.get("candidate_id"), "event_id": hook.get("event_id"),
+                      "source_identity": source_identity or {}},
+            idempotency_key=f"{source_key}:hook" if source_key else None,
+            _commit=_commit,
         )
         return self.propose(
             summary=summary,
@@ -1012,7 +1064,15 @@ class MemoryRuntime:
             tags=["memory_hook", str(hook.get("event_id") or "")],
             confidence=0.8,
             reason="response_plan_memory_hook",
+            allow_auto_commit=_commit,
+            idempotency_key=f"{source_key}:hook" if source_key else None,
+            _commit=_commit,
         )
+
+    def observe_committed_turn(self, event: JsonDict) -> JsonDict:
+        from .memory_committed_turn import CommittedTurnIngestion
+
+        return CommittedTurnIngestion(self).observe(event)
 
     def list_events(self, *, episode_id: str | None = None, limit: int = 50) -> list[JsonDict]:
         with self._lock:
@@ -1135,11 +1195,16 @@ class MemoryRuntime:
             self._conn.commit()
             return job
 
-    def claim_next_extraction_job(self) -> JsonDict | None:
+    def claim_next_extraction_job(self, *, lease_seconds: int = 120) -> JsonDict | None:
         with self._lock:
-            job = self.ingestion.claim_next_extraction_job()
-            self._conn.commit()
-            return job
+            try:
+                self._conn.execute("BEGIN IMMEDIATE")
+                job = self.ingestion.claim_next_extraction_job(lease_seconds=lease_seconds)
+                self._conn.commit()
+                return job
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     def complete_extraction_job(
         self,
@@ -1178,31 +1243,33 @@ class MemoryRuntime:
             job = self.ingestion.get_extraction_job(job_id)
             trace = self.get_episode_trace(job["episode_id"])
             query_text = self._episode_query_text(trace)
-            related_memories = self.related_memories_for_extraction(query_text, top_k=related_top_k)
-            return {
-                "schema_version": "extractor_input.v1",
-                "job": job,
-                "episode": trace["episode"],
-                "events": trace["events"],
-                "related_memories": related_memories,
-                "policy": {
-                    "auto_commit": {
-                        "confidence_min": 0.90,
-                        "sensitivity": "low",
-                        "allowed_operations": ["ADD", "MERGE"],
-                        "excluded_types": [
-                            "relationship_signal",
-                            "shared_episode",
-                            "persona_delta",
-                        ],
-                        "conflict_score_max": 0.30,
-                    }
-                },
-                "trace": {
-                    "delete_propagations": trace.get("delete_propagations", []),
-                    "query_text": query_text,
-                },
-            }
+            source = self._conn.execute(
+                """SELECT source_event_id, owner_user_id, agent_id, conversation_id, turn_id,
+                          correlation_id FROM memory_turn_receipt WHERE episode_id = ?""",
+                (job["episode_id"],),
+            ).fetchone()
+        related_memories = self.related_memories_for_extraction(query_text, top_k=related_top_k)
+        return {
+            "schema_version": "extractor_input.v1",
+            "source_identity": dict(source) if source else {},
+            "job": {key: value for key, value in job.items() if not key.startswith("lease_")},
+            "episode": trace["episode"],
+            "events": trace["events"],
+            "related_memories": related_memories,
+            "policy": {
+                "auto_commit": {
+                    "confidence_min": 0.90,
+                    "sensitivity": "low",
+                    "allowed_operations": ["ADD", "MERGE"],
+                    "excluded_types": ["relationship_signal", "shared_episode", "persona_delta"],
+                    "conflict_score_max": 0.30,
+                }
+            },
+            "trace": {
+                "delete_propagations": trace.get("delete_propagations", []),
+                "query_text": query_text,
+            },
+        }
 
     def related_memories_for_extraction(self, query_text: str, *, top_k: int = 8) -> list[JsonDict]:
         return self.retrieval.related_memories(query_text, top_k=top_k)
@@ -1213,6 +1280,7 @@ class MemoryRuntime:
         *,
         input_package: JsonDict,
         auto_commit: bool = True,
+        _commit: bool = True,
     ) -> JsonDict:
         materialized: list[JsonDict] = []
         committed: list[JsonDict] = []
@@ -1221,7 +1289,8 @@ class MemoryRuntime:
             str(event.get("event_id") or event.get("id")): event
             for event in input_package.get("events", [])
         }
-        for draft in result.candidates:
+        for index, draft in enumerate(result.candidates):
+            item_key = f"extractor:{result.job_id}:{index}"
             if draft.operation == WriteOperation.NOOP:
                 noop_candidates.append(candidate_to_dict(draft))
                 continue
@@ -1255,7 +1324,10 @@ class MemoryRuntime:
                     ],
                     "extractor_model": result.model,
                     "extractor_trace": result.trace,
+                    "source_identity": input_package.get("source_identity", {}),
                 },
+                idempotency_key=item_key,
+                _commit=_commit,
             )
             candidate = self.propose(
                 summary=draft.summary,
@@ -1284,9 +1356,11 @@ class MemoryRuntime:
                     "raw_candidate": candidate_to_dict(draft),
                 },
                 allow_auto_commit=False,
+                idempotency_key=item_key,
+                _commit=_commit,
             )
             materialized.append(candidate)
-            if auto_commit:
+            if auto_commit and candidate.get("candidate_id"):
                 gate_result = self.run_candidate_gate(candidate["candidate_id"], actor="async_extractor")
                 materialized[-1] = gate_result.get("candidate", candidate)
                 committed.extend(gate_result.get("committed", []))
@@ -1673,7 +1747,9 @@ class MemoryRuntime:
 
     def commit(self, candidate_ids: list[str], *, actor: str = "manual_repl") -> JsonDict:
         committed: list[JsonDict] = []
-        with self._lock:
+        # Keep every candidate and its local revisions/outboxes in one outcome.
+        # SQLite also rolls back if an exception escapes before the final commit.
+        with self._lock, self._conn:
             for candidate_id in candidate_ids:
                 candidate = self.get_candidate(candidate_id)
                 if candidate["status"] == "committed":
@@ -1688,6 +1764,8 @@ class MemoryRuntime:
                     raise ValueError(
                         f"{operation} candidate requires target_memory_id: {candidate_id}"
                     )
+                if operation == "MERGE":
+                    self._validate_semantic_merge(self.get_memory(target_memory_id), candidate)
                 idempotent_memory = self._idempotent_committed_memory(candidate)
                 if idempotent_memory:
                     for evidence_id in candidate["evidence_ids"]:
@@ -1716,6 +1794,7 @@ class MemoryRuntime:
                         "disabled",
                         reason=f"delete_candidate:{candidate_id}:{candidate['reason']}",
                         actor=actor,
+                        _commit=False,
                     )
                 elif operation == "MERGE" and target_memory_id:
                     memory = self.get_memory(target_memory_id)
@@ -1724,12 +1803,21 @@ class MemoryRuntime:
                             "INSERT OR IGNORE INTO memory_evidence (memory_id, evidence_id) VALUES (?, ?)",
                             (target_memory_id, evidence_id),
                         )
+                    # The governed proposal contains the complete enhanced gist.
+                    # Consent and permissions remain owned by existing controls.
+                    self._conn.execute(
+                        """UPDATE memory_record SET summary=?, tags_json=?, importance=?,
+                           updated_at=? WHERE id=?""",
+                        (candidate["summary"], _json(sorted(set(memory["tags"] + candidate["tags"]))),
+                         max(float(memory["importance"]), float(candidate["importance"])),
+                         _utc_now(), target_memory_id),
+                    )
                     self._append_revision(
                         target_memory_id,
-                        action="evidence_merged",
+                        action="semantic_merged",
                         before=memory,
                         after=self.get_memory(target_memory_id),
-                        reason=candidate["reason"],
+                        reason=f"semantic_merge:{candidate_id}",
                         actor=actor,
                     )
                     memory = self.get_memory(target_memory_id)
@@ -1770,6 +1858,7 @@ class MemoryRuntime:
                                 "superseded",
                                 reason=f"superseded_by_candidate:{candidate_id}",
                                 actor=actor,
+                                _commit=False,
                             )
                         memory = self._create_memory(
                             memory_id=_new_id("mem"),
@@ -1783,6 +1872,7 @@ class MemoryRuntime:
                             reason=candidate["reason"],
                             actor=actor,
                             supersedes_id=candidate.get("supersedes_id"),
+                            _commit=False,
                         )
 
                 now = _utc_now()
@@ -1804,7 +1894,57 @@ class MemoryRuntime:
                 )
                 committed.append(memory)
             self._conn.commit()
-        return {"status": "committed", "committed": committed}
+        return {"status": "committed", "committed": [self.get_memory(item["id"]) for item in committed]}
+
+    @staticmethod
+    def _merge_fingerprint(memory: JsonDict) -> str:
+        return hashlib.sha256(_json({key: memory[key] for key in
+            ("id", "owner_user_id", "agent_id", "type", "status", "summary", "tags", "importance")}).encode()).hexdigest()
+
+    def _validate_semantic_merge(self, memory: JsonDict, candidate: JsonDict) -> None:
+        if (memory["owner_user_id"], memory["agent_id"]) != (self.owner_user_id, self.agent_id):
+            raise ValueError("merge target owner mismatch")
+        if memory["status"] != "active" or memory["type"] != candidate["type"]:
+            raise ValueError("merge requires an active target of the same type")
+        if (candidate.get("trace") or {}).get("merge_base_fingerprint") != self._merge_fingerprint(memory):
+            raise ValueError("merge target changed or legacy proposal needs regeneration")
+        text = " ".join([candidate["summary"], *candidate["tags"]])
+        detected = _detect_sensitivity(text)
+        if not candidate["summary"].strip() or detected == "forbidden":
+            raise ValueError("merge content is empty or forbidden")
+        if self.lifecycle.find_tombstone_match(candidate["summary"]) or self.lifecycle.find_tombstone_match(text):
+            raise ValueError("tombstone prevents merge relearning")
+        if (detected != "low" or candidate["sensitivity"] != "low") and memory["sensitivity"] == "low":
+            raise ValueError("merge cannot silently promote sensitivity")
+        evidence_ids = candidate.get("evidence_ids") or []
+        if not evidence_ids:
+            raise ValueError("merge requires active evidence")
+        for evidence_id in evidence_ids:
+            evidence = evidence_from_row(self._evidence_row(evidence_id))
+            if evidence.get("deleted_at") or (evidence.get("expires_at") and evidence["expires_at"] <= _utc_now()):
+                raise ValueError("merge evidence is no longer active")
+
+    def _restore_semantic_merge_for_rollback(self, memory: JsonDict, candidate: JsonDict, *, actor: str) -> set[str]:
+        row = self._conn.execute(
+            """SELECT before_json, after_json FROM memory_revision
+               WHERE memory_id=? AND action='semantic_merged' AND reason=?""",
+            (memory["id"], f"semantic_merge:{candidate['candidate_id']}"),
+        ).fetchone()
+        if row is None:  # Historical evidence-only MERGE.
+            return set()
+        before, after = _loads(row["before_json"], {}), _loads(row["after_json"], {})
+        current = self.get_memory(memory["id"])
+        # Never restore old prose over a correction, later merge, or Forget.
+        if current["status"] != "active" or any(current[key] != after[key] for key in ("summary", "tags", "importance")):
+            raise ValueError("merge rollback conflicts with a later content change")
+        self._conn.execute(
+            "UPDATE memory_record SET summary=?, tags_json=?, importance=?, updated_at=? WHERE id=?",
+            (before["summary"], _json(before["tags"]), before["importance"], _utc_now(), memory["id"]),
+        )
+        self._append_revision(memory["id"], action="semantic_merge_rolled_back", before=current,
+                              after=self.get_memory(memory["id"]), reason=f"semantic_merge:{candidate['candidate_id']}",
+                              actor=actor)
+        return set(before.get("evidence_ids", []))
 
     def _idempotent_committed_memory(self, candidate: JsonDict) -> JsonDict | None:
         candidate_hash = candidate.get("candidate_hash")
@@ -1833,7 +1973,7 @@ class MemoryRuntime:
             return None
 
     def reject(self, candidate_id: str, *, reason: str = "manual_reject") -> JsonDict:
-        with self._lock:
+        with self._lock, self._conn:
             candidate = self.get_candidate(candidate_id)
             if candidate["status"] == "committed":
                 raise ValueError(f"candidate already committed: {candidate_id}")
@@ -1865,7 +2005,7 @@ class MemoryRuntime:
         reason: str = "manual_rollback",
         actor: str = "manual_review",
     ) -> JsonDict:
-        with self._lock:
+        with self._lock, self._conn:
             candidate = self.get_candidate(candidate_id)
             if candidate["status"] == "rolled_back":
                 return {
@@ -1883,12 +2023,14 @@ class MemoryRuntime:
             if operation == "DELETE":
                 affected.append(self._restore_memory_for_rollback(memory["id"], reason=reason, actor=actor))
             elif operation == "MERGE":
+                preserved_evidence = self._restore_semantic_merge_for_rollback(memory, candidate, actor=actor)
                 affected.append(
                     self._remove_candidate_evidence_for_rollback(
                         memory,
                         candidate,
                         reason=reason,
                         actor=actor,
+                        preserved_evidence=preserved_evidence,
                     )
                 )
             elif operation == "UPDATE" or memory.get("supersedes_id"):
@@ -1972,32 +2114,34 @@ class MemoryRuntime:
         }
 
     def revise(self, memory_id: str, new_summary: str, *, reason: str = "manual_revision") -> JsonDict:
-        previous = self.get_memory(memory_id)
-        sensitivity = _detect_sensitivity(new_summary)
-        if sensitivity == "forbidden":
-            raise ValueError("forbidden secrets cannot be persisted")
-        evidence_id = self.add_evidence(
-            source_type="manual_revision",
-            content_summary=new_summary,
-            sensitivity=sensitivity,
-            retention_policy=self.gate.retention_policy(sensitivity),
-            metadata={"supersedes_id": memory_id},
-        )
-        candidate = self.propose(
-            summary=new_summary,
-            memory_type=previous["type"],
-            evidence_ids=[evidence_id],
-            tags=previous["tags"],
-            confidence=1.0,
-            sensitivity=sensitivity,
-            reason=reason,
-            explicit_user_request=True,
-            supersedes_id=memory_id,
-            operation="UPDATE",
-            target_memory_id=memory_id,
-            allow_auto_commit=False,
-        )
-        return self.commit([candidate["candidate_id"]], actor="manual_revision")["committed"][0]
+        with self._lock, self._conn:
+            previous = self.get_memory(memory_id)
+            sensitivity = _detect_sensitivity(new_summary)
+            if sensitivity == "forbidden":
+                raise ValueError("forbidden secrets cannot be persisted")
+            evidence_id = self.add_evidence(
+                source_type="manual_revision",
+                content_summary=new_summary,
+                sensitivity=sensitivity,
+                retention_policy=self.gate.retention_policy(sensitivity),
+                metadata={"supersedes_id": memory_id},
+            )
+            candidate = self.propose(
+                summary=new_summary,
+                memory_type=previous["type"],
+                evidence_ids=[evidence_id],
+                tags=previous["tags"],
+                confidence=1.0,
+                sensitivity=sensitivity,
+                reason=reason,
+                explicit_user_request=True,
+                supersedes_id=memory_id,
+                operation="UPDATE",
+                target_memory_id=memory_id,
+                allow_auto_commit=False,
+            )
+            revised = self.commit([candidate["candidate_id"]], actor="manual_revision")["committed"][0]
+        return self.get_memory(revised["id"])
 
     def add_manual(
         self,
@@ -2006,27 +2150,29 @@ class MemoryRuntime:
         memory_type: str = "preference",
         tags: list[str] | None = None,
     ) -> JsonDict:
-        sensitivity = _detect_sensitivity(summary)
-        if sensitivity == "forbidden":
-            raise ValueError("forbidden secrets cannot be persisted")
-        evidence_id = self.add_evidence(
-            source_type="manual_repl",
-            content_summary=summary,
-            sensitivity=sensitivity,
-            retention_policy=self.gate.retention_policy(sensitivity),
-        )
-        candidate = self.propose(
-            summary=summary,
-            memory_type=memory_type,
-            evidence_ids=[evidence_id],
-            tags=tags or [],
-            confidence=1.0,
-            sensitivity=sensitivity,
-            reason="manual_repl",
-            explicit_user_request=True,
-            allow_auto_commit=False,
-        )
-        return self.commit([candidate["candidate_id"]], actor="manual_repl")["committed"][0]
+        with self._lock, self._conn:
+            sensitivity = _detect_sensitivity(summary)
+            if sensitivity == "forbidden":
+                raise ValueError("forbidden secrets cannot be persisted")
+            evidence_id = self.add_evidence(
+                source_type="manual_repl",
+                content_summary=summary,
+                sensitivity=sensitivity,
+                retention_policy=self.gate.retention_policy(sensitivity),
+            )
+            candidate = self.propose(
+                summary=summary,
+                memory_type=memory_type,
+                evidence_ids=[evidence_id],
+                tags=tags or [],
+                confidence=1.0,
+                sensitivity=sensitivity,
+                reason="manual_repl",
+                explicit_user_request=True,
+                allow_auto_commit=False,
+            )
+            added = self.commit([candidate["candidate_id"]], actor="manual_repl")["committed"][0]
+        return self.get_memory(added["id"])
 
     def _create_memory(
         self,
@@ -2042,6 +2188,7 @@ class MemoryRuntime:
         reason: str,
         actor: str,
         supersedes_id: str | None = None,
+        _commit: bool = True,
     ) -> JsonDict:
         now = _utc_now()
         retention = self.gate.retention_policy(sensitivity)
@@ -2074,6 +2221,19 @@ class MemoryRuntime:
                 now,
             ),
         )
+        if supersedes_id:
+            # A content correction is not consent to relax privacy. Inherit the
+            # predecessor's restrictions before creating a revision or publishing
+            # the successor to any index/projector. No intermediate commit here.
+            previous = self.get_memory(supersedes_id)
+            self._conn.execute(
+                """UPDATE memory_record SET retrieval_permission=?, use_permission=?,
+                   disclosure_permission=?, surface_permission=?, retention_policy=? WHERE id=?""",
+                (previous["retrieval_permission"], previous["use_permission"],
+                 "none" if disclosure == "none" else previous["disclosure_permission"],
+                 previous.get("surface_permission") or "auto",
+                 "local_encrypted" if retention == "local_encrypted" else previous["retention_policy"], memory_id),
+            )
         for evidence_id in evidence_ids:
             self._conn.execute(
                 "INSERT OR IGNORE INTO memory_evidence (memory_id, evidence_id) VALUES (?, ?)",
@@ -2094,7 +2254,8 @@ class MemoryRuntime:
             reason=reason,
             source_ref=memory_id,
         )
-        self._conn.commit()
+        if _commit:
+            self._conn.commit()
         return self.get_memory(memory_id)
 
     def _append_revision(
@@ -2174,27 +2335,12 @@ class MemoryRuntime:
                     reason=reason,
                     metadata={"memory_status": memory.get("status")},
                 )
-        if drain:
-            self.index_outbox.process_pending(commit=False)
-            self.projector_bus.process_pending(commit=False)
-        for listener_name, listener in list(self._memory_change_listeners.items()):
-            try:
-                listener(
-                    memory,
-                    action=action,
-                    reason=reason,
-                    source_ref=source_ref,
-                )
-            except Exception as exc:
-                self.ingestion.record_delete_propagation(
-                    source_ref=source_ref or memory["id"],
-                    source_type="memory_record",
-                    target_type=f"{listener_name}_change_listener",
-                    target_id=memory["id"],
-                    action="listener_failed",
-                    reason=reason,
-                    metadata={"error": f"{type(exc).__name__}: {exc}", "memory_action": action},
-                )
+        # All three queues are committed with the source mutation. No external
+        # vector, domain projection or listener may observe an uncommitted fact.
+        self.change_delivery.enqueue(memory, action=action, reason=reason, source_ref=source_ref, request=drain)
+
+    def process_memory_changes(self, *, limit: int = 100) -> JsonDict:
+        return self.change_delivery.process(limit=limit)
 
     def register_memory_change_listener(
         self,
@@ -2233,9 +2379,12 @@ class MemoryRuntime:
         *,
         reason: str,
         actor: str,
+        preserved_evidence: set[str] | None = None,
     ) -> JsonDict:
         before = self.get_memory(memory["id"])
         for evidence_id in candidate.get("evidence_ids", []):
+            if evidence_id in (preserved_evidence or set()):
+                continue
             if self._evidence_used_by_other_committed_candidate(
                 memory["id"],
                 str(evidence_id),
@@ -2311,8 +2460,9 @@ class MemoryRuntime:
         ).fetchone()
         return self._memory_from_row(row) if row else None
 
-    def _set_status(self, memory_id: str, status: str, *, reason: str, actor: str) -> JsonDict:
-        with self._lock:
+    def _set_status(self, memory_id: str, status: str, *, reason: str, actor: str,
+                    _commit: bool = True) -> JsonDict:
+        with self._lock, self._conn:
             before = self.get_memory(memory_id)
             now = _utc_now()
             self._conn.execute(
@@ -2336,7 +2486,8 @@ class MemoryRuntime:
                 reason=reason,
                 source_ref=memory_id,
             )
-            self._conn.commit()
+            if _commit:
+                self._conn.commit()
         return after
 
     def disable(self, memory_id: str) -> JsonDict:
@@ -2346,8 +2497,8 @@ class MemoryRuntime:
         return self._set_status(memory_id, "deleted", reason="manual_delete", actor="manual_repl")
 
     def restore(self, memory_id: str) -> JsonDict:
-        before = self.get_memory(memory_id)
-        with self._lock:
+        with self._lock, self._conn:
+            before = self.get_memory(memory_id)
             self._conn.execute(
                 "UPDATE memory_record SET status = 'active', updated_at = ? WHERE id = ?",
                 (_utc_now(), memory_id),
@@ -2525,13 +2676,25 @@ class MemoryRuntime:
             raise ValueError(f"memory not found: {memory_id}")
         return self._memory_from_row(row)
 
-    def list_memories(self, status: str | None = None) -> list[JsonDict]:
+    def list_memories(self, status: str | None = None, *, least_recently_scored: bool = False, limit: int | None = None) -> list[JsonDict]:
+        if least_recently_scored:
+            with self._lock:
+                rows = self._conn.execute(
+                    """SELECT m.* FROM memory_record m LEFT JOIN memory_lifecycle_state s ON s.memory_id=m.id
+                       WHERE m.owner_user_id=? AND m.agent_id=? AND m.status=?
+                       ORDER BY COALESCE(s.last_scored_at,''), m.id LIMIT ?""",
+                    (self.owner_user_id, self.agent_id, status or "active", max(0, limit or 0)),
+                ).fetchall()
+                return [self._memory_from_row(row) for row in rows]
         sql = "SELECT * FROM memory_record WHERE owner_user_id = ? AND agent_id = ?"
         params: list[Any] = [self.owner_user_id, self.agent_id]
         if status:
             sql += " AND status = ?"
             params.append(status)
         sql += " ORDER BY updated_at DESC"
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(max(0, limit))
         with self._lock:
             rows = self._conn.execute(sql, params).fetchall()
         return [self._memory_from_row(row) for row in rows]
@@ -2546,13 +2709,16 @@ class MemoryRuntime:
             raise ValueError(f"candidate not found: {candidate_id}")
         return self._candidate_from_row(row)
 
-    def list_candidates(self, status: str | None = None) -> list[JsonDict]:
+    def list_candidates(self, status: str | None = None, *, limit: int | None = None, offset: int = 0) -> list[JsonDict]:
         sql = "SELECT * FROM memory_candidate"
         params: list[Any] = []
         if status:
             sql += " WHERE status = ?"
             params.append(status)
-        sql += " ORDER BY created_at DESC"
+        sql += " ORDER BY created_at DESC, id DESC"
+        if limit is not None:
+            sql += " LIMIT ? OFFSET ?"
+            params.extend((limit, offset))
         with self._lock:
             rows = self._conn.execute(sql, params).fetchall()
         return [self._candidate_from_row(row) for row in rows]
@@ -2575,6 +2741,22 @@ class MemoryRuntime:
 
     def evidence_for_memory(self, memory_id: str) -> list[JsonDict]:
         return self.canonical_store.evidence_for_memory(memory_id)
+
+    def memory_revision_snapshot(self, memory_id: str) -> JsonDict:
+        with self._lock:
+            memory = self.get_memory(memory_id)
+            evidence = [item for item in self.evidence_for_memory(memory_id) if not item.get("deleted_at")]
+            revision = hashlib.sha256(_json({"memory": memory, "evidence": evidence}).encode()).hexdigest()
+            return {"memory": memory, "evidence": evidence, "revision": revision}
+
+    def correct_memory_checked(self, memory_id: str, new_summary: str, *, expected_revision: str) -> JsonDict:
+        """Use the canonical revision service, with owner-serialized stale target checks."""
+        with self._lock:
+            snapshot = self.memory_revision_snapshot(memory_id)
+            memory = snapshot["memory"]
+            if memory["status"] != "active" or snapshot["revision"] != expected_revision:
+                raise ValueError("memory revision changed")
+            return self.revise(memory_id, new_summary, reason="desktop_user_correction")
 
     def get_evidence(self, evidence_id: str) -> JsonDict:
         return self.canonical_store.get_evidence(evidence_id)
@@ -2658,6 +2840,91 @@ class MemoryRuntime:
 
     def list_index_outbox(self, *, status: str | None = None, limit: int = 50) -> list[JsonDict]:
         return self.index_outbox.list_items(status=status, limit=limit)
+
+    def list_queue_records(self, *, kind: str, status: str, limit: int = 100) -> list[JsonDict]:
+        stores = {"index": ("memory_index_outbox", self.index_outbox), "projection": ("memory_projector_outbox", self.projector_bus)}
+        if kind not in stores or status not in {"all", "pending", "failed", "dead_letter"}:
+            raise ValueError("unsupported queue filter")
+        table, store = stores[kind]
+        clause = " WHERE memory.owner_user_id = ? AND memory.agent_id = ?"
+        params = [self.owner_user_id, self.agent_id]
+        if status == "failed":
+            # Projector retries are pending + an error, not status='failed'.
+            clause += " AND outbox.error IS NOT NULL AND outbox.error <> '' AND outbox.status <> 'dead_letter'"
+        elif status != "all":
+            clause += " AND outbox.status = ?"
+            params.append(status)
+        params.append(max(1, min(limit, 101)))
+        with self._lock:
+            rows = self._conn.execute(f"SELECT outbox.* FROM {table} outbox JOIN memory_record memory ON memory.id=outbox.memory_id{clause} ORDER BY outbox.created_at DESC, outbox.id DESC LIMIT ?", params).fetchall()
+            return [store._from_row(row) for row in rows]
+
+    def queue_record_snapshot(self, *, kind: str, event_id: str) -> JsonDict:
+        stores = {"index": self.index_outbox, "projection": self.projector_bus}
+        if kind not in stores:
+            raise ValueError("unsupported memory queue")
+        with self._lock:
+            record = stores[kind].get_item(event_id)
+            memory = self.get_memory(record["memory_id"])
+            if memory["owner_user_id"] != self.owner_user_id or memory["agent_id"] != self.agent_id:
+                raise ValueError("queue event belongs to another owner")
+            retryable = record["status"] in {"failed", "dead_letter"} or (
+                kind == "projection" and record["status"] == "pending" and bool(record["error"])
+            )
+            canonical = {"memory": self.projector_bus._memory_payload(memory),
+                         "policy": self.projector_bus._policy_payload(memory), "lifecycle": memory.get("lifecycle", {})}
+            return {"record": record, "revision": hashlib.sha256(_json([record, canonical]).encode()).hexdigest(), "can_requeue": retryable}
+
+    def preview_queue_requeue(self, params: JsonDict) -> JsonDict:
+        snapshot = self.queue_record_snapshot(kind=params["kind"], event_id=params["event_id"])
+        if snapshot["revision"] != params["expected_revision"] or not snapshot["can_requeue"]:
+            raise ValueError("queue event changed or is not retryable")
+        record = snapshot["record"]
+        table = "memory_index_outbox" if params["kind"] == "index" else "memory_projector_outbox"
+        return {"impact_summary": {
+            "mutates": [table, "memory_quality_event"], "queue_kind": params["kind"],
+            "event_id": record["id"], "expected_revision": snapshot["revision"],
+            "status": record["status"], "attempts": record["attempts"], "additional_attempts": 3,
+        }}
+
+    def requeue_queue_record(self, *, kind: str, event_id: str, expected_revision: str) -> JsonDict:
+        # Only scheduling metadata changes here. Consumers keep their normal
+        # payload validation, idempotency and current canonical-state checks.
+        correlation = hashlib.sha256(_json([kind, event_id, expected_revision]).encode()).hexdigest()
+        with self._lock:
+            if self._conn.in_transaction:
+                raise ValueError("memory store transaction is busy")
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                snapshot = self.queue_record_snapshot(kind=kind, event_id=event_id)
+                prior = self._conn.execute(
+                    "SELECT id FROM memory_quality_event WHERE event_type='memory_queue_requeue' AND correlation_id=?",
+                    (correlation,),
+                ).fetchone()
+                if prior is not None:
+                    self._conn.commit()
+                    return {"status": "requeued", "requeued_count": 1, "audit_event_id": prior["id"]}
+                if snapshot["revision"] != expected_revision or not snapshot["can_requeue"]:
+                    raise ValueError("queue event changed or is not retryable")
+                record = snapshot["record"]
+                table = "memory_index_outbox" if kind == "index" else "memory_projector_outbox"
+                maximum = max(record["attempts"], record["max_attempts"]) + 3
+                self._conn.execute(
+                    f"UPDATE {table} SET status='pending', max_attempts=?, error=NULL, error_type=NULL, next_attempt_at=NULL, processed_at=NULL WHERE id=?",
+                    (maximum, event_id),
+                )
+                audit = self.quality_ops.record_quality_event(
+                    event_type="memory_queue_requeue", severity="info", status="resolved",
+                    message="One Memory event requeued after explicit maintenance confirmation",
+                    source_type=kind + "_outbox", source_id=event_id, correlation_id=correlation,
+                    payload={"expected_revision": expected_revision, "previous_status": record["status"],
+                             "attempts": record["attempts"], "additional_attempts": 3}, _commit=False,
+                )
+                self._conn.commit()
+                return {"status": "requeued", "requeued_count": 1, "audit_event_id": audit["id"]}
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     def index_health(self) -> JsonDict:
         return self.index_outbox.health()
@@ -2786,6 +3053,7 @@ class MemoryRuntime:
         limit: int = 200,
         actor: str = "lifecycle_worker",
         create_consolidation_candidates: bool | None = None,
+        least_recently_scored: bool = False,
     ) -> JsonDict:
         return self.lifecycle.run(
             mode=mode,
@@ -2793,6 +3061,7 @@ class MemoryRuntime:
             limit=limit,
             actor=actor,
             create_consolidation_candidates=create_consolidation_candidates,
+            least_recently_scored=least_recently_scored,
         )
 
     def score_memory_heat(self, memory_id: str, *, now: str | None = None) -> JsonDict:
@@ -2864,13 +3133,14 @@ class MemoryRuntime:
         reason: str = "user_forget_request",
         actor: str = "user",
     ) -> JsonDict:
-        return self.retention.request_forget(
-            target_type="memory",
-            target_id=memory_id,
-            mode=mode,
-            reason=reason,
-            actor=actor,
-        )
+        with self._lock, self._conn:
+            return self.retention.request_forget(
+                target_type="memory",
+                target_id=memory_id,
+                mode=mode,
+                reason=reason,
+                actor=actor,
+            )
 
     def forget_evidence(
         self,
@@ -2880,13 +3150,14 @@ class MemoryRuntime:
         reason: str = "user_forget_request",
         actor: str = "user",
     ) -> JsonDict:
-        return self.retention.request_forget(
-            target_type="evidence",
-            target_id=evidence_id,
-            mode=mode,
-            reason=reason,
-            actor=actor,
-        )
+        with self._lock, self._conn:
+            return self.retention.request_forget(
+                target_type="evidence",
+                target_id=evidence_id,
+                mode=mode,
+                reason=reason,
+                actor=actor,
+            )
 
     def list_forget_requests(self, *, limit: int = 50) -> list[JsonDict]:
         return self.retention.list_forget_requests(limit=limit)
@@ -2903,69 +3174,70 @@ class MemoryRuntime:
         cooldown_until: str | None = None,
         metadata: JsonDict | None = None,
     ) -> JsonDict:
-        allowed = {"auto", "allow", "silent_only", "ask", "always_ask", "none", "hidden", "deny"}
-        if surface_permission not in allowed:
-            raise ValueError(f"invalid surface_permission: {surface_permission}")
-        before = self.get_memory(memory_id)
-        override_id = _new_id("surface_override")
-        now = _utc_now()
-        with self._lock:
-            self._conn.execute(
-                """
-                INSERT INTO memory_surface_override (
-                    id, memory_id, override_type, surface_permission, reason,
-                    actor, status, expires_at, metadata_json, created_at, revoked_at
-                ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, NULL)
-                """,
-                (
-                    override_id,
-                    memory_id,
-                    override_type,
-                    surface_permission,
-                    reason,
-                    actor,
-                    expires_at,
-                    _json(metadata or {}),
-                    now,
-                ),
+        with self._lock, self._conn:
+            allowed = {"auto", "allow", "silent_only", "ask", "always_ask", "none", "hidden", "deny"}
+            if surface_permission not in allowed:
+                raise ValueError(f"invalid surface_permission: {surface_permission}")
+            before = self.get_memory(memory_id)
+            override_id = _new_id("surface_override")
+            now = _utc_now()
+            with self._lock:
+                self._conn.execute(
+                    """
+                    INSERT INTO memory_surface_override (
+                        id, memory_id, override_type, surface_permission, reason,
+                        actor, status, expires_at, metadata_json, created_at, revoked_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, NULL)
+                    """,
+                    (
+                        override_id,
+                        memory_id,
+                        override_type,
+                        surface_permission,
+                        reason,
+                        actor,
+                        expires_at,
+                        _json(metadata or {}),
+                        now,
+                    ),
+                )
+                if cooldown_until is None:
+                    self._conn.execute(
+                        """
+                        UPDATE memory_record
+                        SET surface_permission = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (surface_permission, now, memory_id),
+                    )
+                else:
+                    self._conn.execute(
+                        """
+                        UPDATE memory_record
+                        SET surface_permission = ?, surface_cooldown_until = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (surface_permission, cooldown_until, now, memory_id),
+                    )
+                self._conn.commit()
+            after = self.get_memory(memory_id)
+            self._append_revision(
+                memory_id,
+                action="surface_override",
+                before=before,
+                after=after,
+                reason=reason,
+                actor=actor,
             )
-            if cooldown_until is None:
-                self._conn.execute(
-                    """
-                    UPDATE memory_record
-                    SET surface_permission = ?, updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (surface_permission, now, memory_id),
-                )
-            else:
-                self._conn.execute(
-                    """
-                    UPDATE memory_record
-                    SET surface_permission = ?, surface_cooldown_until = ?, updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (surface_permission, cooldown_until, now, memory_id),
-                )
-            self._conn.commit()
-        after = self.get_memory(memory_id)
-        self._append_revision(
-            memory_id,
-            action="surface_override",
-            before=before,
-            after=after,
-            reason=reason,
-            actor=actor,
-        )
-        return {
-            "id": override_id,
-            "memory_id": memory_id,
-            "surface_permission": surface_permission,
-            "override_type": override_type,
-            "status": "active",
-            "expires_at": expires_at,
-            "memory": after,
-        }
+            return {
+                "id": override_id,
+                "memory_id": memory_id,
+                "surface_permission": surface_permission,
+                "override_type": override_type,
+                "status": "active",
+                "expires_at": expires_at,
+                "memory": after,
+            }
 
     def hide_memory(
         self,
@@ -2989,38 +3261,39 @@ class MemoryRuntime:
         reason: str = "user_clear_surface_override",
         actor: str = "user",
     ) -> JsonDict:
-        before = self.get_memory(memory_id)
-        now = _utc_now()
-        with self._lock:
-            self._conn.execute(
-                """
-                UPDATE memory_surface_override
-                SET status = 'revoked', revoked_at = ?
-                WHERE memory_id = ? AND status = 'active'
-                """,
-                (now, memory_id),
+        with self._lock, self._conn:
+            before = self.get_memory(memory_id)
+            now = _utc_now()
+            with self._lock:
+                self._conn.execute(
+                    """
+                    UPDATE memory_surface_override
+                    SET status = 'revoked', revoked_at = ?
+                    WHERE memory_id = ? AND status = 'active'
+                    """,
+                    (now, memory_id),
+                )
+                self._conn.execute(
+                    """
+                    UPDATE memory_record
+                    SET surface_permission = 'auto',
+                        surface_cooldown_until = NULL,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (now, memory_id),
+                )
+                self._conn.commit()
+            after = self.get_memory(memory_id)
+            self._append_revision(
+                memory_id,
+                action="surface_override_cleared",
+                before=before,
+                after=after,
+                reason=reason,
+                actor=actor,
             )
-            self._conn.execute(
-                """
-                UPDATE memory_record
-                SET surface_permission = 'auto',
-                    surface_cooldown_until = NULL,
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (now, memory_id),
-            )
-            self._conn.commit()
-        after = self.get_memory(memory_id)
-        self._append_revision(
-            memory_id,
-            action="surface_override_cleared",
-            before=before,
-            after=after,
-            reason=reason,
-            actor=actor,
-        )
-        return {"memory_id": memory_id, "status": "cleared", "memory": after}
+            return {"memory_id": memory_id, "status": "cleared", "memory": after}
 
     def record_surface_feedback(
         self,
@@ -3627,14 +3900,29 @@ class MemoryRuntime:
     def get_review_item(self, review_id: str) -> JsonDict:
         return self.gate_pipeline.get_review_item(review_id)
 
-    def list_review_items(self, *, status: str | None = "open", limit: int = 50) -> list[JsonDict]:
-        return self.gate_pipeline.list_review_items(status=status, limit=limit)
+    def list_review_items(self, *, status: str | None = "open", limit: int = 50, offset: int = 0) -> list[JsonDict]:
+        return self.gate_pipeline.list_review_items(status=status, limit=limit, offset=offset)
+
+    def review_snapshot(self, review_id: str) -> JsonDict:
+        return self.gate_pipeline.review_snapshot(review_id)
+
+    def review_revision(self, review_id: str) -> str:
+        return self.gate_pipeline.review_revision(review_id)
+
+    def resolve_review_checked(self, review_id: str, *, action: str, expected_revision: str, actor: str) -> JsonDict:
+        return self.gate_pipeline.resolve_review_checked(review_id, action=action, expected_revision=expected_revision, actor=actor)
 
     def get_quarantine(self, quarantine_id: str) -> JsonDict:
         return self.gate_pipeline.get_quarantine(quarantine_id)
 
-    def list_quarantines(self, *, status: str | None = "active", limit: int = 50) -> list[JsonDict]:
-        return self.gate_pipeline.list_quarantines(status=status, limit=limit)
+    def quarantine_snapshot(self, quarantine_id: str) -> JsonDict:
+        return self.gate_pipeline.quarantine_snapshot(quarantine_id)
+
+    def dismiss_quarantine_checked(self, quarantine_id: str, *, expected_revision: str, actor: str) -> JsonDict:
+        return self.gate_pipeline.dismiss_quarantine_checked(quarantine_id, expected_revision=expected_revision, actor=actor)
+
+    def list_quarantines(self, *, status: str | None = "active", limit: int = 50, offset: int = 0) -> list[JsonDict]:
+        return self.gate_pipeline.list_quarantines(status=status, limit=limit, offset=offset)
 
     def health(self) -> JsonDict:
         with self._lock:
@@ -3659,9 +3947,13 @@ class MemoryRuntime:
             pending_job_count = self._conn.execute(
                 "SELECT COUNT(*) FROM extraction_job WHERE status = 'pending'"
             ).fetchone()[0]
+            failed_job_count = self._conn.execute(
+                "SELECT COUNT(*) FROM extraction_job WHERE status = 'failed'"
+            ).fetchone()[0]
         canonical_store = self.store_health()
+        delivery = self.change_delivery.snapshot()
         return {
-            "status": "ok" if canonical_store["status"] in {"ok", "warn"} else "error",
+            "status": "ok" if canonical_store["status"] in {"ok", "warn"} and not delivery["failed"] and not delivery["error_code"] else "error",
             "mode": "in_process",
             "backend": "hybrid_rrf",
             "database": str(self.path),
@@ -3677,7 +3969,9 @@ class MemoryRuntime:
             "gate_decisions": gate_decision_count,
             "episodes": episode_count,
             "pending_extraction_jobs": pending_job_count,
+            "failed_extraction_jobs": failed_job_count,
             "canonical_store": canonical_store,
+            "change_delivery": delivery,
             "lifecycle": canonical_store.get("lifecycle", {}),
         }
 

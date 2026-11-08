@@ -1,0 +1,40 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/desktop-queue-native-20261107"
+  ],
+  "completed_at_utc": "2026-11-07T05:27:43Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-07T04:53:52Z",
+      "summary": "Continue authorized installed acceptance using the replacement QA identity only. Induce a real isolated index failure through a test fixture, then verify production WebView selected-record preview/confirmation/requeue/audit. No provider calls or daily state."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-07T05:27:43Z",
+      "summary": "Installed r4 selected index dead letter preview/confirm/requeue/audit and actual FTS drain applied verified via real Host/WebView and independent read-only database checks. Explicit isolated failure fixture, no provider requests or daily data. UI status-truth defect tracked separately; broader consistency remains open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-07T05:27:43Z",
+      "summary": "Installed r4 selected index dead letter preview/confirm/requeue/audit and actual FTS drain applied verified via real Host/WebView and independent read-only database checks. Explicit isolated failure fixture, no provider requests or daily data. UI status-truth defect tracked separately; broader consistency remains open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/desktop-queue-native-20261107"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-07T04:53:52Z",
+  "status": "completed",
+  "summary": "Installed r4 selected index dead letter preview/confirm/requeue/audit and actual FTS drain applied verified via real Host/WebView and independent read-only database checks. Explicit isolated failure fixture, no provider requests or daily data. UI status-truth defect tracked separately; broader consistency remains open.",
+  "title": "Verify installed single-event queue preview and recovery",
+  "updated_at_utc": "2026-11-07T05:27:43Z",
+  "verification": [
+    "outputs/desktop-queue-native-20261107/VERIFICATION.md; database-verification.json passed; installed consumer-applied.txt/.jpg"
+  ],
+  "workstream_id": "ws-desktop-queue-native-acceptance-20261107"
+}

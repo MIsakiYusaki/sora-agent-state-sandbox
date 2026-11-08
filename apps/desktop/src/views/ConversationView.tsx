@@ -127,7 +127,7 @@ export function ConversationView({
             </div>
           </div>
           <div className="conversation-topbar__actions">
-            <IconButton label="历史与分支" onClick={onOpenHistory}><History size={18} /></IconButton>
+            <IconButton label="对话历史" onClick={onOpenHistory}><History size={18} /></IconButton>
             <IconButton label="本轮对话控制" onClick={onOpenControls}><SlidersHorizontal size={18} /></IconButton>
             <IconButton label={contextOpen ? "关闭聊天摘要" : "查看这次聊天"} className={contextOpen ? "is-active" : ""} onClick={onContext}>
               <PanelRight size={18} />

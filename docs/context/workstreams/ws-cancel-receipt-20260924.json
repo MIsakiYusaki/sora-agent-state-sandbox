@@ -1,0 +1,55 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/CONVERSATION_GATEWAY.md",
+    "src/sora_sandbox/conversation_gateway/runtime_port.py",
+    "src/sora_sandbox/conversation_gateway/service.py",
+    "src/sora_sandbox/conversation_runtime/coordinator.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "tests/test_cancel_receipt.py",
+    "tests/test_conversation_gateway.py"
+  ],
+  "completed_at_utc": "2026-09-24T12:40:07Z",
+  "decision_ids": [
+    "adr-turn-specific-cancellation-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-24T12:20:23Z",
+      "summary": "Investigate installed cancel gap; require requested turn identity, record low-sensitivity receipt and token outcome without claiming terminal cancellation."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-24T12:40:07Z",
+      "summary": "Delivered turn-scoped cancellation and encrypted content-free receipts; public/timeout targets preserved under coordinator lock. Source regression and package installation passed; actual installed pre-commit cancellation still unverified due measured interaction delay, tracked in main acceptance."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-24T12:40:07Z",
+      "summary": "Delivered turn-scoped cancellation and encrypted content-free receipts; public/timeout targets preserved under coordinator lock. Source regression and package installation passed; actual installed pre-commit cancellation still unverified due measured interaction delay, tracked in main acceptance."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/CONVERSATION_GATEWAY.md",
+    "src/sora_sandbox/conversation_gateway/runtime_port.py",
+    "src/sora_sandbox/conversation_gateway/service.py",
+    "src/sora_sandbox/conversation_runtime/coordinator.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "tests/test_cancel_receipt.py",
+    "tests/test_conversation_gateway.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-24T12:20:23Z",
+  "status": "completed",
+  "summary": "Delivered turn-scoped cancellation and encrypted content-free receipts; public/timeout targets preserved under coordinator lock. Source regression and package installation passed; actual installed pre-commit cancellation still unverified due measured interaction delay, tracked in main acceptance.",
+  "title": "Turn-specific cancellation and verifiable cancellation receipt",
+  "updated_at_utc": "2026-09-24T12:40:07Z",
+  "verification": [
+    "66 focused passed; full regression 525 passed 77.98s; final focused 9 passed with three additional cases. Source tests cover stale target, exact target, duplicate, terminal, wrong conversation, legacy, commit race and diagnostic privacy.",
+    "NSIS build/manifest/installation-20260924.json exit 0; two actual installed DeepSeek turns and Memory jobs completed. No installed cancellation receipt; 44-text-observation-timing-20260924.json proves second observation arrived 18.49s after commit. No full cancellation or release claim."
+  ],
+  "workstream_id": "ws-cancel-receipt-20260924"
+}

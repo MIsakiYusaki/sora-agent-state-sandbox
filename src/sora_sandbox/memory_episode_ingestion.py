@@ -151,6 +151,7 @@ class EpisodeIngestionService:
         retention_policy: str = "persistent",
         sensitivity_hint: str = "low",
         now: str | None = None,
+        source_event_id: str | None = None,
     ) -> JsonDict:
         timestamp = now or utc_now()
         turn_id = turn_id or new_id("turn")
@@ -160,6 +161,7 @@ class EpisodeIngestionService:
             payload={"role": "user", "content": user_input},
             session_id=session_id,
             turn_id=turn_id,
+            raw_ref=source_event_id,
             visibility=visibility,
             retention_policy=retention_policy,
             sensitivity_hint=sensitivity_hint,
@@ -171,6 +173,7 @@ class EpisodeIngestionService:
             payload={"role": "assistant", "content": reply},
             session_id=session_id,
             turn_id=turn_id,
+            raw_ref=source_event_id,
             visibility=visibility,
             retention_policy=retention_policy,
             sensitivity_hint="low",
@@ -540,28 +543,53 @@ class EpisodeIngestionService:
         )
         return self.get_extraction_job(job_id)
 
-    def start_extraction_job(self, job_id: str) -> JsonDict:
+    def start_extraction_job(
+        self, job_id: str, *, now: str | None = None, lease_seconds: int = 120,
+    ) -> JsonDict:
         job = self.get_extraction_job(job_id)
         if job["status"] != ExtractionJobStatus.PENDING.value:
             raise ValueError(f"extraction job is not pending: {job_id}")
-        now = utc_now()
-        self.conn.execute(
+        now = now or utc_now()
+        updated = self.conn.execute(
             """
             UPDATE extraction_job
-            SET status = ?, attempts = attempts + 1, updated_at = ?, claimed_at = ?, error = NULL
-            WHERE id = ?
+            SET status = ?, attempts = attempts + 1, updated_at = ?, claimed_at = ?, error = NULL,
+                lease_token = ?, lease_expires_at = ?
+            WHERE id = ? AND status = 'pending'
             """,
-            (ExtractionJobStatus.RUNNING.value, now, now, job_id),
+            (ExtractionJobStatus.RUNNING.value, now, now, new_id("lease"),
+             _plus_seconds(now, lease_seconds), job_id),
         )
+        if updated.rowcount != 1:
+            raise ValueError("extraction job already claimed")
         return self.get_extraction_job(job_id)
 
-    def claim_next_extraction_job(self, *, now: str | None = None) -> JsonDict | None:
+    def claim_next_extraction_job(
+        self, *, now: str | None = None, lease_seconds: int = 120,
+    ) -> JsonDict | None:
         timestamp = now or utc_now()
+        self.conn.execute(
+            """UPDATE extraction_job
+               SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'pending' END,
+                   error = 'worker_lease_expired', available_at = ?, updated_at = ?,
+                   lease_token = NULL, lease_expires_at = NULL
+               WHERE status = 'running'
+                 AND (lease_expires_at IS NULL OR lease_expires_at <= ?)""",
+            (self.max_job_attempts, timestamp, timestamp, timestamp),
+        )
+        self.conn.execute(
+            """DELETE FROM memory_extraction_checkpoint WHERE job_id IN
+               (SELECT id FROM extraction_job WHERE status IN ('failed', 'cancelled', 'completed'))"""
+        )
         row = self.conn.execute(
             """
             SELECT * FROM extraction_job
             WHERE status = ?
               AND (available_at IS NULL OR available_at <= ?)
+              AND NOT EXISTS (
+                  SELECT 1 FROM memory_turn_receipt r
+                  WHERE r.episode_id = extraction_job.episode_id AND r.status != 'completed'
+              )
             ORDER BY priority DESC, created_at ASC
             LIMIT 1
             """,
@@ -569,7 +597,7 @@ class EpisodeIngestionService:
         ).fetchone()
         if not row:
             return None
-        return self.start_extraction_job(row["id"])
+        return self.start_extraction_job(row["id"], now=timestamp, lease_seconds=lease_seconds)
 
     def complete_extraction_job(
         self,
@@ -638,6 +666,7 @@ class EpisodeIngestionService:
             (episode_id, ExtractionJobStatus.PENDING.value, ExtractionJobStatus.RUNNING.value),
         ).fetchall()
         for row in rows:
+            self.conn.execute("DELETE FROM memory_extraction_checkpoint WHERE job_id = ?", (row["id"],))
             self.conn.execute(
                 "UPDATE extraction_job SET status = ?, updated_at = ?, error = ? WHERE id = ?",
                 (ExtractionJobStatus.CANCELLED.value, now, reason, row["id"]),

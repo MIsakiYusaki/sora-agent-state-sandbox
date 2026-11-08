@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "No budget increase or policy weakening. Old records remain incomplete; this does not bridge independent workers or prove installed-app readiness."
+  ],
+  "context": "Real follow-up exceeded the 2200 control-token pool because identical interpretation was serialized twice; prompt projection also removed subsystem health and arbitration details before diagnostics reconstructed them.",
+  "decided_at_utc": "2026-09-13T13:13:59Z",
+  "decision": "At generation projection remove only an exactly identical nested interpretation, retaining the full top-level controls and fail-closed budget. Capture allowlisted pre-generation decisions in encrypted turn execution evidence, separately from the model prompt, including live and failed turns.",
+  "decision_id": "adr-generation-projection-observation-v1",
+  "references": [
+    "outputs/turn-observability/CONVERSATION_WALKTHROUGH.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Deduplicate generation context while preserving independent L0 decision evidence",
+  "workstream_id": "ws-turn-observability-v2"
+}

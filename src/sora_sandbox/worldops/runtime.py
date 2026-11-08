@@ -9,6 +9,7 @@ from .contracts import (
     EXPRESSION_LEVELS,
     JsonDict,
     UserChoiceInterpretation,
+    content_hash,
     WorldOpsContractError,
 )
 from .provider import DeterministicChoiceMatcher, WorldOpsInterpretationProvider
@@ -80,6 +81,83 @@ class WorldOpsRuntime:
     provider: WorldOpsInterpretationProvider | None = None
     deterministic_matcher: DeterministicChoiceMatcher = field(default_factory=DeterministicChoiceMatcher)
     predicate_engine: PredicateEngine = field(default_factory=PredicateEngine)
+
+    def apply_authored_action(
+        self, *, request_id: str, instance_id: str, expected_revision: int,
+        bundle_id: str, canon_version: str, action: str, choice_id: str | None = None,
+    ) -> JsonDict:
+        """Apply a literal user selection without interpreting it through an LLM.
+
+        Request receipt, choice, evidence, transitions and derived outbox intents
+        form one local owner transaction. Other threads keep committed reads.
+        """
+        payload = {"instance_id": instance_id, "expected_revision": expected_revision,
+                   "bundle_id": bundle_id, "canon_version": canon_version,
+                   "action": action, "choice_id": choice_id}
+        digest = content_hash(payload)
+        correlation = "narrative." + request_id
+        with self.store.transaction():
+            receipt = self.store.desktop_action(request_id, digest)
+            if receipt is not None:
+                return receipt
+            active = self.store.active_bundle()
+            if active is None or active["manifest"]["bundle_id"] != bundle_id or active["manifest"]["canon_version"] != canon_version:
+                raise WorldOpsContractError("narrative_bundle_changed")
+            self.store.verify_bundle(active)
+            current = self.store.get_event_instance(instance_id)
+            if current["bundle_id"] != bundle_id or int(current["revision"]) != expected_revision:
+                raise WorldOpsContractError("narrative_event_changed")
+            event = self.store.event_definition(current["event_id"], definition_version=int(current["definition_version"]))
+            if event is None:
+                raise WorldOpsContractError("narrative_definition_unavailable")
+            if action == "invite" and choice_id is None:
+                if current["state"] == "dormant":
+                    context = {"facts": self.store.active_facts(), "world_clock": self.store.timeline()["world_clock"],
+                        "event_states": {x["event_id"]: x["state"] for x in self.store.list_event_instances()}}
+                    if not self.predicate_engine.evaluate(event.get("eligibility"), context):
+                        raise WorldOpsContractError("narrative_event_not_eligible")
+                    current = self.store.transition_event(instance_id, to_state="hinted", expected_revision=current["revision"],
+                        trigger_type="eligible", trigger_ref=request_id, correlation_id=correlation)["event"]
+                if current["state"] != "hinted":
+                    raise WorldOpsContractError("narrative_invitation_not_available")
+                current = self.store.transition_event(instance_id, to_state="invited", expected_revision=current["revision"],
+                    trigger_type="surface_selected", trigger_ref=request_id, correlation_id=correlation)["event"]
+            elif action == "choice" and choice_id is not None:
+                choices = {str(x["choice_id"]): x for x in event.get("choices") or []}
+                transition = self._transition_for_choice(event, current, choice_id)
+                if choice_id not in choices or transition is None:
+                    raise WorldOpsContractError("narrative_choice_not_authored_for_current_state")
+                interpretation = UserChoiceInterpretation(
+                    interpretation_id="desktop-choice." + request_id, event_instance_id=instance_id,
+                    input_id="desktop." + request_id, choice_id=choice_id, task_evidence=(),
+                    confidence=1.0, ambiguous=False, clarification=None, evidence_refs=("desktop." + request_id,),
+                    model_trace={"source": "explicit_authored_choice", "llm_called": False},
+                )
+                interpretation.validate(allowed_choice_ids=set(choices), allowed_task_ids={x["task_id"] for x in event.get("tasks") or []})
+                self.store.record_choice(interpretation.to_dict(), status="accepted")
+                current = self.store.transition_event(instance_id, to_state=transition["to"], expected_revision=current["revision"],
+                    trigger_type="choice", trigger_ref=interpretation.input_id, choice_id=choice_id,
+                    correlation_id=correlation, causation_id=interpretation.input_id)["event"]
+                # A button is proof of that authored choice, never proof of a
+                # semantic claim or an unrelated real-world task completion.
+                if current["state"] == "active":
+                    for task in event.get("tasks") or []:
+                        condition = task.get("completion") or {}
+                        if condition.get("op") == "evidence_count" and condition.get("evidence_type") == "user_choice":
+                            self.store.add_task_evidence(instance_id=instance_id, task_id=task["task_id"],
+                                input_id=interpretation.input_id, evidence_type="user_choice", confidence=1.0,
+                                payload={"authored_choice_id": choice_id, "evidence_refs": [interpretation.input_id]},
+                                accepted=True, correlation_id=correlation)
+                    self._complete_if_ready(event, current, correlation_id=correlation, causation_id=interpretation.input_id)
+                    current = self.store.get_event_instance(instance_id)
+            else:
+                raise WorldOpsContractError("unsupported_narrative_user_action")
+            receipt = {"schema_version": "WorldOpsUserActionReceipt.v1", "request_id": request_id,
+                "instance_id": instance_id, "event_id": current["event_id"], "revision": current["revision"],
+                "state": current["state"], "timeline_revision": self.store.timeline()["revision"],
+                "correlation_id": correlation, "llm_called": False}
+            self.store.record_desktop_action(request_id, digest, receipt)
+            return receipt
 
     def refresh_eligibility(self, *, correlation_id: str | None = None) -> JsonDict:
         active = self.store.active_bundle()

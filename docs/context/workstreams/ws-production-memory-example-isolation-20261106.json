@@ -1,0 +1,53 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/product_migrations.py",
+    "src/sora_sandbox/runtime_stack.py",
+    "src/sora_sandbox/state.py",
+    "tests/test_production_memory_defaults.py",
+    "tests/test_sandbox.py"
+  ],
+  "completed_at_utc": "2026-11-06T14:49:32Z",
+  "decision_ids": [
+    "adr-product-example-memory-isolation-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T14:14:18Z",
+      "summary": "Real native export exposed three bundled developer memory seeds in a new identity. Remove automatic imports in production/default/reset and migrate only exact untouched bundled examples via audited reversible disable. Fixtures opt in explicitly; no daily DB operations."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-06T14:49:32Z",
+      "summary": "Removed default/reset and compatibility-state developer-memory imports. Product-owned migration queries only known IDs, checks owner/evidence/initial revision and reversibly retires untouched examples after adapter registration. User-edited/restored/real-provenance records preserved."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-06T14:49:32Z",
+      "summary": "Removed default/reset and compatibility-state developer-memory imports. Product-owned migration queries only known IDs, checks owner/evidence/initial revision and reversibly retires untouched examples after adapter registration. User-edited/restored/real-provenance records preserved."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/desktop-privacy-20261106",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/product_migrations.py",
+    "src/sora_sandbox/runtime_stack.py",
+    "src/sora_sandbox/state.py",
+    "tests/test_production_memory_defaults.py",
+    "tests/test_sandbox.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T14:14:18Z",
+  "status": "completed",
+  "summary": "Removed default/reset and compatibility-state developer-memory imports. Product-owned migration queries only known IDs, checks owner/evidence/initial revision and reversibly retires untouched examples after adapter registration. User-edited/restored/real-provenance records preserved.",
+  "title": "Keep example memories out of product spaces",
+  "updated_at_utc": "2026-11-06T14:49:32Z",
+  "verification": [
+    "Python610 passed96.32s;6 production-default/migration tests included. outputs/desktop-privacy-20261106/python-full-delivery.xml. Native pre-fix export and exact contamination recorded in VERIFICATION.md. No daily DB operations."
+  ],
+  "workstream_id": "ws-production-memory-example-isolation-20261106"
+}

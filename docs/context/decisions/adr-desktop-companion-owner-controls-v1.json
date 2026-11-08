@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "User-facing settings expose no internal scores. Developer views show bounded真实 owner records, content-free source fingerprints, real audit receipts and observed operation durations. Unknown outcomes require reread; no automatic resend. Native credentials never enter WebView. This does not assert all domains, all admin commands or release gates complete."
+  ],
+  "context": "Existing Persona and Relationship owners are implemented but desktop controls and contribution governance are missing. User explicitly requests B3 then B4 then B2.",
+  "decided_at_utc": "2026-11-08T08:50:44Z",
+  "decision": "Keep domain canonical ownership. Public controls use scoped strict typed requests and owner-local transaction revision checks; agreement secrets stay inside Gateway and only allowlisted readable terms can be confirmed. Dedicated5minute main-window native capability gates exact-revision candidate rejection and contribution rollback/rebuild after explicit impact confirmation. Protected proposal approval remains unavailable through this low-disclosure surface.",
+  "decision_id": "adr-desktop-companion-owner-controls-v1",
+  "references": [
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Companion controls and exact domain governance",
+  "workstream_id": "ws-companion-controls-20261108"
+}

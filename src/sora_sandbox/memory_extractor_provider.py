@@ -13,6 +13,7 @@ from typing import Protocol
 from .memory_extractor_schema import EXTRACTOR_RESULT_SCHEMA_VERSION
 from .memory_extractor_repair import repair_extractor_json
 from .memory_schema import JsonDict, new_id
+from .turn_observability import observe_call, observe_http
 
 
 class MemoryExtractorProvider(Protocol):
@@ -118,7 +119,8 @@ class OpenAICompatibleExtractorProvider:
             if not self.json_repair_pass_enabled:
                 raise
             repair_started = perf_counter()
-            repair_payload = self._repair_output_with_llm(content, input_package, error=str(exc))
+            repair_payload = observe_call("memory.extractor.json_repair", self._repair_output_with_llm,
+                                          content, input_package, error=str(exc))
             repair_content = repair_payload["choices"][0]["message"].get("content") or ""
             result = _parse_json_object(repair_content)
             repair_pass = {
@@ -156,7 +158,7 @@ class OpenAICompatibleExtractorProvider:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as response:
+            with observe_http("provider.http.compat_extraction"), urllib.request.urlopen(req, timeout=self.timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")

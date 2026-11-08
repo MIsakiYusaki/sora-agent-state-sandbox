@@ -93,7 +93,7 @@ class ConversationContextPacker:
     def __init__(self, budget: ContextBudget | None = None) -> None:
         self.budget = budget or ContextBudget()
 
-    def pack_for_generation(self, context_pack: Mapping[str, Any]) -> JsonDict:
+    def pack_for_generation(self, context_pack: Mapping[str, Any], *, capture_frame_views: bool = False) -> JsonDict:
         """Returns the only context shape that may be passed to response generation."""
         packed = self.pack(context_pack)
         context = copy.deepcopy(packed.context)
@@ -106,6 +106,11 @@ class ConversationContextPacker:
             "dropped": list(packed.dropped),
             "context_hash": context_hash,
         }
+        from ..turn_observability import observe_response_basis
+        observe_response_basis(context)
+        if capture_frame_views:
+            from ..turn_observability import observe_generation_frames
+            observe_generation_frames(context)
         return context
 
     def pack(self, context_pack: Mapping[str, Any]) -> PackedContext:
@@ -278,6 +283,19 @@ class ConversationContextPacker:
             )
 
     def _project_prompt_views(self, source: JsonDict) -> JsonDict:
+        # Domain/signal evaluation needs the nested interpretation before this
+        # gate. Generation already receives the same canonical object at the
+        # top level; serializing it twice can exhaust the control pool on an
+        # ordinary follow-up. Only remove an exact duplicate, never reconcile
+        # conflicting control data or truncate its semantic constraints here.
+        turn_frame = dict(source.get("turn_frame") or {})
+        if (
+            isinstance(source.get("turn_interpretation"), Mapping)
+            and turn_frame.get("interpretation") == source["turn_interpretation"]
+        ):
+            turn_frame.pop("interpretation", None)
+            source["turn_frame"] = turn_frame
+
         session = dict(source.get("session_context") or {})
         session.pop("scene_snapshot", None)
         source["session_context"] = session
@@ -470,6 +488,7 @@ class ConversationContextPacker:
         memory_level = disclosure["memory"]
         recollection = dict(context.get("recollection_frame") or {})
         if DISCLOSURE_RANK[memory_level] <= DISCLOSURE_RANK[UnifiedDisclosureLevel.SILENT]:
+            recollection["items"] = []
             recollection["memory_summaries"] = []
             recollection["retrieved_ids"] = []
             recollection["surface_action"] = "none"

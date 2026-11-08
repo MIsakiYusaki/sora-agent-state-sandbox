@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "Frame metadata and command registry do not imply frame-content or command-execution readiness. Mock browser checks remain layout-only evidence."
+  ],
+  "context": "Production operators require real per-turn diagnostics, not prototype metrics or stale successful state.",
+  "decided_at_utc": "2026-09-07T12:30:43Z",
+  "decision": "Read authenticated low-sensitivity journal and health projections, retain unknown values, poll without overlap, mark stale snapshots and discard cross-conversation late responses.",
+  "decision_id": "adr-desktop-debug-evidence-v1",
+  "references": [
+    "docs/PROJECT_CONTEXT.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Developer Mode uses observed evidence and freshness boundaries",
+  "workstream_id": "ws-desktop-conversation-developer-fidelity-v1"
+}

@@ -8,6 +8,7 @@ from typing import Any, Callable, Mapping, Protocol
 
 from .contracts import JsonDict
 from .journal import ConversationJournal
+from ..turn_observability import TurnEvidence, observe_call
 
 
 class PostTurnConsumer(Protocol):
@@ -110,7 +111,7 @@ class PostTurnDispatcher:
                         )
                     continue
                 try:
-                    result = consumer.handle(event)
+                    result = self._consume_observed(consumer, event)
                     self.journal.complete_consumer(
                         consumer_name=consumer.name,
                         event_id=str(event["event_id"]),
@@ -144,6 +145,23 @@ class PostTurnDispatcher:
                 failed += 1
         return {"claimed": len(events), "delivered": delivered, "failed": failed}
 
+    def _consume_observed(self, consumer, event):
+        evidence = TurnEvidence(lane="post_turn")
+        name = consumer.name if consumer.name in {"memory", "affect", "relationship", "worldops"} else "external"
+        try:
+            with evidence.activate():
+                return observe_call("post_turn." + name, consumer.handle, event)
+        finally:
+            try:
+                self.journal.put_artifact(
+                    str(event["turn_id"]), "post_turn_evidence",
+                    evidence.snapshot(final=True) | {"event_id": str(event["event_id"]), "attempt": int(event["attempts"])},
+                    schema_version="TurnExecutionEvidence.v1",
+                )
+            except Exception:
+                if self.metrics is not None:
+                    self.metrics.increment("conversation_evidence_write_failed")
+
     def _matching_consumers(self, event_type: str) -> list[PostTurnConsumer]:
         with self._lock:
             return [
@@ -172,6 +190,9 @@ class MemoryPostTurnConsumer:
         self.memory_runtime = memory_runtime
 
     def handle(self, event: Mapping[str, Any]) -> JsonDict:
+        observe_committed = getattr(self.memory_runtime, "observe_committed_turn", None)
+        if callable(observe_committed):
+            return observe_committed(dict(event))
         payload = dict(event["payload"])
         updates = self.memory_runtime.observe_turn_candidates(
             str(payload.get("user_input") or ""), str(payload.get("reply") or "")

@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "No LLM call or automatic semantic consolidation is introduced. Full ANN/graph/LLM consolidation and tokenizer-specific calibration remain separate. Pausing periodic maintenance does not disable explicit Forget, privacy or extraction governance."
+  ],
+  "context": "A03 merged evidence without enhancing content; A04 tiny budgets clipped accounting; default lifecycle had no periodic scheduler.",
+  "decided_at_utc": "2026-11-08T10:03:28Z",
+  "decision": "Governed MERGE enhances gist/tags/importance while preserving privacy, validating sources and base content fingerprint, and rejecting conflicting rollback. Budget uses actual returned text under a named heuristic; undersized budgets omit items. MemorySystem manages an hourly bounded least-recently-scored lifecycle worker with atomic retention/heat/tombstone checkpoint and persisted confirmed pause controls.",
+  "decision_id": "adr-20261108-fbc38b01b2",
+  "references": [
+    "src/sora_sandbox/memory_lifecycle_scheduler.py",
+    "outputs/memory-effectiveness-20261108/focused-final.xml"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Memory semantic merge budget and maintenance v1",
+  "workstream_id": "ws-memory-effectiveness-20261108"
+}

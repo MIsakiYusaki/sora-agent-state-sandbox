@@ -1,0 +1,53 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src",
+    "apps/desktop/src-tauri/Cargo.toml",
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src-tauri/src/privacy.rs",
+    "outputs/desktop-privacy-20261106",
+    "src/sora_sandbox/conversation_gateway/desktop_privacy.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "tests/test_desktop_privacy_exports.py"
+  ],
+  "completed_at_utc": "2026-11-06T14:49:32Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T13:48:12Z",
+      "summary": "Continue user-authorized F25 through existing Host/Gateway/UI: guarded summary/diagnostic export with native Save File dialog, owner filters and truthful completion. Same-thread active frontend/Host/Gateway overlap reviewed; no daily export/deletion in tests."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-06T14:49:32Z",
+      "summary": "Connected allowlisted owner-scoped exports and native Save File/atomic save receipts with truthful cancellation/error/late-result handling. User completed one native summary save. Diagnostic native-save/cancel and installed acceptance remain explicit gates."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-06T14:49:32Z",
+      "summary": "Connected allowlisted owner-scoped exports and native Save File/atomic save receipts with truthful cancellation/error/late-result handling. User completed one native summary save. Diagnostic native-save/cancel and installed acceptance remain explicit gates."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src",
+    "apps/desktop/src-tauri",
+    "outputs/desktop-privacy-20261106",
+    "src/sora_sandbox/conversation_gateway/desktop_privacy.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "tests/test_desktop_privacy_exports.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T13:48:12Z",
+  "status": "completed",
+  "summary": "Connected allowlisted owner-scoped exports and native Save File/atomic save receipts with truthful cancellation/error/late-result handling. User completed one native summary save. Diagnostic native-save/cancel and installed acceptance remain explicit gates.",
+  "title": "Connect safe native privacy exports",
+  "updated_at_utc": "2026-11-06T14:49:32Z",
+  "verification": [
+    "Python610/frontend116/Host17;production frontend/debug Host builds;8 explicit layout scenes and32button AA/44px checks;user-saved661byte isolated native summary andUIreceipt. Full limits in outputs/desktop-privacy-20261106/VERIFICATION.md."
+  ],
+  "workstream_id": "ws-desktop-privacy-export-20261106"
+}

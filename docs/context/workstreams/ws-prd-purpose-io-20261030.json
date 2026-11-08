@@ -1,0 +1,47 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/PRD_AUTHORING_STANDARD.md",
+    "docs/PRD_INDEX.md",
+    "docs/context/catalog/artifacts.json",
+    "outputs/prd-purpose-io-20261030"
+  ],
+  "completed_at_utc": "2026-10-29T17:05:39Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-29T16:50:22Z",
+      "summary": "User requires all module PRDs to explain role,why,concrete upstream inputs/downstream outputs,mechanisms and whole-system value at the start. Cover25 module/supporting designs plus3 architecture references; deepen Affect source-persistence-decay-regulation-reappraisal explanation with one traced example. Preserve targets,existing body and boards; publish and read back each. No runtime edits."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T17:05:39Z",
+      "summary": "Reviewed and clarified openings of all25 module/supporting PRDs plus3 architecture references. Each now explains role,necessity,concrete upstream IO,timing,mechanism,example,system value and boundary. Affect additionally maps7 claims to mechanisms and6-step case. Persisted authoring standard; preserved original design/resources; no runtime edits."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-29T17:05:39Z",
+      "summary": "Reviewed and clarified openings of all25 module/supporting PRDs plus3 architecture references. Each now explains role,necessity,concrete upstream IO,timing,mechanism,example,system value and boundary. Affect additionally maps7 claims to mechanisms and6-step case. Persisted authoring standard; preserved original design/resources; no runtime edits."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "docs/PRD_AUTHORING_STANDARD.md",
+    "docs/PRD_INDEX.md",
+    "docs/context/catalog/artifacts.json",
+    "outputs/prd-purpose-io-20261030"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-29T16:50:22Z",
+  "status": "completed",
+  "summary": "Reviewed and clarified openings of all25 module/supporting PRDs plus3 architecture references. Each now explains role,necessity,concrete upstream IO,timing,mechanism,example,system value and boundary. Affect additionally maps7 claims to mechanisms and6-step case. Persisted authoring standard; preserved original design/resources; no runtime edits.",
+  "title": "Clarify purpose mechanisms and IO at every PRD opening",
+  "updated_at_utc": "2026-10-29T17:05:39Z",
+  "verification": [
+    "All28 fresh source snapshots and per-document readback pass:opening in first position,expected text,original body unchanged except recorded duplicate-title/history cleanup,resources/links preserved. AUDIT.md,verification.json,COMPLETION.md.",
+    "All28 catalog revisions match verified readbacks; Affect41. Scoped diff check and context validate passed with pre-existing active-task warnings. Module03 revision drift reviewed as identical body before write. No model request,product code changes,install,commit or push."
+  ],
+  "workstream_id": "ws-prd-purpose-io-20261030"
+}

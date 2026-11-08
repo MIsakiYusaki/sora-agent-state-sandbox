@@ -1,0 +1,50 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/context",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "outputs/desktop-privacy-20261106"
+  ],
+  "completed_at_utc": "2026-11-06T14:49:33Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T14:41:50Z",
+      "summary": "Record safe exports, durable erasure recovery, real isolated Host/Gateway acceptance, example-memory contamination and guarded migration. Same-thread documentation overlap reviewed, no cloud writes or release claims."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-06T14:49:33Z",
+      "summary": "Updated context25/ledger19/catalog/current desktop status/START_HERE/F01-F30 ledger and evidence report. Recorded real user-saved export, developer-memory contamination and guarded fix, erasure recovery, current610/116/17 regression and8layout scenes. No new installer, installed-erasure or production-completion claim."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-06T14:49:33Z",
+      "summary": "Updated context25/ledger19/catalog/current desktop status/START_HERE/F01-F30 ledger and evidence report. Recorded real user-saved export, developer-memory contamination and guarded fix, erasure recovery, current610/116/17 regression and8layout scenes. No new installer, installed-erasure or production-completion claim."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/context",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "outputs/desktop-privacy-20261106"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T14:41:50Z",
+  "status": "completed",
+  "summary": "Updated context25/ledger19/catalog/current desktop status/START_HERE/F01-F30 ledger and evidence report. Recorded real user-saved export, developer-memory contamination and guarded fix, erasure recovery, current610/116/17 regression and8layout scenes. No new installer, installed-erasure or production-completion claim.",
+  "title": "Record privacy and real-data verification",
+  "updated_at_utc": "2026-11-06T14:49:33Z",
+  "verification": [
+    "Current source/test/build evidence in outputs/desktop-privacy-20261106/VERIFICATION.md;manifest context25 matches snapshot and ledger19. Canonical scope and open release/F01-F30 boundaries retained."
+  ],
+  "workstream_id": "ws-desktop-privacy-context-20261106"
+}

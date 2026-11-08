@@ -17,6 +17,7 @@ from .llm import LLMClient
 from .prompt_loader import render_system_prompt, render_user_prompt
 from .state import append_recent_turn, find_world_event, now_ms, persist_response_candidates
 from .subsystems import FunctionSubsystemAdapter, SubsystemRegistry
+from .turn_observability import observe_call, observe_decisions, observe_event
 
 
 JsonDict = dict[str, Any]
@@ -215,6 +216,7 @@ class AgentRunner:
 
         def step(name: str, payload: JsonDict | None = None) -> None:
             trace.append({"seq": len(trace) + 1, "kind": name, "at": now_ms(), "payload": payload or {}})
+            observe_event(name)
 
         state["session"]["turn_id"] += 1
         state["session"]["context_version"] += 1
@@ -223,7 +225,7 @@ class AgentRunner:
         else:
             step("user.input.received", {"input_type": "text"})
 
-        context_pack = build_context_pack(
+        context_pack = observe_call("context.assembly", build_context_pack,
             state,
             user_input,
             step,
@@ -241,8 +243,9 @@ class AgentRunner:
             correlation_id=correlation_id,
             defer_domain_observation=self.defer_domain_observation,
         )
+        observe_decisions(context_pack)
         if self.context_pack_transformer is not None:
-            context_pack = self.context_pack_transformer(context_pack)
+            context_pack = observe_call("context.generation_gate", self.context_pack_transformer, context_pack)
             step(
                 "context.pack.transformed",
                 {"transformer": type(self.context_pack_transformer).__name__},
@@ -276,11 +279,11 @@ class AgentRunner:
             )
 
         t0 = _timer()
-        response_plan = self._plan_response(context_pack, user_input, step)
+        response_plan = observe_call("response.plan_and_validate", self._plan_response, context_pack, user_input, step)
         timing["response_planner"] = _elapsed_since(t0)
 
         t0 = _timer()
-        expression_event = route_expression(response_plan, context_pack, step)
+        expression_event = observe_call("expression.route", route_expression, response_plan, context_pack, step)
         timing["expression_router"] = _elapsed_since(t0)
 
         if self.interruptibility is not None and interruptibility_frame:
@@ -496,7 +499,7 @@ def build_context_pack(
             for event in preparsed_controls
         ):
             interpreter_for_turn = None
-    turn_interpretation = interpret_turn(
+    turn_interpretation = observe_call("turn.interpretation", interpret_turn,
         state,
         user_input,
         proactive_trigger=proactive_trigger,
@@ -513,7 +516,7 @@ def build_context_pack(
         },
     )
 
-    turn_frame = build_turn_frame(
+    turn_frame = observe_call("turn.frame", build_turn_frame,
         state,
         user_input,
         proactive_trigger=proactive_trigger,
@@ -521,7 +524,7 @@ def build_context_pack(
     )
     step("turn.frame.built", {"speech_act": turn_frame["speech_act"], "context_relevance": turn_frame["context_relevance"]})
 
-    context_use_policy = build_context_use_policy(turn_frame)
+    context_use_policy = observe_call("context.use_policy", build_context_use_policy, turn_frame)
     step("context.use_policy.built", {"allowed": context_use_policy["allowed_context_sources"], "blocked": context_use_policy["blocked_context_sources"]})
 
     active_user_id = state.get("session", {}).get("user_id")
@@ -531,7 +534,7 @@ def build_context_pack(
         if relationship_runtime is None:
             relationship_frame = build_legacy_relationship_frame(state)
         elif proactive_trigger or defer_domain_observation:
-            relationship_frame = relationship_runtime.frame(
+            relationship_frame = observe_call("relationship.initial_frame", relationship_runtime.frame,
                 user_id=active_user_id,
                 correlation_id=correlation_id,
             )
@@ -552,7 +555,7 @@ def build_context_pack(
     interruptibility_frame: JsonDict | None = None
     if interruptibility is not None:
         t0 = _timer()
-        interruptibility_frame = interruptibility.evaluate(
+        interruptibility_frame = observe_call("interruptibility.evaluate", interruptibility.evaluate,
             state,
             user_input=user_input,
             turn_interpretation=turn_interpretation,
@@ -594,7 +597,7 @@ def build_context_pack(
         )
 
     if relationship_runtime is not None:
-        relationship_frame = relationship_runtime.frame(
+        relationship_frame = observe_call("relationship.governed_frame", relationship_runtime.frame,
             user_id=active_user_id,
             interruptibility_frame=interruptibility_frame,
             correlation_id=correlation_id,
@@ -610,17 +613,17 @@ def build_context_pack(
         },
     )
 
-    session_context = build_session_context(state, behavior_frame, context_use_policy)
+    session_context = observe_call("session.context", build_session_context, state, behavior_frame, context_use_policy)
     step("session.context.updated", {"turn_id": session_context["turn_id"]})
 
-    origin_frame = build_origin_frame(state)
+    origin_frame = observe_call("origin.frame", build_origin_frame, state)
     step("origin.frame.provided", {"template_id": origin_frame.get("template_id"), "name": origin_frame.get("name")})
 
     if persona_runtime is None:
         persona_frame = build_persona_frame(state)
         persona_frame["runtime_mode"] = "legacy_fallback"
     else:
-        persona_frame = persona_runtime.frame(
+        persona_frame = observe_call("persona.frame", persona_runtime.frame,
             user_id=state.get("session", {}).get("user_id"),
             interruptibility_frame=interruptibility_frame,
             correlation_id=correlation_id,
@@ -650,7 +653,7 @@ def build_context_pack(
                 correlation_id=correlation_id,
             )
         elif proactive_trigger or defer_domain_observation:
-            affect_frame = affect_runtime.frame(
+            affect_frame = observe_call("affect.frame", affect_runtime.frame,
                 user_id=active_user_id,
                 interruptibility_frame=interruptibility_frame,
                 correlation_id=correlation_id,
@@ -723,7 +726,7 @@ def build_context_pack(
             if relationship_runtime is not None
             else affect_context_features
         )
-        recollection_frame = memory_runtime.recall(
+        recollection_frame = observe_call("memory.recall", memory_runtime.recall,
             user_input,
             turn_frame=turn_frame,
             context_use_policy=context_use_policy,
@@ -745,7 +748,7 @@ def build_context_pack(
             worldops_frame = build_worldops_frame(state, behavior_frame, persona_frame)
             worldops_frame["runtime_mode"] = "legacy_fallback"
         elif proactive_trigger or defer_domain_observation:
-            worldops_frame = worldops_runtime.frame(
+            worldops_frame = observe_call("worldops.frame", worldops_runtime.frame,
                 interruptibility_frame=interruptibility_frame,
                 correlation_id=correlation_id,
             )
@@ -801,7 +804,7 @@ def build_context_pack(
     timing["context_frames"] = _elapsed_since(context_start)
 
     t0 = _timer()
-    event_bus = build_event_bus(
+    event_bus = observe_call("event_bus.build", build_event_bus,
         state,
         user_input,
         behavior_frame,
@@ -811,7 +814,7 @@ def build_context_pack(
     timing["event_bus"] = _elapsed_since(t0)
 
     t0 = _timer()
-    base_signals, subsystem_health = collect_subsystem_signals(
+    base_signals, subsystem_health = observe_call("signals.collect", collect_subsystem_signals,
         state,
         event_bus,
         session_context,
@@ -831,7 +834,7 @@ def build_context_pack(
     timing["subsystem_signals"] = _elapsed_since(t0)
 
     t0 = _timer()
-    initiative_window = build_initiative_window(
+    initiative_window = observe_call("initiative.window", build_initiative_window,
         state,
         event_bus,
         behavior_frame,
@@ -842,7 +845,7 @@ def build_context_pack(
     timing["initiative_window"] = _elapsed_since(t0)
 
     t0 = _timer()
-    initiative_signals = build_initiative_signals(state, event_bus, initiative_window, base_signals, worldops_frame)
+    initiative_signals = observe_call("initiative.signals", build_initiative_signals, state, event_bus, initiative_window, base_signals, worldops_frame)
     timing["sig_initiative"] = _elapsed_since(t0)
     timing["subsystem_signals"] = round(timing["subsystem_signals"] + timing["sig_initiative"], 2)
 
@@ -851,7 +854,7 @@ def build_context_pack(
     semantic_judger = arbitration_judger
     if (interruptibility_frame or {}).get("response_obligation") == "forbidden":
         semantic_judger = None
-    arbitration_result = arbitrate_signals(
+    arbitration_result = observe_call("arbitration.resolve", arbitrate_signals,
         signals,
         initiative_window,
         turn_frame,

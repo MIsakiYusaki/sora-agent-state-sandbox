@@ -491,6 +491,13 @@ class WorldOpsSystem:
     def _propose_shared_episode_memory(self, envelope: Mapping[str, Any]) -> JsonDict:
         if self.memory_runtime is None:
             return {"status": "not_configured"}
+        memory = getattr(self.memory_runtime, "runtime", self.memory_runtime)
+        # A delivered WorldOps effect must leave either a usable review outcome
+        # or no Memory writes. Retry can resume pending materialization safely.
+        with memory._lock, memory._conn:
+            return self._materialize_shared_episode_memory(envelope)
+
+    def _materialize_shared_episode_memory(self, envelope: Mapping[str, Any]) -> JsonDict:
         payload = dict(envelope["payload"])
         instance = self.store.get_event_instance(str(payload["instance_id"]))
         event = self.store.event_definition(
@@ -501,7 +508,10 @@ class WorldOpsSystem:
             evidence = self.store.list_task_evidence(instance["instance_id"])
             if not any(item["accepted"] for item in evidence):
                 return {"status": "skipped_no_user_participation"}
-        summary = f"User and Sora completed the WorldOps event '{event.get('title') or instance['event_id']}'."
+        selected = next((item for item in event.get("choices") or [] if item.get("choice_id") == instance.get("selected_choice_id")), None)
+        summary = f"用户与 Sora 一起经历了「{event.get('title') or instance['event_id']}」。"
+        if selected is not None:
+            summary += f"用户选择：{selected.get('label') or selected['choice_id']}"
         transition_id = str(payload["transition_id"])
         existing_evidence = self.memory_runtime.find_evidence_by_source(
             source_type="worldops_transition",
@@ -528,6 +538,9 @@ class WorldOpsSystem:
             evidence_id = str(existing_evidence["id"])
         existing_candidate = self.memory_runtime.find_candidate_by_evidence(evidence_id)
         if existing_candidate is not None:
+            if existing_candidate["status"] == "pending":
+                self.memory_runtime.run_candidate_gate(existing_candidate["candidate_id"], actor="worldops_shared_episode")
+                existing_candidate = self.memory_runtime.get_candidate(existing_candidate["candidate_id"])
             return {
                 "status": "already_proposed",
                 "candidate": existing_candidate,
@@ -549,6 +562,9 @@ class WorldOpsSystem:
             trace={"source_event_id": envelope["event_id"], "correlation_id": envelope.get("correlation_id")},
             allow_auto_commit=False,
         )
+        if candidate.get("candidate_id"):
+            self.memory_runtime.run_candidate_gate(candidate["candidate_id"], actor="worldops_shared_episode")
+            candidate = self.memory_runtime.get_candidate(candidate["candidate_id"])
         return {"status": "proposed", "candidate": candidate, "evidence_id": evidence_id}
 
     def _submit_eligible_contribution(self, envelope: Mapping[str, Any]) -> JsonDict:

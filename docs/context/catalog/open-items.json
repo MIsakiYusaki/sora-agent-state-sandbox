@@ -1,18 +1,313 @@
 {
   "schema_version": "ProjectSoraOpenItems.v1",
-  "refreshed_at": "2026-08-31",
+  "refreshed_at": "2026-11-08",
   "items": [
-    {"id": "desktop-production-migration", "priority": "P0", "status": "in_progress", "owner_workstream": "ws-desktop-prototype-fidelity", "area": "desktop", "summary": "Migrate the accepted prototype into apps/desktop without replacing real runtime integrations."},
-    {"id": "desktop-real-contract-wiring", "priority": "P0", "status": "open", "area": "desktop", "summary": "Connect conversation, history, memory/privacy, controls, provider settings and Developer Mode to real typed Host/Gateway/Runtime contracts."},
-    {"id": "desktop-release-readiness", "priority": "P0", "status": "open", "area": "release", "summary": "Complete signing, updates, N-1 migration, rollback, SBOM, canary, target-hardware performance and Beta gates."},
-    {"id": "python-env-fastapi", "priority": "P1", "status": "open", "area": "tooling", "summary": "The current system Python environment lacks fastapi; pytest collection found 394 tests but failed on conversation gateway and desktop contract imports."},
-    {"id": "provider-catalog-ui", "priority": "P1", "status": "in_progress", "area": "model-provider", "summary": "Expose capability-based provider/model choices, existing credential migration and custom compatible endpoints without hardcoding DeepSeek Chat."},
-    {"id": "developer-mode-real-plumbing", "priority": "P1", "status": "open", "area": "desktop-debug", "summary": "Back Developer Mode with typed snapshots, events, correlation IDs, capabilities and audited commands; no arbitrary shell, SQL, Python or eval."},
-    {"id": "production-vector-deployment", "priority": "P1", "status": "open", "area": "memory-retrieval", "summary": "Provision and benchmark a production vector backend; adapters and tests exist but deployment topology is environment-specific."},
-    {"id": "real-traffic-quality-calibration", "priority": "P1", "status": "open", "area": "quality", "summary": "Calibrate extractor, recall, planner, surface, lifecycle, persona, affect and relationship thresholds on consented Beta traces."},
-    {"id": "worldops-production-services", "priority": "P1", "status": "open", "area": "worldops", "summary": "Deploy content distribution/editorial services and author signed production content packs."},
-    {"id": "catalog-missing-current-doc-links", "priority": "P2", "status": "open", "area": "documentation", "summary": "Confirm and catalog standalone current WorldOps, Text Runtime, Gateway and Model Provider Feishu design URLs where the repository currently has only local canonical docs or historical links."},
-    {"id": "memory-trace-lifecycle-link", "priority": "P2", "status": "open", "area": "memory", "summary": "Implement the intentionally deferred Recall trace retention linkage with Module 08 forgetting/lifecycle policy."},
-    {"id": "multimodal-presence", "priority": "deferred", "status": "deferred", "area": "future", "summary": "Desktop perception, vision, voice and always-on visual presence remain outside the text-first release."}
-  ]
+    {
+      "id": "desktop-production-migration",
+      "priority": "P0",
+      "status": "completed_baseline",
+      "owner_workstream": "ws-desktop-prototype-fidelity",
+      "area": "desktop",
+      "summary": "Production Quiet Companion Desk migration and key typed flows are implemented; remaining user flows/accessibility/release are separate items.",
+      "execution_batch": "baseline",
+      "delivery_track": "completed"
+    },
+    {
+      "id": "desktop-real-contract-wiring",
+      "priority": "P0",
+      "status": "partial",
+      "area": "desktop",
+      "summary": "11月8日r10已安装：B1历史核心补齐，正文搜索/多页续查、旧会话实际最近活动排序、准确分页末尾、预览与对话阅读锚点、独立历史读取错误、同请求去重和A→B→A迟到回包隔离。普通列表只解密标题/末条摘要，不创建明文正文索引。Python692及前端154项通过，7个亮暗/紧凑/错误与滚动夹具通过；实际构建/安装Gateway验证105段会话、400条加密消息八页与重启；实际安装窗口完成正文搜索→原会话预览→继续原会话→加载前文并保留位置。包28,962,452字节，SHA256 c492940c8e5090f080b95a1d3822c57beb59d0f5cad4fdbb874378f34e403994，未签名。Host仅有预期UNK→NSS三字节打包标记差异，其他字节一致，Gateway符合manifest。无外部模型请求或日常数据修改；未重测新的真实模型续聊回合。证据 outputs/history-core-20261108/VERIFICATION.md。下一批B5优先补用户可用的主动陪伴/后台回应及深度记忆整理，所需真实调试处置随能力补齐；B4正式内容服务与发布依赖仍单列。",
+      "execution_batch": "B1",
+      "delivery_track": "aggregate"
+    },
+    {
+      "id": "desktop-release-readiness",
+      "priority": "P0",
+      "status": "open",
+      "area": "release",
+      "summary": "Complete signing, updates, N-1 migration, rollback, SBOM, canary, target-hardware performance and Beta gates.",
+      "execution_batch": "B6",
+      "delivery_track": "release_gate"
+    },
+    {
+      "id": "python-env-fastapi",
+      "priority": "P1",
+      "status": "resolved",
+      "area": "tooling",
+      "summary": "Project .venv imports fastapi successfully on 2026-09-09; use this environment instead of the historical system-Python failure.",
+      "execution_batch": "baseline",
+      "delivery_track": "resolved"
+    },
+    {
+      "id": "provider-catalog-ui",
+      "priority": "P1",
+      "status": "in_progress",
+      "area": "model-provider",
+      "summary": "Expose capability-based provider/model choices, existing credential migration and custom compatible endpoints without hardcoding DeepSeek Chat.",
+      "execution_batch": "B1",
+      "delivery_track": "feature"
+    },
+    {
+      "id": "developer-mode-real-plumbing",
+      "priority": "P1",
+      "status": "in_progress",
+      "area": "desktop-debug",
+      "summary": "B3 r7 adds actionable Persona/Relationship domain governance with real audit/latency and native permission. Existing turn/HTTP/Memory bridges remain. F18/F30 complete worker attempts/failure coverage, remaining F20/F22, protected approvals, WorldOps governance and Host/WebView timing stay open.",
+      "execution_batch": "B5",
+      "delivery_track": "aggregate"
+    },
+    {
+      "id": "production-vector-deployment",
+      "priority": "P1",
+      "status": "open",
+      "area": "memory-retrieval",
+      "summary": "Provision and benchmark a production vector backend; adapters and tests exist but deployment topology is environment-specific.",
+      "execution_batch": "B6",
+      "delivery_track": "deployment"
+    },
+    {
+      "id": "real-traffic-quality-calibration",
+      "priority": "P1",
+      "status": "open",
+      "area": "quality",
+      "summary": "Calibrate extractor, recall, planner, surface, lifecycle, persona, affect and relationship thresholds on consented Beta traces.",
+      "execution_batch": "B6",
+      "delivery_track": "quality_enhancement"
+    },
+    {
+      "id": "worldops-production-services",
+      "priority": "P1",
+      "status": "open",
+      "area": "worldops",
+      "summary": "Deploy content distribution/editorial services and author signed production content packs.",
+      "execution_batch": "B4",
+      "delivery_track": "feature_and_deployment"
+    },
+    {
+      "id": "catalog-missing-current-doc-links",
+      "priority": "P2",
+      "status": "resolved",
+      "area": "documentation",
+      "summary": "Corrected Affect/WorldOps and Relationship design/audit mapping; added standalone BYOK, Runtime, Gateway and unified dataflow entries. Not a full rereview of every PRD.",
+      "execution_batch": "baseline",
+      "delivery_track": "resolved"
+    },
+    {
+      "id": "memory-trace-lifecycle-link",
+      "priority": "P2",
+      "status": "open",
+      "area": "memory",
+      "summary": "Implement the intentionally deferred Recall trace retention linkage with Module 08 forgetting/lifecycle policy.",
+      "execution_batch": "B5",
+      "delivery_track": "quality_enhancement"
+    },
+    {
+      "id": "multimodal-presence",
+      "priority": "deferred",
+      "status": "deferred",
+      "area": "future",
+      "summary": "Desktop perception, vision, voice and always-on visual presence remain outside the text-first release.",
+      "execution_batch": "deferred",
+      "delivery_track": "deferred"
+    },
+    {
+      "id": "memory-default-extractor-scheduler",
+      "priority": "P0",
+      "status": "resolved",
+      "owner_workstream": "ws-memory-background-ingestion-p0-20260910",
+      "area": "memory",
+      "summary": "Managed scheduler wired at composition root with dynamic provider availability, leases, checkpoint replay, backoff, shutdown and queue diagnostics. Verified by focused/full tests and real deepseek-v4-flash smoke; see docs/MEMORY_BACKGROUND_INGESTION.md.",
+      "execution_batch": "baseline",
+      "delivery_track": "resolved"
+    },
+    {
+      "id": "memory-source-identity",
+      "priority": "P0",
+      "status": "resolved",
+      "owner_workstream": "ws-memory-background-ingestion-p0-20260910",
+      "area": "memory",
+      "summary": "Committed event ingress preserves source/conversation/runtime-turn/correlation/owner identity. Atomic ingestion receipt and stable evidence/candidate IDs cover retry, cross-connection delivery, cancellation and source deletion; legacy REPL owner fallback corrected.",
+      "execution_batch": "baseline",
+      "delivery_track": "resolved"
+    },
+    {
+      "id": "memory-lifecycle-outbox-scheduling",
+      "priority": "P1",
+      "status": "partial",
+      "area": "memory",
+      "summary": "r6 managed post-commit index/projection/listener retry and r9 managed deterministic lifecycle periodic work are wired. Full external-owner fault/resource/forget-preemption matrix, full semantic consolidation and retention calibration remain open.",
+      "execution_batch": "B2",
+      "delivery_track": "aggregate"
+    },
+    {
+      "id": "working-tree-release-baseline",
+      "priority": "P0",
+      "status": "open",
+      "area": "release",
+      "summary": "Coordinate active tasks and validate the uncommitted local candidate before authorized logical commits/push. Other worktrees do not contain these changes.",
+      "execution_batch": "B6",
+      "delivery_track": "release_gate"
+    },
+    {
+      "id": "desktop-f01-f30-repair",
+      "priority": "P0",
+      "status": "in_progress",
+      "owner_workstream": "ws-desktop-functional-repair-20261015",
+      "area": "desktop",
+      "summary": "Finite user-authorized F01-F30 repair, not all complete. Preserve per-item source/test/install boundaries in outputs/desktop-functional-repair-20261015/PROGRESS.md; latest summary docs/DESKTOP_DELIVERY_STATUS.md.",
+      "execution_batch": "B1",
+      "delivery_track": "aggregate"
+    },
+    {
+      "id": "desktop-spaces-installed-acceptance",
+      "priority": "P1",
+      "status": "in_progress",
+      "owner_workstream": "ws-desktop-native-settings-20261028",
+      "area": "desktop",
+      "summary": "F23 r2 installed WebView create/switch/app.restart sample passes. Complete failure/upgrade matrix, scoped-location and accessibility checks. Matching r4 sidecar is installed.",
+      "execution_batch": "B6",
+      "delivery_track": "validation"
+    },
+    {
+      "id": "desktop-notifications-installed-acceptance",
+      "priority": "P1",
+      "status": "in_progress",
+      "owner_workstream": "ws-desktop-native-settings-20261028",
+      "area": "desktop",
+      "summary": "F24 NSIS AUMID and shortcut verified. First Setting ERROR_NOT_FOUND deadlock fixed; actual installed UI receives Windows submission receipt. Banner/background real-turn notification and MSI equivalent remain open. Evidence outputs/desktop-notifications-20261107/VERIFICATION.md.",
+      "execution_batch": "B5",
+      "delivery_track": "feature_and_validation"
+    },
+    {
+      "id": "desktop-privacy-export-and-erasure",
+      "priority": "P0",
+      "status": "in_progress",
+      "owner_workstream": "ws-desktop-privacy-operations-20261028",
+      "area": "privacy",
+      "summary": "Nov7 installed save/cancel and confirmed erasure recovery/app.restart passed with neighbour preservation. Nov8 actual Windows vault synthetic-owner deletion and neighbour preservation passed through the final frozen Gateway. Complete fault/path/permission/upgrade matrix remains open. Evidence outputs/memory-governance-20261108/VERIFICATION.md and outputs/desktop-install-20261106/VERIFICATION.md.",
+      "execution_batch": "B6",
+      "delivery_track": "validation"
+    },
+    {
+      "id": "client-current-combined-regression-and-package",
+      "priority": "P0",
+      "status": "completed_baseline",
+      "area": "release",
+      "summary": "Nov8 r10 combined regression and unsigned installed candidate verified: Python692/frontend154,7history visual/scroll fixtures,actual build/installed Gateway and native UI. Source snapshot archived on explicit user request; portable summary docs/releases/2026-11-08-r10.md. Formal release and other feature gaps remain separate.",
+      "execution_batch": "per_batch",
+      "delivery_track": "validation"
+    },
+    {
+      "id": "feishu-summary-sync-20261029",
+      "priority": "P1",
+      "status": "resolved",
+      "area": "documentation",
+      "summary": "User authorization renewed; six overview/status docs patched with26exact reviewed block writes and read back: progress81/architecture180/navigation277/dataflow38/DesktopPRD136/Memory151. Original requirements/resources retained; local pending flags reconciled. Evidence outputs/client-status-sync-20261029/CLOUD_SYNC.md and cloud-readback-verification.json. Product repair/release gaps remain open.",
+      "execution_batch": "baseline",
+      "delivery_track": "resolved"
+    },
+    {
+      "id": "memory-audit-correctness-followup",
+      "priority": "P1",
+      "status": "in_progress",
+      "area": "memory",
+      "summary": "Nov8 r6 closes checked review/exact audit atomicity and post-commit core; r9 closes A03 semantic MERGE, A04 heuristic returned-content bound and default deterministic lifecycle scheduling. Full A05 and external fault matrices remain open. See outputs/memory-effectiveness-20261108/VERIFICATION.md.",
+      "execution_batch": "B2",
+      "delivery_track": "aggregate"
+    },
+    {
+      "id": "all-provider-latency-accounting",
+      "priority": "P1",
+      "status": "open",
+      "area": "runtime",
+      "summary": "Measure optional memory provider paths, embedding, retries and background calls as well as coordinator calls; buffered client first delta is not provider TTFT.",
+      "execution_batch": "B5",
+      "delivery_track": "diagnostics"
+    },
+    {
+      "id": "main-feature-history-completion",
+      "priority": "P0",
+      "status": "completed_baseline",
+      "area": "desktop",
+      "summary": "r10 history core installed verified: full body search/retry and continuation; recency before pagination; exact last page; visible-message prepend anchors; duplicate/ABA/scope/cursor guards; independent history failures. Python692/frontend154/7visual fixtures, 105 owned conversations and400 encrypted messages, actual GUI search/continue/read earlier. No new live provider continuation round or fixed-snapshot pagination promise. See outputs/history-core-20261108/VERIFICATION.md.",
+      "execution_batch": "B1",
+      "delivery_track": "feature"
+    },
+    {
+      "id": "memory-semantic-merge-and-budget",
+      "priority": "P0",
+      "status": "completed_baseline",
+      "area": "memory",
+      "summary": "r9 implements governed semantic MERGE with source/base checks, privacy-preserving fields and checked rollback; actual returned text is within its named heuristic budget, including zero/tiny limits. Installed real Gateway review enhances the canonical gist. See outputs/memory-effectiveness-20261108/VERIFICATION.md.",
+      "execution_batch": "B2",
+      "delivery_track": "feature"
+    },
+    {
+      "id": "memory-lifecycle-periodic-scheduler",
+      "priority": "P0",
+      "status": "completed_baseline",
+      "area": "memory",
+      "summary": "r9 wires managed hourly bounded least-recently-scored heat/expiry/tombstone maintenance with atomic checkpoint, persisted confirmed pause/resume and normal shutdown. Installed periodic tick and restart verified. No automatic semantic consolidation; full A05 remains open.",
+      "execution_batch": "B2",
+      "delivery_track": "feature"
+    },
+    {
+      "id": "companion-user-controls-and-governance",
+      "priority": "P0",
+      "status": "partial",
+      "area": "companion",
+      "summary": "Nov8 r7 core delivered: real scoped Persona/Relationship controls, staged readable agreement confirmation/revocation, repair transitions, bounded proposal/contribution/audit views and native5minute exact-revision reject/rollback. Python654/frontend138/Host18+2ignored;8visual fixtures; build/installed API writes+restart and actual Host/WebView reads verified. Protected approvals/other domains/full fault matrix remain. See outputs/companion-controls-20261108/VERIFICATION.md.",
+      "execution_batch": "B3",
+      "delivery_track": "feature"
+    },
+    {
+      "id": "worldops-client-content-loop",
+      "priority": "P0",
+      "status": "partial",
+      "area": "worldops",
+      "summary": "r9 connects typed signed authored choice/task/personal timeline and actual actionable shared-memory review. QA pack signatures and real owner stores verified in build/installed Gateway; UI labels current local_split_development. New lantern source is reviewable, not officially published. Formal content distribution/editorial/server signing deployment and legacy completed-effect pending migration remain open.",
+      "execution_batch": "B4",
+      "delivery_track": "feature"
+    },
+    {
+      "id": "async-worker-diagnostics-and-recovery",
+      "priority": "P1",
+      "status": "open",
+      "area": "desktop-debug",
+      "summary": "Complete F18/F30 per-owner task/attempt/failure records and safe recovery plus required F20/F22 drilldown. New B1-B4 flows must already carry basic true timing/failure/audit evidence; B5 closes remaining coverage.",
+      "execution_batch": "B5",
+      "delivery_track": "diagnostics"
+    }
+  ],
+  "execution_policy": {
+    "updated_at": "2026-11-08",
+    "source": "docs/MAIN_FEATURE_PRIORITIES.md",
+    "goal": "Deliver usable main product flows before expanded release validation",
+    "sequence": [
+      "B3",
+      "B4",
+      "B2",
+      "B1",
+      "B5",
+      "B6"
+    ],
+    "priority_semantics": "priority retains risk/release severity; execution_batch defines delivery order; aggregate rows do not duplicate child work",
+    "preemption": "Actual inability to chat, privacy, identity or data-loss regressions preempt this order",
+    "user_override": "Prioritize B3 then B4 then B2; B1 follows.",
+    "next_batch": "B5",
+    "completed_core_batches": [
+      "B3",
+      "B2",
+      "B1"
+    ],
+    "client_core_with_external_dependencies": [
+      "B4"
+    ],
+    "b5_feature_first": [
+      "initiative_and_background_delivery",
+      "semantic_memory_consolidation",
+      "required_worker_and_domain_diagnostics"
+    ]
+  }
 }

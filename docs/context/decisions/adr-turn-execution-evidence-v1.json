@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "Full provider-attempt, background-job and Host-to-paint correlation remain separate acceptance work. Tests and UI fixture screenshots are not real-provider or release evidence."
+  ],
+  "context": "Legacy REPL durations and desktop event timestamps do not prove contiguous phase spans or completion of independent workers.",
+  "decided_at_utc": "2026-09-11T14:21:01Z",
+  "decision": "Collect content-free monotonic spans at actual runtime, recall, signal and post-turn consumer calls. Keep legacy durations and delivery instants separate; final unclosed work is end_unobserved. Project allowlisted decision rules without prompts or model reasons.",
+  "decision_id": "adr-turn-execution-evidence-v1",
+  "references": [
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "outputs/turn-observability/CONVERSATION_WALKTHROUGH.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Execution evidence is distinct from delivery events and background completion",
+  "workstream_id": "ws-turn-observability-v2"
+}

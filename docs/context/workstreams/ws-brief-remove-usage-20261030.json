@@ -1,0 +1,45 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/PRD_INDEX.md",
+    "docs/context/catalog/artifacts.json",
+    "outputs/brief-remove-usage-20261030"
+  ],
+  "completed_at_utc": "2026-10-29T16:32:46Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-29T16:31:44Z",
+      "summary": "Delete user-rejected presentation usage section from Feishu brief; preserve architecture boards and project content, renumber following PRD directory and sync artifact readback."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T16:32:46Z",
+      "summary": "Removed user-rejected section8 presentation/usage instructions; former section9 and8 subheadings renumbered8/8.x. Remaining content and architecture resources match exactly after readback revision145; artifact and local PRD directory references synchronized."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-29T16:32:46Z",
+      "summary": "Removed user-rejected section8 presentation/usage instructions; former section9 and8 subheadings renumbered8/8.x. Remaining content and architecture resources match exactly after readback revision145; artifact and local PRD directory references synchronized."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "docs/PRD_INDEX.md",
+    "docs/context/catalog/artifacts.json",
+    "outputs/brief-remove-usage-20261030"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-29T16:31:44Z",
+  "status": "completed",
+  "summary": "Removed user-rejected section8 presentation/usage instructions; former section9 and8 subheadings renumbered8/8.x. Remaining content and architecture resources match exactly after readback revision145; artifact and local PRD directory references synchronized.",
+  "title": "Remove brief presentation instructions",
+  "updated_at_utc": "2026-10-29T16:32:46Z",
+  "verification": [
+    "before135/after145 full readback:2 target blocks removed,9 headings renumbered,all remaining content and architecture resources unchanged; verification.json.",
+    "Scoped git diff --check passes. Documentation only; no runtime edits,commit or push."
+  ],
+  "workstream_id": "ws-brief-remove-usage-20261030"
+}

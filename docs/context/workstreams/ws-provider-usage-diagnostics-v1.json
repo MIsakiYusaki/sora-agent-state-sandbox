@@ -1,0 +1,47 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/conversation_gateway/runtime_port.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "src/sora_sandbox/model_provider/adapters.py",
+    "src/sora_sandbox/model_provider/client.py",
+    "tests/test_model_provider.py"
+  ],
+  "completed_at_utc": "2026-09-07T12:30:43Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-06T14:33:47Z",
+      "summary": "Preserve unknown provider usage and explicit zero across aliases; record existing runtime diagnostic projection coverage."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-07T12:30:43Z",
+      "summary": "New Provider and Gemini usage traces preserve unknown values and explicit zeros; runtime diagnostic projections reviewed and covered."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-07T12:30:43Z",
+      "summary": "New Provider and Gemini usage traces preserve unknown values and explicit zeros; runtime diagnostic projections reviewed and covered."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_gateway/runtime_port.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "src/sora_sandbox/model_provider",
+    "tests/test_model_provider.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-06T14:33:47Z",
+  "status": "completed",
+  "summary": "New Provider and Gemini usage traces preserve unknown values and explicit zeros; runtime diagnostic projections reviewed and covered.",
+  "title": "Provider usage evidence preservation",
+  "updated_at_utc": "2026-09-07T12:30:43Z",
+  "verification": [
+    "57 combined runtime/provider tests passed; 431 full Python tests passed; 27 Gateway tests passed"
+  ],
+  "workstream_id": "ws-provider-usage-diagnostics-v1"
+}

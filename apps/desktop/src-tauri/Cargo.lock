@@ -2442,6 +2442,7 @@ name = "project-sora-desktop"
 version = "0.1.0"
 dependencies = [
  "futures-util",
+ "regress",
  "reqwest 0.12.28",
  "schemars 0.8.22",
  "serde",

@@ -5,6 +5,7 @@
 Before analyzing, planning, or editing this repository, read:
 
 1. `docs/PROJECT_CONTEXT.md`
+   Also read `docs/START_HERE.md` and `docs/architecture/CONVERSATION_DATAFLOW.md` when resuming work, tracing a turn, or making cross-system integration/status claims. The latter is the single maintained source for current cross-system wiring; diagrams elsewhere are summaries or historical designs.
 2. `docs/context/PROJECT_LEDGER.md` and the relevant record in `docs/context/catalog/systems.json` for any system planning, review, implementation, audit, or status claim
 3. `README.md`
 4. The subsystem document and canonical artifact relevant to the task; artifact IDs and URLs are in `docs/context/catalog/artifacts.json`

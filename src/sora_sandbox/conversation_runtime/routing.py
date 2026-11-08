@@ -10,6 +10,7 @@ from typing import Any, Callable, Iterator, Protocol
 
 from .contracts import CancellationToken, JsonDict, TurnCancelled
 from .journal import ConversationJournal
+from ..turn_observability import observe_call
 
 
 class ModelTask(StrEnum):
@@ -63,6 +64,33 @@ class TurnModelBudget:
 
 class ModelBudgetExceeded(RuntimeError):
     pass
+
+
+class IncompleteModelResponse(RuntimeError):
+    """A buffered answer is not eligible for validation, delivery or commit."""
+
+    def __init__(self, status: str, *, usage: JsonDict, model: str | None) -> None:
+        # status comes only from the local allowlist below, never provider text.
+        super().__init__(f"Model response did not complete ({status})")
+        self.usage = dict(usage)
+        self.model = model
+
+
+def _completion_status(reason: Any) -> str:
+    if not isinstance(reason, str):
+        return "unrecognized_terminal"
+    normalized = reason.lower()
+    if normalized in {"stop", "end_turn", "stop_sequence"}:
+        return "complete"
+    if normalized in {"length", "max_tokens", "max_output_tokens"}:
+        return "output_limit"
+    if normalized in {"content_filter", "safety", "recitation", "refusal"}:
+        return "blocked"
+    if normalized in {"tool_calls", "function_call", "tool_use", "pause_turn"}:
+        return "requires_continuation"
+    if normalized == "incomplete":
+        return "incomplete"
+    return "unrecognized_terminal"
 
 
 class StreamingLLMClient(Protocol):
@@ -167,7 +195,7 @@ class RoutedLLMClient:
         started = time.perf_counter()
         try:
             budget.cancellation.raise_if_cancelled()
-            result = self._invoke(
+            result = observe_call("model." + task.value, self._invoke,
                 delegate=self.delegate,
                 system=system,
                 user=user,
@@ -182,8 +210,9 @@ class RoutedLLMClient:
                     budget.turn_id,
                     logical_task=task.value,
                     route=route.name,
-                    model=route.model,
+                    model=exc.model if isinstance(exc, IncompleteModelResponse) else route.model,
                     status="failed",
+                    usage=exc.usage if isinstance(exc, IncompleteModelResponse) else None,
                     thinking_disabled=route.thinking_disabled,
                     latency_ms=(time.perf_counter() - started) * 1000,
                     error_code=type(exc).__name__,
@@ -228,6 +257,8 @@ class RoutedLLMClient:
         usage: JsonDict = {}
         model: str | None = None
         event_count = 0
+        completion_status = "missing_terminal"
+        terminal_seen = False
         stream = stream_chat(
             system=system,
             user=user,
@@ -239,11 +270,26 @@ class RoutedLLMClient:
                 budget.cancellation.raise_if_cancelled()
                 event_count += 1
                 if event.get("delta"):
+                    if terminal_seen:
+                        completion_status = "content_after_terminal"
                     chunks.append(str(event["delta"]))
                 if event.get("usage"):
                     usage = dict(event["usage"])
                 if event.get("model"):
                     model = str(event["model"])
+                reason = event.get("finish_reason")
+                if reason is not None:
+                    observed = _completion_status(reason)
+                    if not terminal_seen:
+                        completion_status = observed
+                    elif observed != completion_status:
+                        completion_status = "conflicting_terminal"
+                    terminal_seen = True
+            # The final usage-only event (or EOF) can race with cancellation.
+            # Consume it for accurate usage, but do not turn cancellation into success.
+            budget.cancellation.raise_if_cancelled()
+            if completion_status != "complete":
+                raise IncompleteModelResponse(completion_status, usage=usage, model=model)
         except TurnCancelled:
             partial = "".join(chunks)
             if partial and self.journal is not None:
@@ -279,7 +325,7 @@ class RoutedLLMClient:
             "content": "".join(chunks),
             "usage": usage,
             "model": model or kwargs.get("model"),
-            "raw": {"stream_events": event_count},
+            "raw": {"stream_events": event_count, "completion_status": completion_status},
         }
 
     @staticmethod

@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "tests/test_worldops_system.py"
+  ],
+  "completed_at_utc": "2026-11-08T10:26:27Z",
+  "decision_ids": [
+    "adr-20261108-981305e0eb"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T10:16:07Z",
+      "summary": "Align the preexisting asynchronous WorldOps regression with actual Gate admission: needs_review instead of orphan pending, and assert a real open review. Preserve candidate type and exactly-once behavior."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "Preexisting asynchronous WorldOps regression now verifies actionable needs_review queue instead of orphan pending."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "Preexisting asynchronous WorldOps regression now verifies actionable needs_review queue instead of orphan pending."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "tests/test_worldops_system.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T10:16:07Z",
+  "status": "completed",
+  "summary": "Preexisting asynchronous WorldOps regression now verifies actionable needs_review queue instead of orphan pending.",
+  "title": "Shared episode review regression",
+  "updated_at_utc": "2026-11-08T10:26:27Z",
+  "verification": [
+    "55 narrative/WorldOps tests and final full684 passed; old failure preserved"
+  ],
+  "workstream_id": "ws-narrative-review-regression-20261108"
+}

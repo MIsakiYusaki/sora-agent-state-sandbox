@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "A crashed turn can remain pending until the conservative stale threshold plus polling interval. A user may continue a different turn meanwhile; later recovery does not create canonical history, outbox or Memory effects. The client does not claim an uncertain request was definitely unsaved. This is not a guarantee of remote provider abort or a complete soak result."
+  ],
+  "context": "Installed fault injection on 2026-09-29 killed the verified profile-scoped Gateway while a turn was generating. Host restarted on the next read and a following turn committed, but the interrupted turn remained generating beyond the five-minute stale threshold because recovery ran only at startup. The UI rendered an English transport error without marking the turn or retaining its draft.",
+  "decided_at_utc": "2026-09-29T11:31:28Z",
+  "decision": "Keep the five-minute stale threshold, exclude turns with a valid matching execution lease, and repeat stale recovery in the running Gateway every ten seconds. Persist a content-free turn.failed terminal on recovery. Treat Host SSE EOF without terminal as a transport failure; route per-turn shell errors to the client, label the local user message failed, retain its draft, and require history reload to resolve unknown commit state without automatic resend.",
+  "decision_id": "adr-midturn-gateway-recovery-v1",
+  "references": [
+    "outputs/installed-e2e-20260917/midturn-fault-20260929-b.json"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Lease-fenced Gateway crash recovery and uncertain client delivery",
+  "workstream_id": "ws-midturn-recovery-decision-20260929"
+}

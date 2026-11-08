@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri/src/host.rs"
+  ],
+  "completed_at_utc": "2026-10-10T12:06:52Z",
+  "decision_ids": [
+    "adr-midturn-gateway-recovery-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-29T11:30:14Z",
+      "summary": "Treat SSE EOF without a terminal event as a connection failure so crash handling cannot silently leave an active UI turn."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-10T12:06:52Z",
+      "summary": "Host emits a turn-scoped shell error when SSE EOF lacks a terminal; installed Gateway crash produced the expected Chinese uncertain-delivery state."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-10T12:06:52Z",
+      "summary": "Host emits a turn-scoped shell error when SSE EOF lacks a terminal; installed Gateway crash produced the expected Chinese uncertain-delivery state."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src-tauri/src/host.rs"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-29T11:30:14Z",
+  "status": "completed",
+  "summary": "Host emits a turn-scoped shell error when SSE EOF lacks a terminal; installed Gateway crash produced the expected Chinese uncertain-delivery state.",
+  "title": "Host stream EOF failure semantics",
+  "updated_at_utc": "2026-10-10T12:06:52Z",
+  "verification": [
+    "5 Rust Host tests passed before final stage-only repack; actual installed crash sample d shows incomplete marker and retained draft; final Desktop SHA256 f46b72943b7cd364053112756f55cad97e24d1e5ca5338f591f96c8a74bd0a08."
+  ],
+  "workstream_id": "ws-host-stream-eof-20260929"
+}

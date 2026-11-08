@@ -251,7 +251,11 @@ class OpenAIResponsesAdapter:
             response = event.get("response") or {}
             yield {
                 "delta": str(event.get("delta") or "") if event_type == "response.output_text.delta" else "",
-                "finish_reason": "stop" if event_type == "response.completed" else None,
+                "finish_reason": (
+                    "stop" if event_type == "response.completed"
+                    else "incomplete" if event_type == "response.incomplete"
+                    else None
+                ),
                 "usage": dict(response.get("usage") or {}),
                 "model": str(response.get("model") or target.model.model_id),
                 "provider_request_id": event.get("_provider_request_id"),
@@ -471,9 +475,13 @@ class GeminiNativeAdapter:
     def _usage(payload: JsonDict) -> JsonDict:
         usage = dict(payload.get("usageMetadata") or {})
         return {
-            "prompt_tokens": int(usage.get("promptTokenCount") or 0),
-            "completion_tokens": int(usage.get("candidatesTokenCount") or 0),
-            "total_tokens": int(usage.get("totalTokenCount") or 0),
+            target: int(usage[source])
+            for source, target in (
+                ("promptTokenCount", "prompt_tokens"),
+                ("candidatesTokenCount", "completion_tokens"),
+                ("totalTokenCount", "total_tokens"),
+            )
+            if usage.get(source) is not None
         }
 
 

@@ -9,7 +9,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type {
   CreateProfileRequest,
   EndpointMode,
@@ -25,6 +25,7 @@ import {
   type SupportedAuthScheme,
 } from "../config/providerCatalog";
 import type { DesktopTransport, ProviderConfigurationView } from "../transport";
+import { ProviderRoutesEditor } from "./ProviderRoutesEditor";
 
 interface ProviderSettingsProps {
   readonly transport: DesktopTransport;
@@ -38,6 +39,11 @@ const firstCustomOption = PROVIDER_CATALOG.custom_provider_options[0];
 
 export function ProviderSettings({ transport, onConfigurationChanged }: ProviderSettingsProps) {
   const [configuration, setConfiguration] = useState<ProviderConfigurationView | null>(null);
+  const [configurationLoading, setConfigurationLoading] = useState(true);
+  const [configurationError, setConfigurationError] = useState(false);
+  const configurationRequest = useRef(0);
+  const active = useRef(true);
+  const deleting = useRef(false);
   const [mode, setMode] = useState<SetupMode>("preset");
   const [selectedPresetId, setSelectedPresetId] = useState(firstPreset.id);
   const [modelId, setModelId] = useState(firstPreset.models[0].model_id);
@@ -54,6 +60,8 @@ export function ProviderSettings({ transport, onConfigurationChanged }: Provider
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProviderProfile | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   const selectedPreset = useMemo(
     () => PROVIDER_CATALOG.presets.find((preset) => preset.id === selectedPresetId) ?? firstPreset,
@@ -67,12 +75,22 @@ export function ProviderSettings({ transport, onConfigurationChanged }: Provider
     ?? selectedPreset.models[0];
 
   const refresh = async () => {
-    setConfiguration(await transport.listProviders());
+    const request = ++configurationRequest.current;
+    setConfigurationLoading(true);
+    try {
+      const next = await transport.listProviders();
+      if (active.current && request === configurationRequest.current) { setConfiguration(next); setConfigurationError(false); }
+    } catch (cause) {
+      if (active.current && request === configurationRequest.current) setConfigurationError(true);
+      throw cause;
+    } finally { if (active.current && request === configurationRequest.current) setConfigurationLoading(false); }
   };
 
   useEffect(() => {
-    void refresh().catch((cause) => setError(errorMessage(cause)));
-  }, []);
+    active.current = true; setConfiguration(null); setDeleteTarget(null); setDeleteConfirmation(""); setConfigurationError(false);
+    void refresh().catch(() => undefined);
+    return () => { active.current = false; ++configurationRequest.current; };
+  }, [transport]);
 
   const createOrResumeProvider = async (event: FormEvent) => {
     event.preventDefault();
@@ -89,7 +107,7 @@ export function ProviderSettings({ transport, onConfigurationChanged }: Provider
       });
       setNotice(
         outcome.routing.ready_for_conversation
-          ? "模型已连接，对话链路已经就绪。"
+          ? "模型已验证，对话路由已就绪。已有绑定不会自动替换，请在下方核对实际使用的模型。"
           : `模型已验证，仍有 ${outcome.routing.missing_conversation_workloads?.length ?? 0} 条运行路径需要其他模型。`,
       );
       setEditingProfile(null);
@@ -200,6 +218,10 @@ export function ProviderSettings({ transport, onConfigurationChanged }: Provider
         <span className="security-badge"><ShieldCheck size={15} /> 本机安全存储</span>
       </div>
 
+      {configurationLoading && <p role="status">正在读取实际模型配置…</p>}
+      {configurationError && <p role="alert">模型配置读取失败，当前连接数量和实际路由未确认。{configuration ? "下方仅保留上次已知配置，请重新读取后再操作。" : ""}</p>}
+      <button className="text-link" type="button" disabled={configurationLoading || busy !== null} onClick={() => void refresh().catch(() => undefined)}>重新读取模型配置</button>
+
       <div className="provider-list">
         {configuration?.profiles.map((profile) => {
           const models = configuration.models[profile.profile_id] ?? [];
@@ -226,7 +248,7 @@ export function ProviderSettings({ transport, onConfigurationChanged }: Provider
                   className="icon-button"
                   title={canRotate ? "轮换密钥" : "继续配置"}
                   aria-label={canRotate ? `轮换 ${profile.display_name} 密钥` : `继续配置 ${profile.display_name}`}
-                  disabled={busy !== null}
+                  disabled={busy !== null || configurationLoading || configurationError}
                   onClick={() => canRotate && verifiedModel ? void rotate(profile, verifiedModel) : resume(profile)}
                 >
                   {busy === profile.profile_id
@@ -234,16 +256,27 @@ export function ProviderSettings({ transport, onConfigurationChanged }: Provider
                     : canRotate ? <RotateCcw size={17} /> : <Wrench size={17} />}
                 </button>
               )}
+              <button className="text-link" type="button" disabled={busy !== null || configurationLoading || configurationError} onClick={() => { setDeleteTarget(profile); setDeleteConfirmation(""); }}>移除配置</button>
             </div>
           );
         })}
-        {!configuration?.profiles.length && (
+        {configuration && !configurationLoading && !configurationError && configuration.profiles.length === 0 && (
           <div className="provider-empty">
             <KeyRound size={20} />
             <span>尚未连接模型</span>
           </div>
         )}
       </div>
+      {deleteTarget && <section className="provider-delete-confirmation" role="region" aria-label="移除模型配置确认">
+        <h3>移除 {deleteTarget.display_name}？</h3><p>这会删除该模型配置的本机凭据，并移除所有引用它的主模型或降级绑定，可能使部分用途暂不可用。不会删除对话和记忆。</p>
+        <label>输入配置名称确认<input aria-label="输入配置名称确认" value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} /></label>
+        <button className="button button--danger" type="button" disabled={busy !== null || deleteConfirmation !== deleteTarget.display_name} onClick={() => {
+          if (deleting.current) return;
+          deleting.current = true; setDeleteConfirmation(""); setBusy("delete"); setError(null); setNotice(null);
+          void transport.deleteProvider(deleteTarget.profile_id).then(async () => { await refresh(); await onConfigurationChanged(); setDeleteTarget(null); setNotice("配置已移除，实际路由已重新读取。"); }).catch(() => { setDeleteTarget(null); setConfigurationError(true); setError("删除结果未获完整确认，请重新读取配置后核对，不会自动重试。"); }).finally(() => { deleting.current = false; setBusy(null); });
+        }}>确认移除配置</button><button className="button button--secondary" type="button" disabled={busy !== null} onClick={() => setDeleteTarget(null)}>取消</button>
+      </section>}
+      {configuration && <fieldset disabled={configurationLoading || configurationError} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><ProviderRoutesEditor transport={transport} configuration={configuration} onSaved={async () => { await refresh(); await onConfigurationChanged(); }} /></fieldset>}
 
       {configuration && configuration.profiles.length > 0 && !configuration.health.conversation_ready && (
         <div className="setup-warning" role="status">

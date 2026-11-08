@@ -7,6 +7,25 @@ repository.
 
 ## 1. Runtime topology
 
+### Turn-specific cancellation (September 24, 2026)
+
+HTTP/WebSocket cancellation and per-turn stream timeouts preserve the authenticated
+target `turn_id` through the runtime port. The coordinator matches both conversation
+and turn before setting the token; a late cancellation for an older turn cannot
+cancel the next execution in the same conversation. Internal process shutdown may
+still cancel by conversation. This does not add a durable pre-start cancel tombstone.
+
+The runtime records an encrypted `TurnCancellationReceipt.v1` artifact with its
+receipt/return wall-clock times, monotonic elapsed time, observed status before/after,
+and whether the token changed. No submitted text, custom reason, prompt, credentials
+or provider content is recorded. The content-free runtime diagnostic projection
+includes `cancellation_receipts`; desktop rendering is a separate integration step.
+A changed token or successful HTTP response is not proof of a cancelled terminal:
+the authoritative journal/event may still be committed when cancellation loses the
+commit race. Receipt times begin at the runtime boundary, not at the keyboard or
+Host boundary, and are not provider-abort/transport timing. Journal failures are
+reported rather than manufacturing a successful receipt.
+
 The stable desktop topology is one supervised Python child process per active
 local profile:
 
@@ -165,9 +184,17 @@ The Runtime transaction commits these four items atomically:
 
 Cancellation is cooperative and reaches the active provider. A cancelled or
 failed turn cannot write partial history or canonical post-turn effects. Startup
-recovery marks stale incomplete turns failed and repairs their terminal client
-event. Gateway ownership/idempotency bindings are durable SQLite WAL records and
-contain hashes and opaque IDs, never message text.
+and running-Gateway recovery check incomplete turns against the default five-minute
+stale threshold; the running check repeats every ten seconds. A valid matching
+execution lease fences active work. The failure write atomically rechecks the
+timestamp, nonterminal status and lease, so a renewal or state update after the
+initial scan cannot fail resumed execution. Stale turns become failed with a durable
+`turn.failed` terminal, without success history or post-turn outbox. A client
+whose SSE connection ends without a terminal must treat delivery as uncertain,
+reload history, and never automatically resend its draft. The observed installed
+fault sample and limitations are in `outputs/installed-e2e-20260917/ACCEPTANCE.md`.
+Gateway ownership/idempotency bindings are durable SQLite WAL records and contain
+hashes and opaque IDs, never message text.
 
 During shutdown, readiness changes to `not_ready`, new submissions receive
 `DRAINING`, and existing turns receive a grace period before the process exits.

@@ -32,7 +32,7 @@ GOAL_TERMS = ("目标", "计划", "准备", "接下来")
 
 
 def detect_sensitivity(text: str) -> str:
-    lowered = text.lower()
+    lowered = text.lower().replace("_", " ").replace("-", " ")
     if any(term in lowered for term in FORBIDDEN_TERMS):
         return "forbidden"
     if any(term in lowered for term in SENSITIVE_TERMS):

@@ -1,0 +1,48 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/components/Composer.test.tsx",
+    "apps/desktop/src/components/Composer.tsx"
+  ],
+  "completed_at_utc": "2026-09-28T12:07:16Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-23T11:34:07Z",
+      "summary": "Provide Esc stop in composer during streaming using existing cancel IPC; no automatic send, no timing delays or provider budget changes."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-24T12:20:23Z",
+      "summary": "Esc handler built and installed; three real UI attempts ended incomplete failure, no cancelled sample. Need cancel receipt timing rather than blind paid retries."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-28T12:07:16Z",
+      "summary": "Esc stop verified through actual installed UI Sept28: generating receipt with changed token, cancelled terminal, visible stopped marker, no delta/history/outbox/Memory source/job; next real conversation and normal restart pass. One generation-phase sample only; all-window cancellation and release gates remain outside this workstream."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-28T12:07:16Z",
+      "summary": "Esc stop verified through actual installed UI Sept28: generating receipt with changed token, cancelled terminal, visible stopped marker, no delta/history/outbox/Memory source/job; next real conversation and normal restart pass. One generation-phase sample only; all-window cancellation and release gates remain outside this workstream."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/components/Composer.test.tsx",
+    "apps/desktop/src/components/Composer.tsx"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-23T11:34:07Z",
+  "status": "completed",
+  "summary": "Esc stop verified through actual installed UI Sept28: generating receipt with changed token, cancelled terminal, visible stopped marker, no delta/history/outbox/Memory source/job; next real conversation and normal restart pass. One generation-phase sample only; all-window cancellation and release gates remain outside this workstream.",
+  "title": "Keyboard stop for an active installed conversation",
+  "updated_at_utc": "2026-09-28T12:07:16Z",
+  "verification": [
+    "desktop-cancel-20260923.xml 41 passed; NSIS installation-20260923.json exit 0; actual installed cancellation remains unverified.",
+    "desktop-cancel-20260928.xml 41 passed; 46-visible-stopped-20260928 and 47-cancelled-timeline-20260928; cancel-restart-assertions-20260928.json passed."
+  ],
+  "workstream_id": "ws-composer-cancel-20260923"
+}

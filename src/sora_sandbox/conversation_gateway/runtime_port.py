@@ -26,7 +26,7 @@ class ConversationRuntimePort(Protocol):
 
     def reconnect(self, turn_id: str, *, after_sequence: int = 0) -> list[ClientEvent]: ...
 
-    def cancel(self, conversation_id: str, *, reason: str) -> bool: ...
+    def cancel(self, conversation_id: str, *, reason: str, turn_id: str | None = None) -> bool: ...
 
     def turn_status(self, turn_id: str) -> TurnExecutionContext: ...
 
@@ -43,6 +43,16 @@ class ConversationRuntimePort(Protocol):
     ) -> list[JsonDict]: ...
 
     def conversation_version(self, conversation_id: str) -> int: ...
+
+    def diagnostic_turns(
+        self, conversation_id: str, *, limit: int = 20
+    ) -> list[JsonDict]: ...
+
+    def diagnostic_frame(self, conversation_id: str, turn_id: str, frame_id: str) -> JsonDict: ...
+
+    def set_frame_observation(self, enabled: bool) -> JsonDict: ...
+    def frame_observation(self) -> JsonDict: ...
+    def response_basis(self, conversation_id: str, turn_id: str) -> JsonDict | None: ...
 
     def health(self) -> JsonDict: ...
 
@@ -84,8 +94,8 @@ class LocalConversationRuntimeAdapter:
     def reconnect(self, turn_id: str, *, after_sequence: int = 0) -> list[ClientEvent]:
         return self.runtime.reconnect(turn_id, after_sequence=after_sequence)
 
-    def cancel(self, conversation_id: str, *, reason: str) -> bool:
-        return self.runtime.cancel(conversation_id, reason=reason)
+    def cancel(self, conversation_id: str, *, reason: str, turn_id: str | None = None) -> bool:
+        return self.runtime.cancel(conversation_id, reason=reason, turn_id=turn_id)
 
     def turn_status(self, turn_id: str) -> TurnExecutionContext:
         return self.runtime.turn_status(turn_id)
@@ -108,6 +118,29 @@ class LocalConversationRuntimeAdapter:
 
     def conversation_version(self, conversation_id: str) -> int:
         return self.runtime.conversation_version(conversation_id)
+
+    def history_summary(self, conversation_id: str) -> JsonDict:
+        return self.runtime.journal.history_summary(conversation_id)
+
+    def conversation_activity(self) -> dict[str, int]:
+        return self.runtime.journal.conversation_activity()
+
+    def diagnostic_turns(
+        self, conversation_id: str, *, limit: int = 20
+    ) -> list[JsonDict]:
+        return self.runtime.diagnostic_turns(conversation_id, limit=limit)
+
+    def diagnostic_frame(self, conversation_id: str, turn_id: str, frame_id: str) -> JsonDict:
+        return self.runtime.diagnostic_frame(conversation_id, turn_id, frame_id)
+
+    def set_frame_observation(self, enabled: bool) -> JsonDict:
+        return self.runtime.set_frame_observation(enabled)
+
+    def frame_observation(self) -> JsonDict:
+        return self.runtime.frame_observation()
+
+    def response_basis(self, conversation_id: str, turn_id: str) -> JsonDict | None:
+        return self.runtime.response_basis(conversation_id, turn_id)
 
     def health(self) -> JsonDict:
         return self.runtime.health()

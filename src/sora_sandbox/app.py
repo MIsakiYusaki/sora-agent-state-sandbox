@@ -43,6 +43,7 @@ def make_llm(
     *,
     owner: OwnerScope | None = None,
     allow_unconfigured: bool = False,
+    migrate_legacy: bool = True,
 ):
     if provider != "deepseek":
         raise CredentialError(f"Unsupported bootstrap provider: {provider}")
@@ -52,6 +53,8 @@ def make_llm(
         if configured is not None:
             return configured
         if allow_unconfigured:
+            if not migrate_legacy:
+                return system.llm
             # Desktop startup must stay non-interactive, but an existing legacy
             # credential can be migrated without exposing it to the WebView.
             try:

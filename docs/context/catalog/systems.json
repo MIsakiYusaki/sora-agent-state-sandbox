@@ -1,214 +1,515 @@
 {
   "schema_version": "ProjectSoraSystemCatalog.v1",
-  "refreshed_at": "2026-08-31",
-  "baseline_head": "a77ea7ad60e8277b53c9fe838d0d09552c57b2c3",
-  "status_note": "implemented_baseline means the domain implementation exists and is tested; it does not mean desktop wiring or release operations are complete.",
+  "refreshed_at": "2026-11-08",
+  "baseline_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "status_note": "Current source snapshot includes the cumulative r10 implementation. Acceptance parent37756f3; origin/main fetched and matched before the Nov8 user-authorized GitHub archive. git log identifies checkout SHA. Source/tests/local installed candidate and formal release remain separate. Portable r10 scope and evidence summary: docs/releases/2026-11-08-r10.md; local raw outputs and exports excluded.",
   "systems": [
     {
       "id": "memory-01-episode-evidence",
       "name": "Memory 01 Episode and Evidence",
       "status": "implemented_baseline",
       "owner_boundary": "Conversation events, episodes, evidence lineage, extraction jobs and retention metadata",
-      "code_paths": ["src/sora_sandbox/memory_episode_ingestion.py", "src/sora_sandbox/memory_store.py", "src/sora_sandbox/memory_schema.py"],
-      "test_paths": ["tests/test_memory_runtime.py"],
-      "design_artifact_ids": ["feishu-memory-module-01"],
-      "remaining": ["Production retention policy calibration", "Desktop evidence export and deletion UX"]
+      "code_paths": [
+        "src/sora_sandbox/memory_episode_ingestion.py",
+        "src/sora_sandbox/memory_committed_turn.py",
+        "src/sora_sandbox/memory_store.py",
+        "src/sora_sandbox/memory_schema.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py",
+        "tests/test_memory_background.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-01",
+        "repo-memory-background-ingestion"
+      ],
+      "remaining": [
+        "Production retention policy calibration",
+        "Installed save/cancel and erasure/restart now have bounded evidence; Nov8 real Windows vault synthetic-owner erasure/neighbour preservation passed. Complete fault/path/permission/upgrade matrix remains open."
+      ]
     },
     {
       "id": "memory-02-extractor",
       "name": "Memory 02 LLM Extractor and Four Operations",
       "status": "implemented_baseline",
-      "owner_boundary": "Asynchronous extraction proposals, ADD/UPDATE/MERGE/NOOP, schema validation, JSON repair and related-memory targeting",
-      "code_paths": ["src/sora_sandbox/memory_extraction.py", "src/sora_sandbox/memory_extractor_provider.py", "src/sora_sandbox/memory_extractor_repair.py", "src/sora_sandbox/memory_extractor_worker.py", "src/sora_sandbox/memory_write_decision.py"],
-      "test_paths": ["tests/test_memory_runtime.py", "evals/extractor"],
-      "design_artifact_ids": ["feishu-memory-module-02"],
-      "audit_artifact_ids": ["feishu-memory-module-02-audit"],
-      "remaining": ["Production prompt and model calibration by language/domain", "Continuous false-memory and multi-episode evaluation"]
+      "owner_boundary": "Extraction proposals with ADD/UPDATE/MERGE/DELETE and NOOP/REVIEW outcomes; schema/evidence validation, repair and related-memory targeting",
+      "code_paths": [
+        "src/sora_sandbox/memory_extraction.py",
+        "src/sora_sandbox/memory_extractor_provider.py",
+        "src/sora_sandbox/memory_extractor_repair.py",
+        "src/sora_sandbox/memory_extractor_worker.py",
+        "src/sora_sandbox/memory_extraction_scheduler.py",
+        "src/sora_sandbox/memory_extraction_delivery.py",
+        "src/sora_sandbox/memory_job_observability.py",
+        "src/sora_sandbox/memory_write_decision.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py",
+        "tests/test_memory_background.py",
+        "tests/test_memory_job_observability.py",
+        "evals/extractor"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-02",
+        "repo-memory-background-ingestion"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-02-audit"
+      ],
+      "remaining": [
+        "Production prompt and model calibration by language/domain",
+        "Continuous false-memory and multi-episode evaluation",
+        "Per-request usage and transport-internal retry tracing; installed Memory job/attempt/HTTP timeline verified September 20, but full installed acceptance remains open"
+      ]
     },
     {
       "id": "memory-03-gate",
       "name": "Memory 03 Gate and Governance",
       "status": "implemented_baseline",
       "owner_boundary": "Deterministic admission pipeline, independent quarantine, review, defer TTL, idempotency and policy enforcement",
-      "code_paths": ["src/sora_sandbox/memory_gate.py", "src/sora_sandbox/memory_gate_engine.py", "src/sora_sandbox/memory_gate_pipeline.py", "src/sora_sandbox/memory_gate_schema.py"],
-      "test_paths": ["tests/test_memory_runtime.py"],
-      "design_artifact_ids": ["feishu-memory-module-03"],
-      "audit_artifact_ids": ["feishu-memory-module-03-audit"],
-      "remaining": ["Production reviewer operations and SLA", "Policy threshold calibration from real usage"]
+      "code_paths": [
+        "src/sora_sandbox/memory_gate.py",
+        "src/sora_sandbox/memory_gate_engine.py",
+        "src/sora_sandbox/memory_gate_pipeline.py",
+        "src/sora_sandbox/memory_gate_schema.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-03"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-03-audit"
+      ],
+      "remaining": [
+        "Nov8 source now defers external effects until canonical commit, persists listener retry and checked-review exact audit atomically.16new regressions and full635 pass. Complete external-owner fault matrix remains; see adr-memory-committed-change-delivery-v1.",
+        "Production reviewer operations and SLA",
+        "Policy threshold calibration from real usage",
+        "Installed low-disclosure approve/reject/defer and atomic exact audit passed Nov8. Protected content remains blocked without a dedicated sensitive-disclosure workflow; full fault/permission matrix remains open."
+      ]
     },
     {
       "id": "memory-04-canonical-store",
       "name": "Memory 04 Canonical Store and Eventing",
       "status": "implemented_baseline",
       "owner_boundary": "Canonical records, evidence links, revisions, transaction commit, rollback, replay, index and projector outboxes",
-      "code_paths": ["src/sora_sandbox/memory_canonical_store.py", "src/sora_sandbox/memory_projector.py", "src/sora_sandbox/memory_index_outbox.py"],
-      "test_paths": ["tests/test_memory_runtime.py", "src/sora_sandbox/memory_canonical_eval.py"],
-      "design_artifact_ids": ["feishu-memory-module-04"],
-      "audit_artifact_ids": ["feishu-memory-module-04-audit"],
-      "remaining": ["High-volume storage benchmark", "Operational backup and disaster-recovery drill"]
+      "code_paths": [
+        "src/sora_sandbox/memory_canonical_store.py",
+        "src/sora_sandbox/memory_projector.py",
+        "src/sora_sandbox/memory_index_outbox.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py",
+        "src/sora_sandbox/memory_canonical_eval.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-04"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-04-audit"
+      ],
+      "remaining": [
+        "Nov8 source now defers external effects until canonical commit, persists listener retry and checked-review exact audit atomically.16new regressions and full635 pass. Complete external-owner fault matrix remains; see adr-memory-committed-change-delivery-v1.",
+        "High-volume storage benchmark",
+        "Operational backup and disaster-recovery drill",
+        "A01 local rollback and Nov8 atomic checked review plus durable post-commit propagation have current regressions. Cross-database delivery remains at least once; complete external-owner failure matrix remains open.",
+        "r9 semantic MERGE enhances governed content with source/base checks and privacy-preserving conflicting-rollback protection; legacy pending merge proposals without base fingerprints require regeneration."
+      ]
     },
     {
       "id": "memory-05-retrieval",
       "name": "Memory 05 Hybrid Retrieval and Context Packing",
       "status": "implemented_baseline",
       "owner_boundary": "FTS, vector, temporal and graph-lite retrieval, RRF fusion, cross-encoder/LLM rerank, budgeted packing and trace",
-      "code_paths": ["src/sora_sandbox/memory_hybrid_retrieval.py", "src/sora_sandbox/memory_vector_index.py", "src/sora_sandbox/memory_reranker.py", "src/sora_sandbox/memory_context_packer.py", "src/sora_sandbox/memory_trace.py"],
-      "test_paths": ["tests/test_memory_runtime.py", "tests/test_recall_eval.py", "evals/reports/hybrid_rrf"],
-      "design_artifact_ids": ["feishu-memory-module-05"],
-      "audit_artifact_ids": ["feishu-memory-module-05-audit"],
-      "remaining": ["Provision and benchmark a production vector deployment", "Tune reranker latency/quality/cost with real traffic", "Recall trace retention integration with lifecycle"]
+      "code_paths": [
+        "src/sora_sandbox/memory_hybrid_retrieval.py",
+        "src/sora_sandbox/memory_vector_index.py",
+        "src/sora_sandbox/memory_reranker.py",
+        "src/sora_sandbox/memory_context_packer.py",
+        "src/sora_sandbox/memory_trace.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py",
+        "tests/test_recall_eval.py",
+        "evals/reports/hybrid_rrf"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-05"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-05-audit"
+      ],
+      "remaining": [
+        "Provision and benchmark a production vector deployment",
+        "Tune reranker latency/quality/cost with real traffic",
+        "Recall trace retention integration with lifecycle"
+      ]
     },
     {
       "id": "memory-06-recall-planner",
       "name": "Memory 06 Recall Planner",
       "status": "implemented_baseline",
       "owner_boundary": "Pre-retrieval intent plan, subqueries, source selection, budgets, fast provider resolution and planner trace",
-      "code_paths": ["src/sora_sandbox/memory_recall_planner.py", "src/sora_sandbox/memory_recall_planner_eval.py"],
-      "test_paths": ["tests/test_memory_runtime.py"],
-      "design_artifact_ids": ["feishu-memory-module-06"],
-      "audit_artifact_ids": ["feishu-memory-module-06-audit", "feishu-memory-module-06-audit-2"],
-      "remaining": ["Real-query plan calibration", "Latency SLO validation for auxiliary inference"]
+      "code_paths": [
+        "src/sora_sandbox/memory_recall_planner.py",
+        "src/sora_sandbox/memory_recall_planner_eval.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-06"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-06-audit",
+        "feishu-memory-module-06-audit-2"
+      ],
+      "remaining": [
+        "Real-query plan calibration",
+        "Latency SLO validation for auxiliary inference"
+      ]
     },
     {
       "id": "memory-07-surface-policy",
       "name": "Memory 07 Surface Policy and Token Budget",
       "status": "implemented_baseline",
       "owner_boundary": "Disclosure permissions, surface actions, consent, compression, visibility controls and context token allocation",
-      "code_paths": ["src/sora_sandbox/memory_surface.py", "src/sora_sandbox/memory_surface_policy.py", "src/sora_sandbox/memory_context_packer.py"],
-      "test_paths": ["tests/test_memory_runtime.py", "src/sora_sandbox/memory_surface_eval.py"],
-      "design_artifact_ids": ["feishu-memory-module-07"],
-      "audit_artifact_ids": ["feishu-memory-module-07-audit"],
-      "remaining": ["Desktop-facing memory-use explanation", "Compression quality calibration across languages"]
+      "code_paths": [
+        "src/sora_sandbox/memory_surface.py",
+        "src/sora_sandbox/memory_surface_policy.py",
+        "src/sora_sandbox/memory_context_packer.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py",
+        "src/sora_sandbox/memory_surface_eval.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-07"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-07-audit"
+      ],
+      "remaining": [
+        "Compression quality calibration across languages",
+        "r9 packing bounds actual returned text using character_heuristic_v1; model-tokenizer accuracy still needs calibration."
+      ]
     },
     {
       "id": "memory-08-lifecycle",
       "name": "Memory 08 Lifecycle, Consolidation and Forgetting",
       "status": "implemented_baseline",
       "owner_boundary": "Heat signals, hot/warm/cold/archive migration, consolidation, contradiction handling, tombstones and deep recall",
-      "code_paths": ["src/sora_sandbox/memory_lifecycle.py", "src/sora_sandbox/memory_retention.py", "src/sora_sandbox/memory_lifecycle_eval.py"],
-      "test_paths": ["tests/test_memory_runtime.py"],
-      "design_artifact_ids": ["feishu-memory-module-08"],
-      "audit_artifact_ids": ["feishu-memory-module-08-audit"],
-      "remaining": ["Recall trace retention linkage", "Backfill calibration against production distributions"]
+      "code_paths": [
+        "src/sora_sandbox/memory_lifecycle.py",
+        "src/sora_sandbox/memory_retention.py",
+        "src/sora_sandbox/memory_lifecycle_eval.py",
+        "src/sora_sandbox/memory_lifecycle_scheduler.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-08"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-08-audit"
+      ],
+      "remaining": [
+        "Recall trace retention linkage",
+        "Backfill calibration against production distributions",
+        "r9 default deterministic heat/expiry/tombstone scheduler is installed-verified; full ANN/local-graph/LLM consolidation remains separate."
+      ]
     },
     {
       "id": "memory-09-projection-gateway",
       "name": "Memory 09 Projection Gateway",
       "status": "implemented_baseline",
       "owner_boundary": "Typed, idempotent, rebuildable and auditable delivery from memory into external canonical systems",
-      "code_paths": ["src/sora_sandbox/memory_projector.py"],
-      "test_paths": ["tests/test_memory_runtime.py"],
-      "design_artifact_ids": ["feishu-memory-module-09"],
-      "audit_artifact_ids": ["feishu-memory-module-09-audit"],
-      "remaining": ["End-to-end deployment validation with independently deployed subsystem services"]
+      "code_paths": [
+        "src/sora_sandbox/memory_projector.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-09"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-09-audit"
+      ],
+      "remaining": [
+        "Nov8 source now defers external effects until canonical commit, persists listener retry and checked-review exact audit atomically.16new regressions and full635 pass. Complete external-owner fault matrix remains; see adr-memory-committed-change-delivery-v1.",
+        "Canonical/privacy source checks and selected-index installed recovery verified; Nov8 durable listener retry and post-commit external delivery added. Independent deployment and complete cross-database fault matrix remain open."
+      ]
     },
     {
       "id": "memory-10-quality-ops",
       "name": "Memory 10 Quality, Observability and Admin",
       "status": "implemented_baseline",
       "owner_boundary": "Unified eval registry, trace correlation, replay, SLO, safe admin, baselines and release gates",
-      "code_paths": ["src/sora_sandbox/memory_quality_ops.py", "src/sora_sandbox/memory_observability.py"],
-      "test_paths": ["tests/test_memory_runtime.py"],
-      "design_artifact_ids": ["feishu-memory-module-10"],
-      "audit_artifact_ids": ["feishu-memory-module-10-audit"],
-      "remaining": ["Production telemetry backend and retention", "Release baseline promotion process in CI/CD"]
+      "code_paths": [
+        "src/sora_sandbox/memory_quality_ops.py",
+        "src/sora_sandbox/memory_observability.py",
+        "src/sora_sandbox/conversation_gateway/desktop_quality.py"
+      ],
+      "test_paths": [
+        "tests/test_memory_runtime.py",
+        "tests/test_desktop_functional_repairs.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-memory-module-10"
+      ],
+      "audit_artifact_ids": [
+        "feishu-memory-module-10-audit"
+      ],
+      "remaining": [
+        "Production telemetry backend and retention",
+        "Release baseline promotion process in CI/CD",
+        "Nov6 A02 formal gates now block missing/unverified baseline; ordinary eval can establish initial baseline. Source regression passed, installation pending; see outputs/memory-blockers-20261106/VERIFICATION.md",
+        "October28 quality inspection/event resolution source bridge verified with transactional audit and scoped capability; native installed acceptance remains open. See outputs/desktop-functional-repair-20261028/VERIFICATION.md"
+      ]
     },
     {
       "id": "interruptibility",
       "name": "Interruptibility System",
       "status": "implemented_baseline",
       "owner_boundary": "Orthogonal response, expansion, follow-up, topic-shift, initiative and state-surface permissions",
-      "code_paths": ["src/sora_sandbox/interruptibility.py", "src/sora_sandbox/interruptibility_contracts.py"],
-      "test_paths": ["tests/test_interruptibility.py", "evals/interruptibility"],
-      "design_artifact_ids": ["feishu-interruptibility"],
-      "remaining": ["Production desktop controls", "End-to-end control-effect latency measurement"]
+      "code_paths": [
+        "src/sora_sandbox/interruptibility.py",
+        "src/sora_sandbox/interruptibility_contracts.py"
+      ],
+      "test_paths": [
+        "tests/test_interruptibility.py",
+        "evals/interruptibility"
+      ],
+      "design_artifact_ids": [
+        "feishu-interruptibility"
+      ],
+      "remaining": [
+        "End-to-end control-effect latency measurement"
+      ]
     },
     {
       "id": "persona",
       "name": "Persona System",
       "status": "implemented_baseline",
       "owner_boundary": "Sora-global bounded traits, evidence-backed contributions, versioned definitions, rebuild and expression frame",
-      "code_paths": ["src/sora_sandbox/persona"],
-      "test_paths": ["tests/test_persona_system.py", "evals/persona"],
-      "design_artifact_ids": ["feishu-persona-current", "feishu-persona-legacy"],
-      "audit_artifact_ids": ["feishu-persona-audit"],
-      "remaining": ["Production trajectory calibration", "User-facing growth controls and explanations"]
+      "code_paths": [
+        "src/sora_sandbox/persona"
+      ],
+      "test_paths": [
+        "tests/test_persona_system.py",
+        "evals/persona"
+      ],
+      "design_artifact_ids": [
+        "feishu-persona-current",
+        "feishu-persona-legacy"
+      ],
+      "audit_artifact_ids": [
+        "feishu-persona-audit"
+      ],
+      "remaining": [
+        "Nov8 r7 scoped companion controls and Persona/Relationship governance core connected and verified; exact owner revisions, audit, staged agreement consent, repair and contribution rollback/rebuild. Protected approval/other-domain/full fault coverage remains; see outputs/companion-controls-20261108/VERIFICATION.md.",
+        "Production trajectory calibration"
+      ]
     },
     {
       "id": "affect",
       "name": "Affect and Internal State System",
       "status": "implemented_baseline",
       "owner_boundary": "Short-lived agent-global affect, target contexts, deterministic dynamics, decay, regulation and bounded expression",
-      "code_paths": ["src/sora_sandbox/affect"],
-      "test_paths": ["tests/test_affect_system.py", "evals/affect"],
-      "design_artifact_ids": ["feishu-affect-v2"],
-      "audit_artifact_ids": ["feishu-affect-design-audit", "feishu-affect-implementation-audit"],
-      "remaining": ["Real-traffic affect calibration", "Long-horizon non-escalation monitoring"]
+      "code_paths": [
+        "src/sora_sandbox/affect"
+      ],
+      "test_paths": [
+        "tests/test_affect_system.py",
+        "evals/affect"
+      ],
+      "design_artifact_ids": [
+        "feishu-affect-v2"
+      ],
+      "audit_artifact_ids": [
+        "feishu-affect-design-audit",
+        "feishu-affect-implementation-audit"
+      ],
+      "remaining": [
+        "Real-traffic affect calibration",
+        "Long-horizon non-escalation monitoring"
+      ]
     },
     {
       "id": "relationship",
       "name": "Relationship System",
       "status": "implemented_baseline",
       "owner_boundary": "Per-Sora/per-user multidimensional relationship continuity, agreements, repair, privacy, rebuild and release quality",
-      "code_paths": ["src/sora_sandbox/relationship"],
-      "test_paths": ["tests/test_relationship_system.py", "evals/relationship"],
-      "design_artifact_ids": ["feishu-relationship-current"],
-      "audit_artifact_ids": ["feishu-relationship-design-audit", "feishu-relationship-implementation-audit"],
-      "remaining": ["Beta calibration without optimizing dependency", "Desktop agreements, repair and privacy surfaces"]
+      "code_paths": [
+        "src/sora_sandbox/relationship"
+      ],
+      "test_paths": [
+        "tests/test_relationship_system.py",
+        "evals/relationship"
+      ],
+      "design_artifact_ids": [
+        "feishu-relationship-current"
+      ],
+      "audit_artifact_ids": [
+        "feishu-relationship-design-audit",
+        "feishu-relationship-implementation-audit"
+      ],
+      "remaining": [
+        "Nov8 r7 scoped companion controls and Persona/Relationship governance core connected and verified; exact owner revisions, audit, staged agreement consent, repair and contribution rollback/rebuild. Protected approval/other-domain/full fault coverage remains; see outputs/companion-controls-20261108/VERIFICATION.md.",
+        "Beta calibration without optimizing dependency"
+      ]
     },
     {
       "id": "worldops",
       "name": "WorldOps Narrative System",
       "status": "implemented_baseline",
       "owner_boundary": "Signed authored content, world/event/task FSM, client timelines, choices, sync, editorial contribution review and release quality",
-      "code_paths": ["src/sora_sandbox/worldops"],
-      "test_paths": ["tests/test_worldops_system.py", "evals/worldops"],
-      "design_artifact_ids": ["feishu-worldops-legacy"],
-      "audit_artifact_ids": ["feishu-worldops-implementation-audit"],
-      "remaining": ["Catalog the current canonical Feishu design URL", "Deploy real content distribution and editorial studio services", "Author production content packs"]
+      "code_paths": [
+        "src/sora_sandbox/worldops"
+      ],
+      "test_paths": [
+        "tests/test_worldops_system.py",
+        "evals/worldops"
+      ],
+      "design_artifact_ids": [
+        "feishu-worldops-current"
+      ],
+      "audit_artifact_ids": [
+        "feishu-worldops-implementation-audit"
+      ],
+      "remaining": [
+        "Deploy real content distribution and editorial studio services",
+        "Author production content packs",
+        "r9 installed client choice/task/timeline and actual shared-memory review bridge verified on explicit signed QA pack. Default remains labelled local development preview; source authoring is not formal publication. Legacy completed-effect pending migration remains explicit."
+      ]
     },
     {
       "id": "conversation-runtime",
       "name": "Text Conversation Runtime",
       "status": "implemented_baseline",
       "owner_boundary": "Turn state machine, hot-path orchestration, context packing, model route budget, streaming, atomic commit and post-turn async dispatch",
-      "code_paths": ["src/sora_sandbox/conversation_runtime", "docs/TEXT_CONVERSATION_RUNTIME.md"],
-      "test_paths": ["tests/test_conversation_runtime.py"],
-      "design_artifact_ids": ["repo-text-runtime"],
-      "audit_artifact_ids": ["feishu-text-runtime-design-audit", "feishu-text-runtime-implementation-audit"],
-      "remaining": ["Production latency benchmark", "Failure-injection and recovery soak", "Full desktop E2E"]
+      "code_paths": [
+        "src/sora_sandbox/conversation_runtime",
+        "docs/TEXT_CONVERSATION_RUNTIME.md"
+      ],
+      "test_paths": [
+        "tests/test_conversation_runtime.py"
+      ],
+      "design_artifact_ids": [
+        "repo-text-runtime",
+        "repo-unified-dataflow",
+        "feishu-text-runtime-current"
+      ],
+      "audit_artifact_ids": [
+        "feishu-text-runtime-design-audit",
+        "feishu-text-runtime-implementation-audit"
+      ],
+      "remaining": [
+        "Production latency benchmark",
+        "Failure-injection and recovery soak; Oct10 atomic recovery races pass cross-connection tests and installed service fixtures, new candidate real-UI repeat remains pending",
+        "Extend desktop E2E: stream completion/failure feedback, one autonomous installed generation-phase Esc cancellation, and one Sept29 installed mid-turn Gateway crash recovery have evidence. Failed crash turn has no successful history/outbox/Memory source/job; no-input interval, next explicit turn and normal restart pass. Other races, pre-start cancellation and repeated crash/soak remain open",
+        "Do not equate buffered validated client streaming with provider token streaming; measure all provider paths"
+      ]
     },
     {
       "id": "conversation-gateway",
       "name": "Live Text Conversation Gateway",
       "status": "implemented_baseline",
-      "owner_boundary": "Identity-scoped local API, REST/WebSocket streaming, idempotency, recovery, cancellation, supervision and observability",
-      "code_paths": ["src/sora_sandbox/conversation_gateway", "docs/CONVERSATION_GATEWAY.md"],
-      "test_paths": ["tests/test_conversation_gateway.py"],
-      "design_artifact_ids": ["repo-conversation-gateway"],
-      "audit_artifact_ids": ["feishu-gateway-design-audit", "feishu-gateway-implementation-audit"],
-      "remaining": ["Restore test environment dependency completeness", "Production desktop IPC and sidecar soak"]
+      "owner_boundary": "Identity-scoped local API, HTTP/SSE and other Gateway transports, idempotency, recovery, cancellation and delivery; Rust Host currently consumes SSE",
+      "code_paths": [
+        "src/sora_sandbox/conversation_gateway",
+        "docs/CONVERSATION_GATEWAY.md"
+      ],
+      "test_paths": [
+        "tests/test_conversation_gateway.py",
+        "tests/test_gateway_profile_paths.py",
+        "tests/test_installed_debug_memory_identity.py",
+        "tests/test_desktop_privacy.py",
+        "tests/test_desktop_space_provider_isolation.py"
+      ],
+      "design_artifact_ids": [
+        "repo-conversation-gateway",
+        "feishu-gateway-current"
+      ],
+      "audit_artifact_ids": [
+        "feishu-gateway-design-audit",
+        "feishu-gateway-implementation-audit"
+      ],
+      "remaining": [
+        "Production desktop IPC and sidecar soak; installed long-path I/O and Memory identity mapping fixed, idle restart/auth checks passed September 20, one generating-phase crash recovery passed September 29, Oct10 atomic lease checks pass unit races and installed no-model service fixtures",
+        "Nov6 guarded privacy routes and offline erasure fence/CLI startup block plus native Host recovery are connected. Python610 and isolated real Host/Gateway erasure/reassembly pass. Nov7 r4 packaged/installed long-path erasure and actual WebView recovery/app.restart pass. Real vault and complete fault/path acceptance remain open; only explicit QA data was deleted.",
+        "r10 owned activity metadata orders history before paging; ordinary summaries decrypt only two texts; full-body search remains on canonical encrypted Journal, no plaintext index. Offset pagination during new commits is not a fixed snapshot."
+      ]
     },
     {
       "id": "model-provider",
       "name": "Model Provider and BYOK",
       "status": "implemented_baseline",
       "owner_boundary": "Provider profiles, OS credential references, probes, endpoint policy, capability-based workload routing, fallback and admin",
-      "code_paths": ["src/sora_sandbox/model_provider", "src/sora_sandbox/credentials.py"],
-      "test_paths": ["tests/test_model_provider.py", "tests/test_app.py"],
-      "design_artifact_ids": ["feishu-desktop-prd"],
-      "remaining": ["Catalog standalone Provider PRD URL", "Finish desktop model catalog and custom endpoint UX", "Provider compatibility certification"]
+      "code_paths": [
+        "src/sora_sandbox/model_provider",
+        "src/sora_sandbox/credentials.py"
+      ],
+      "test_paths": [
+        "tests/test_model_provider.py",
+        "tests/test_provider_http_observability.py",
+        "tests/test_app.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-model-provider",
+        "feishu-desktop-prd"
+      ],
+      "remaining": [
+        "Finish desktop model catalog and custom endpoint UX",
+        "Provider compatibility certification",
+        "HTTP request lifetimes are observed; per-request cost/usage, TTFT and library-internal retries/redirects remain incomplete",
+        "Managed empty desktop spaces no longer migrate global legacy credentials (2 focused tests). Nov6 owner-scoped erasure is connected through Host/UI/recovery;7 isolated backend tests and a real Host/Gateway empty-vault erasure sample pass. Nov7 empty-vault installed erasure/recovery passes; real vault and complete fault acceptance remain open."
+      ]
     },
     {
       "id": "desktop-shell",
       "name": "Desktop Shell and Text UX",
       "status": "integration_in_progress",
       "owner_boundary": "Windows Tauri shell, trusted host, text conversation surfaces, provider settings, privacy controls, Developer Mode, packaging and update UX",
-      "code_paths": ["apps/desktop", "packaging", "scripts/build_desktop_release.ps1"],
-      "test_paths": ["apps/desktop/src/App.test.tsx", "apps/desktop/src/conversation/state.test.ts", "tests/test_desktop_contracts.py"],
-      "design_artifact_ids": ["feishu-desktop-prd", "repo-desktop-design-system"],
-      "audit_artifact_ids": ["feishu-desktop-prd-audit"],
-      "remaining": ["Complete prototype-to-production migration", "Wire every user page to real contracts", "Finish installer signing/update/rollback/SBOM/canary/Beta gates"]
+      "code_paths": [
+        "apps/desktop",
+        "packaging",
+        "scripts/build_desktop_release.ps1"
+      ],
+      "test_paths": [
+        "apps/desktop/src/App.test.tsx",
+        "apps/desktop/src/conversation/state.test.ts",
+        "apps/desktop/src/views/DeveloperView.test.tsx",
+        "apps/desktop/src/views/QualityInspector.test.tsx",
+        "apps/desktop/src/components/ProviderRoutesEditor.test.tsx",
+        "apps/desktop/src/HistoryIntegration.test.tsx",
+        "apps/desktop/src/views/SpaceSettings.test.tsx",
+        "apps/desktop/src/views/NotificationSettings.test.tsx",
+        "tests/test_desktop_contracts.py"
+      ],
+      "design_artifact_ids": [
+        "feishu-desktop-prd",
+        "repo-desktop-design-system",
+        "repo-desktop-delivery-status"
+      ],
+      "audit_artifact_ids": [
+        "feishu-desktop-prd-audit"
+      ],
+      "remaining": [
+        "Nov8 r7 scoped companion controls and Persona/Relationship governance core connected and verified; exact owner revisions, audit, staged agreement consent, repair and contribution rollback/rebuild. Protected approval/other-domain/full fault coverage remains; see outputs/companion-controls-20261108/VERIFICATION.md.",
+        "Nov8 P0 increment delivered: atomic checked review/audit, post-commit durable propagation/retry, native approve/reject/defer and actual Windows vault synthetic-owner erasure/neighbour preservation pass. FullPython635; installed unsigned matching r6. Remaining sensitive-disclosure/full fault/release gates stay open. Evidence outputs/memory-governance-20261108/VERIFICATION.md.",
+        "Real Windows vault synthetic-owner erasure/neighbour preservation verified Nov8. Complete fault/path/upgrade, custom endpoint and release acceptance remain open.",
+        "Nov7 r5 unsigned matching installer installed; frontend131 and10explicit status/error scenes pass. Python619/Host18 are unchanged r4 reports. Actual r4 selected-index requeue/audit/drain applied and r5 upgrade preservation pass; remaining F01-F30/release gaps stay open. See outputs/desktop-memory-status-20261107/VERIFICATION.md.",
+        "F23 installed create/switch/app.restart and F25 installed exports/cancel/pending recovery/restart pass. F24 NSIS registration and installed Windows API submission verified; banner/background-turn and MSI remain open. Nine neighbour files/exports preserved, Nov8 real Windows vault synthetic-owner erasure/neighbour preservation passed; no new model request.",
+        "Seven maintenance preview/confirm/audit commands and on-demand allowlisted frame values are wired. Oct15 unsigned frame candidate installed; Host7 and packaged/installed no-model smoke pass, existing Python557/frontend56 reports pass, fixture screenshots reviewed, isolated upgrade records preserved. New native frame/real-model/restart E2E, broader command/race/accessibility and safely adapted L3/L4 stay open. Evidence: outputs/context-frames-20261011/DELIVERY.md; previous native sample: outputs/admin-console-20261011/VERIFICATION.md. No automatic new feature expansion after this handoff.",
+        "Complete installed acceptance: incomplete-output alert/draft restore, Sept28 autonomous generating-phase Esc cancellation, and one Sept29 generating-phase Gateway crash recovery pass bounded checks; other cancellation races, repeated crash/soak and uncertain extra-turn provenance remain open. Evidence in outputs/installed-e2e-20260917/ACCEPTANCE.md",
+        "Complete screen-reader, keyboard, reduced-motion, compact and target-hardware accessibility verification",
+        "Finish installer signing/update/rollback/SBOM/canary/Beta gates",
+        "Nov8 r10 closes scoped history core with full-body continuation, recency, exact message pagination, actual visible anchors and stale/ABA error isolation. Installed UI search/continue/read earlier verified; broader scale/provider certification remains separate. See outputs/history-core-20261108/VERIFICATION.md."
+      ]
     },
     {
       "id": "desktop-perception",
@@ -217,8 +518,13 @@
       "owner_boundary": "Future desktop state, vision, voice and richer presence inputs",
       "code_paths": [],
       "test_paths": [],
-      "design_artifact_ids": [],
-      "remaining": ["Do not start until text input-to-output release is stable", "Requires separate consent, privacy and multimodal architecture"]
+      "design_artifact_ids": [
+        "feishu-presence-behavior"
+      ],
+      "remaining": [
+        "Do not start until text input-to-output release is stable",
+        "Requires separate consent, privacy and multimodal architecture"
+      ]
     }
   ]
 }

@@ -7,6 +7,67 @@ from .memory_schema import JsonDict, json_loads
 
 
 MEMORY_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS memory_review_resolution_audit (
+    id TEXT PRIMARY KEY,
+    review_id TEXT NOT NULL UNIQUE,
+    candidate_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    expected_revision TEXT NOT NULL,
+    resolved_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_change_delivery (
+    id TEXT PRIMARY KEY,
+    listener_name TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    source_revision TEXT NOT NULL,
+    action TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    source_ref TEXT,
+    status TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error_code TEXT,
+    available_at TEXT,
+    created_at TEXT NOT NULL,
+    processed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_memory_change_delivery_pending
+ON memory_change_delivery(status,available_at,created_at);
+
+CREATE TABLE IF NOT EXISTS memory_extraction_attempt (
+    job_id TEXT NOT NULL REFERENCES extraction_job(id) ON DELETE CASCADE,
+    attempt INTEGER NOT NULL,
+    started_at_ms REAL NOT NULL,
+    ended_at_ms REAL,
+    outcome TEXT NOT NULL,
+    error_code TEXT,
+    execution_json TEXT NOT NULL,
+    PRIMARY KEY(job_id, attempt)
+);
+
+CREATE TABLE IF NOT EXISTS memory_turn_receipt (
+    source_event_id TEXT PRIMARY KEY,
+    payload_hash TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    correlation_id TEXT,
+    episode_id TEXT,
+    status TEXT NOT NULL,
+    result_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    UNIQUE(owner_user_id, agent_id, conversation_id, turn_id)
+);
+
+CREATE TABLE IF NOT EXISTS memory_extraction_checkpoint (
+    job_id TEXT PRIMARY KEY REFERENCES extraction_job(id) ON DELETE CASCADE,
+    input_json TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS evidence (
     id TEXT PRIMARY KEY,
     source_type TEXT NOT NULL,
@@ -1097,6 +1158,8 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "extraction_job", "claimed_at", "TEXT")
     ensure_column(conn, "extraction_job", "completed_at", "TEXT")
     ensure_column(conn, "extraction_job", "result_summary", "TEXT")
+    ensure_column(conn, "extraction_job", "lease_token", "TEXT")
+    ensure_column(conn, "extraction_job", "lease_expires_at", "TEXT")
     ensure_column(conn, "memory_candidate", "operation", "TEXT NOT NULL DEFAULT 'ADD'")
     ensure_column(conn, "memory_candidate", "target_memory_id", "TEXT")
     ensure_column(conn, "memory_candidate", "importance", "REAL NOT NULL DEFAULT 0.5")
@@ -1173,6 +1236,15 @@ def init_memory_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "memory_trace_index", "replay", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "memory_admin_action", "dry_run", "INTEGER NOT NULL DEFAULT 0")
     ensure_column(conn, "memory_admin_action", "expires_at", "TEXT")
+    ensure_column(conn, "memory_admin_action", "idempotency_key", "TEXT")
+    conn.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_preview_request
+           ON memory_admin_action(actor, idempotency_key)
+           WHERE idempotency_key IS NOT NULL"""
+    )
+    ensure_column(conn, "memory_review_item", "resolution_revision", "TEXT")
+    ensure_column(conn, "memory_review_item", "resolution_action", "TEXT")
+    ensure_column(conn, "memory_review_item", "audit_trace_id", "TEXT")
     conn.executescript(_CANDIDATE_HASH_INDEX_SQL)
     conn.commit()
 
@@ -1267,6 +1339,8 @@ def extraction_job_from_row(row: sqlite3.Row) -> JsonDict:
         "completed_at": row_value(row, "completed_at"),
         "error": row_value(row, "error"),
         "result_summary": row_value(row, "result_summary"),
+        "lease_token": row_value(row, "lease_token"),
+        "lease_expires_at": row_value(row, "lease_expires_at"),
     }
 
 
@@ -1316,6 +1390,9 @@ def review_item_from_row(row: sqlite3.Row) -> JsonDict:
         "resolved_at": row["resolved_at"],
         "resolved_by": row["resolved_by"],
         "resolution": row["resolution"],
+        "resolution_revision": row["resolution_revision"],
+        "resolution_action": row["resolution_action"],
+        "audit_trace_id": row["audit_trace_id"],
     }
 
 

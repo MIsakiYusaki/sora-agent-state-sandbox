@@ -13,12 +13,14 @@ from .agent import (
     build_explicit_relationship_outcome,
 )
 from .conversation_runtime import ConversationRuntime
+from .conversation_runtime.runtime import ConversationRuntimeConfig
 from .interruptibility import (
     InterruptibilityService,
     LLMInterruptibilityResolutionProvider,
 )
 from .interruptibility_eval import run_interruptibility_eval
 from .memory_system import MemorySystem
+from .product_migrations import retire_untouched_example_memories
 from .persona.provider import LLMPersonaCandidateProvider
 from .persona.system import PersonaSystem
 from .relationship.provider import LLMRelationshipEvidenceProvider
@@ -128,6 +130,9 @@ class SoraRuntimeStack:
                 "relationship", relationship.projection_adapter
             )
             memory.projector_bus.register_adapter("worldops", worldops.projection_adapter)
+            # Recovery must run only after every real domain owner is attached.
+            memory.process_memory_changes()
+            retire_untouched_example_memories(memory)
             runner = AgentRunner(
                 llm,
                 subsystem_registry=build_default_subsystem_registry(
@@ -148,6 +153,7 @@ class SoraRuntimeStack:
                 relationship_runtime=relationship,
                 worldops_runtime=worldops,
                 relationship_outcome_builder=build_explicit_relationship_outcome,
+                config=ConversationRuntimeConfig(start_post_turn_worker=start_workers),
             )
             resources.append(conversation)
             stack = cls(
@@ -162,6 +168,8 @@ class SoraRuntimeStack:
                 model_provider_system=getattr(llm, "provider_system", None),
             )
             stack.register_quality_ops()
+            if start_workers:
+                memory.start()
             return stack
         except Exception:
             for resource in reversed(resources):
@@ -190,31 +198,38 @@ class SoraRuntimeStack:
         self.conversation.register_quality_ops(self.memory)
 
     def reset(self) -> None:
-        self.memory.reset()
-        self.persona.reset()
-        self.affect.reset()
-        self.relationship.reset()
-        self.worldops.reset()
-        self.conversation.reset()
+        running = self.memory.extraction_scheduler.snapshot()["running"]
+        self.memory.stop()
+        try:
+            self.conversation.reset()
+            self.memory.reset()
+            self.persona.reset()
+            self.affect.reset()
+            self.relationship.reset()
+            self.worldops.reset()
+        finally:
+            if running:
+                self.memory.start()
 
     def close(self) -> None:
+        # Extraction can publish to domain adapters. Drain it before their stores
+        # close; on timeout they must remain usable for an in-flight call.
+        self.conversation.close()
+        self.memory.stop()
         try:
-            self.conversation.close()
+            self.worldops.close()
         finally:
             try:
-                self.worldops.close()
+                self.relationship.close()
             finally:
                 try:
-                    self.relationship.close()
+                    self.affect.close()
                 finally:
                     try:
-                        self.affect.close()
+                        self.persona.close()
                     finally:
                         try:
-                            self.persona.close()
+                            self.memory.close()
                         finally:
-                            try:
-                                self.memory.close()
-                            finally:
-                                if self.model_provider_system is not None:
-                                    self.model_provider_system.close()
+                            if self.model_provider_system is not None:
+                                self.model_provider_system.close()

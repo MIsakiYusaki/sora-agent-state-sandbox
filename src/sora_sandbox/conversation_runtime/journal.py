@@ -23,7 +23,7 @@ from .contracts import (
 from .security import AtRestCipher
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class JournalConflict(RuntimeError):
@@ -62,7 +62,11 @@ class ConversationJournal:
         self._conn.execute("PRAGMA synchronous=FULL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute("PRAGMA busy_timeout=30000")
-        self._migrate()
+        try:
+            self._migrate()
+        except BaseException:
+            self._conn.close()
+            raise
 
     def close(self) -> None:
         with self._lock:
@@ -116,7 +120,7 @@ class ConversationJournal:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 yield self._conn
-            except Exception:
+            except BaseException:
                 self._conn.rollback()
                 raise
             else:
@@ -124,7 +128,9 @@ class ConversationJournal:
 
     def _migrate(self) -> None:
         with self.transaction() as connection:
-            connection.executescript(
+            # Execute this fixed DDL one statement at a time: executescript()
+            # implicitly commits BEGIN, breaking rollback of the table rebuild.
+            for statement in (
                 """
                 CREATE TABLE IF NOT EXISTS runtime_schema_version (
                     version INTEGER PRIMARY KEY,
@@ -241,18 +247,74 @@ class ConversationJournal:
                     model TEXT,
                     status TEXT NOT NULL,
                     thinking_disabled INTEGER NOT NULL,
-                    prompt_tokens INTEGER NOT NULL DEFAULT 0,
-                    completion_tokens INTEGER NOT NULL DEFAULT 0,
+                    prompt_tokens INTEGER,
+                    completion_tokens INTEGER,
                     latency_ms REAL NOT NULL DEFAULT 0,
                     error_code TEXT,
                     created_at_ms INTEGER NOT NULL
                 );
                 """
+            ).split(";"):
+                if statement.strip():
+                    connection.execute(statement)
+            connection.execute(
+                "INSERT OR IGNORE INTO runtime_schema_version(version, applied_at_ms) VALUES (?, ?)",
+                (1, now_ms()),
             )
+            self._migrate_model_call_usage_nullability(connection)
             connection.execute(
                 "INSERT OR IGNORE INTO runtime_schema_version(version, applied_at_ms) VALUES (?, ?)",
                 (SCHEMA_VERSION, now_ms()),
             )
+
+    @staticmethod
+    def _migrate_model_call_usage_nullability(connection: sqlite3.Connection) -> None:
+        """Preserve unreported provider usage as NULL instead of a fabricated zero."""
+
+        columns = {
+            str(row["name"]): row
+            for row in connection.execute("PRAGMA table_info(runtime_model_call)")
+        }
+        usage_columns = ("prompt_tokens", "completion_tokens")
+        if not all(name in columns for name in usage_columns):
+            raise RuntimeError("runtime_model_call usage columns are missing")
+        if not any(int(columns[name]["notnull"]) for name in usage_columns):
+            return
+
+        connection.execute(
+            """
+            CREATE TABLE runtime_model_call_v2 (
+                call_id TEXT PRIMARY KEY,
+                turn_id TEXT NOT NULL REFERENCES runtime_turn(turn_id) ON DELETE CASCADE,
+                logical_task TEXT NOT NULL,
+                route TEXT NOT NULL,
+                model TEXT,
+                status TEXT NOT NULL,
+                thinking_disabled INTEGER NOT NULL,
+                prompt_tokens INTEGER,
+                completion_tokens INTEGER,
+                latency_ms REAL NOT NULL DEFAULT 0,
+                error_code TEXT,
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO runtime_model_call_v2 (
+                call_id, turn_id, logical_task, route, model, status,
+                thinking_disabled, prompt_tokens, completion_tokens,
+                latency_ms, error_code, created_at_ms
+            )
+            SELECT call_id, turn_id, logical_task, route, model, status,
+                   thinking_disabled, NULLIF(prompt_tokens, 0),
+                   NULLIF(completion_tokens, 0), latency_ms, error_code,
+                   created_at_ms
+            FROM runtime_model_call
+            """
+        )
+        connection.execute("DROP TABLE runtime_model_call")
+        connection.execute("ALTER TABLE runtime_model_call_v2 RENAME TO runtime_model_call")
 
     def create_turn(
         self,
@@ -319,6 +381,23 @@ class ConversationJournal:
         if row is None:
             raise KeyError(f"turn not found: {turn_id}")
         return self._row_to_context(row)
+
+    def turns_for_conversation(
+        self, conversation_id: str, *, limit: int = 20
+    ) -> list[TurnExecutionContext]:
+        """Return recent turn envelopes without decrypting user content."""
+
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM runtime_turn
+                WHERE conversation_id=?
+                ORDER BY created_at_ms DESC, turn_id DESC
+                LIMIT ?
+                """,
+                (conversation_id, max(1, min(int(limit), 100))),
+            ).fetchall()
+        return [self._row_to_context(row) for row in rows]
 
     def turn_by_request(
         self, conversation_id: str, request_id: str
@@ -734,6 +813,29 @@ class ConversationJournal:
             for row in reversed(rows)
         ]
 
+    def conversation_activity(self) -> dict[str, int]:
+        with self._lock:
+            rows = self._conn.execute("SELECT conversation_id, MAX(created_at_ms) AS activity_at FROM runtime_short_turn GROUP BY conversation_id").fetchall()
+        return {str(row["conversation_id"]): int(row["activity_at"]) for row in rows}
+
+    def history_summary(self, conversation_id: str) -> JsonDict:
+        """Read index metadata and only decrypt the two visible summaries.
+
+        The canonical journal stays encrypted; no plaintext search/index cache
+        is created just to render the ordinary conversation list.
+        """
+        with self._lock:
+            count = self._conn.execute("SELECT COUNT(*) FROM runtime_short_turn WHERE conversation_id=?", (conversation_id,)).fetchone()[0]
+            first = self._conn.execute(
+                """SELECT * FROM runtime_short_turn WHERE conversation_id=?
+                   ORDER BY CASE WHEN role='user' THEN 0 ELSE 1 END, sequence ASC LIMIT 1""", (conversation_id,),
+            ).fetchone()
+            last = self._conn.execute("SELECT * FROM runtime_short_turn WHERE conversation_id=? ORDER BY sequence DESC LIMIT 1", (conversation_id,)).fetchone()
+            def decode(row):
+                return None if row is None else {"content": self.cipher.decrypt_text(str(row["content_cipher"]), associated_data=f"history:{row['history_id']}"),
+                    "created_at_ms": int(row["created_at_ms"])}
+            return {"first": decode(first), "last": decode(last), "count": int(count)}
+
     def conversation_version(self, conversation_id: str) -> int:
         with self._lock:
             return int(
@@ -827,6 +929,12 @@ class ConversationJournal:
     ) -> bool:
         timestamp = now_ms()
         with self.transaction() as connection:
+            turn = connection.execute(
+                "SELECT conversation_id, status FROM runtime_turn WHERE turn_id=?",
+                (turn_id,),
+            ).fetchone()
+            if turn is None or turn["conversation_id"] != conversation_id or TurnStatus(turn["status"]) in TERMINAL_STATUSES:
+                return False
             current = connection.execute(
                 "SELECT * FROM runtime_execution_lease WHERE conversation_id=?",
                 (conversation_id,),
@@ -852,14 +960,22 @@ class ConversationJournal:
 
     def renew_lease(self, conversation_id: str, turn_id: str, owner_id: str, *, ttl_ms: int) -> bool:
         timestamp = now_ms()
+        terminal = tuple(sorted(status.value for status in TERMINAL_STATUSES))
+        placeholders = ",".join("?" for _ in terminal)
         with self.transaction() as connection:
             cursor = connection.execute(
-                """
+                f"""
                 UPDATE runtime_execution_lease
                 SET expires_at_ms=?, revision=revision+1
                 WHERE conversation_id=? AND turn_id=? AND owner_id=?
+                AND EXISTS (
+                    SELECT 1 FROM runtime_turn AS turn
+                    WHERE turn.turn_id=runtime_execution_lease.turn_id
+                      AND turn.conversation_id=runtime_execution_lease.conversation_id
+                      AND turn.status NOT IN ({placeholders})
+                )
                 """,
-                (timestamp + max(1000, ttl_ms), conversation_id, turn_id, owner_id),
+                (timestamp + max(1000, ttl_ms), conversation_id, turn_id, owner_id, *terminal),
             )
         return cursor.rowcount == 1
 
@@ -876,10 +992,54 @@ class ConversationJournal:
         placeholders = ",".join("?" for _ in statuses)
         with self._lock:
             rows = self._conn.execute(
-                f"SELECT * FROM runtime_turn WHERE status IN ({placeholders}) AND updated_at_ms<? ORDER BY created_at_ms",
-                (*statuses, stale_before_ms),
+                f"""SELECT * FROM runtime_turn
+                    WHERE status IN ({placeholders}) AND updated_at_ms<?
+                    AND NOT EXISTS (
+                        SELECT 1 FROM runtime_execution_lease AS lease
+                        WHERE lease.conversation_id=runtime_turn.conversation_id
+                          AND lease.turn_id=runtime_turn.turn_id
+                          AND lease.expires_at_ms>?
+                    )
+                    ORDER BY created_at_ms""",
+                (*statuses, stale_before_ms, now_ms()),
             ).fetchall()
         return [self._row_to_context(row) for row in rows]
+
+    def fail_stale_turn(
+        self,
+        turn_id: str,
+        *,
+        stale_before_ms: int,
+        stage: str,
+        error_code: str,
+        error_detail: str,
+    ) -> TurnExecutionContext | None:
+        """Fence recovery against state updates and lease renewal in one write."""
+        terminal = tuple(sorted(status.value for status in TERMINAL_STATUSES))
+        placeholders = ",".join("?" for _ in terminal)
+        with self.transaction() as connection:
+            timestamp = now_ms()
+            detail = self.cipher.encrypt_text(error_detail, associated_data=f"turn-error:{turn_id}")
+            cursor = connection.execute(
+                f"""UPDATE runtime_turn
+                    SET status=?, stage=?, error_code=?, error_detail_cipher=?,
+                        updated_at_ms=?, revision=revision+1
+                    WHERE turn_id=? AND status NOT IN ({placeholders}) AND updated_at_ms<?
+                      AND NOT EXISTS (
+                        SELECT 1 FROM runtime_execution_lease AS lease
+                        WHERE lease.conversation_id=runtime_turn.conversation_id
+                          AND lease.turn_id=runtime_turn.turn_id
+                          AND lease.expires_at_ms>?
+                      )""",
+                (TurnStatus.FAILED.value, stage, error_code, detail, timestamp,
+                 turn_id, *terminal, stale_before_ms, timestamp),
+            )
+            if cursor.rowcount != 1:
+                return None
+            updated = connection.execute(
+                "SELECT * FROM runtime_turn WHERE turn_id=?", (turn_id,)
+            ).fetchone()
+        return self._row_to_context(updated)
 
     def record_model_call(
         self,
@@ -896,6 +1056,12 @@ class ConversationJournal:
     ) -> str:
         call_id = f"mcall_{uuid.uuid4().hex}"
         usage = usage or {}
+        prompt_tokens = usage.get("prompt_tokens")
+        if prompt_tokens is None:
+            prompt_tokens = usage.get("input_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        if completion_tokens is None:
+            completion_tokens = usage.get("output_tokens")
         with self.transaction() as connection:
             connection.execute(
                 """
@@ -913,14 +1079,56 @@ class ConversationJournal:
                     model,
                     status,
                     int(thinking_disabled),
-                    int(usage.get("prompt_tokens", 0) or 0),
-                    int(usage.get("completion_tokens", 0) or 0),
+                    int(prompt_tokens) if prompt_tokens is not None else None,
+                    int(completion_tokens) if completion_tokens is not None else None,
                     float(latency_ms),
                     error_code,
                     now_ms(),
                 ),
             )
         return call_id
+
+    def model_calls(self, turn_id: str) -> list[JsonDict]:
+        """Return the redaction-safe model-call ledger for one turn."""
+
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT call_id, logical_task, route, model, status,
+                       thinking_disabled, prompt_tokens, completion_tokens,
+                       latency_ms, error_code, created_at_ms
+                FROM runtime_model_call
+                WHERE turn_id=?
+                ORDER BY created_at_ms, call_id
+                """,
+                (turn_id,),
+            ).fetchall()
+        return [
+            {
+                "call_id": str(row["call_id"]),
+                "logical_task": str(row["logical_task"]),
+                "route": str(row["route"]),
+                "model": str(row["model"]) if row["model"] is not None else None,
+                "status": str(row["status"]),
+                "thinking_disabled": bool(row["thinking_disabled"]),
+                "prompt_tokens": (
+                    int(row["prompt_tokens"])
+                    if row["prompt_tokens"] is not None
+                    else None
+                ),
+                "completion_tokens": (
+                    int(row["completion_tokens"])
+                    if row["completion_tokens"] is not None
+                    else None
+                ),
+                "latency_ms": round(float(row["latency_ms"] or 0.0), 2),
+                "error_code": (
+                    str(row["error_code"]) if row["error_code"] is not None else None
+                ),
+                "created_at_ms": int(row["created_at_ms"]),
+            }
+            for row in rows
+        ]
 
     def claim_outbox(
         self,
@@ -974,6 +1182,22 @@ class ConversationJournal:
                 (consumer_name, event_id),
             ).fetchone()
         return dict(row) if row is not None else None
+
+    def diagnostic_outbox(self, turn_id: str) -> list[JsonDict]:
+        """Metadata only, bounded to the requested turn; never return payload/errors."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT event_id, status, attempts, created_at_ms, delivered_at_ms, available_at_ms FROM runtime_outbox WHERE turn_id=? ORDER BY created_at_ms LIMIT 100",
+                (turn_id,),
+            ).fetchall()
+            result = []
+            for row in rows:
+                receipts = self._conn.execute(
+                    "SELECT consumer_name, status, processed_at_ms FROM runtime_consumer_receipt WHERE event_id=? ORDER BY consumer_name",
+                    (row["event_id"],),
+                ).fetchall()
+                result.append(dict(row) | {"consumers": [dict(item) for item in receipts]})
+        return result
 
     def complete_consumer(
         self,
@@ -1058,7 +1282,7 @@ class ConversationJournal:
                 (client_events_before_ms,),
             ).rowcount
             artifact_count = connection.execute(
-                "DELETE FROM runtime_artifact WHERE created_at_ms<? AND artifact_type IN ('wave_a', 'wave_b', 'prompt')",
+                "DELETE FROM runtime_artifact WHERE created_at_ms<? AND artifact_type IN ('wave_a', 'wave_b', 'prompt', 'execution_evidence', 'post_turn_evidence')",
                 (raw_content_before_ms,),
             ).rowcount
             delivered_count = 0

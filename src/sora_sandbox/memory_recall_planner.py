@@ -11,6 +11,7 @@ from typing import Protocol
 
 from .memory_index_fts import search_tokens
 from .memory_schema import JsonDict, RecallBudget, RecallPlan, RecallSubquery
+from .turn_observability import observe_http
 
 
 RECALL_PLANNER_VERSION = "recall_planner_v2"
@@ -408,7 +409,7 @@ class OpenAICompatibleRecallPlannerProvider:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as response:
+            with observe_http("provider.http.compat_recall_plan"), urllib.request.urlopen(req, timeout=self.timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")

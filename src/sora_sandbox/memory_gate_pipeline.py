@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
@@ -35,7 +37,7 @@ class MemoryGatePipeline:
         self._reject_candidate = reject_candidate
 
     def run_candidate_gate(self, candidate_id: str, *, actor: str = "memory_gate") -> JsonDict:
-        with self._lock:
+        with self._lock, self._conn:
             candidate = self._get_candidate(candidate_id)
             if candidate["status"] not in {"pending", "deferred"}:
                 return {
@@ -123,7 +125,7 @@ class MemoryGatePipeline:
         raise AssertionError("unreachable gate decision")
 
     def approve_review(self, review_id: str, *, actor: str = "manual_review") -> JsonDict:
-        with self._lock:
+        with self._lock, self._conn:
             review = self.get_review_item(review_id)
             if review["status"] != "open":
                 raise ValueError(f"review item is not open: {review_id}")
@@ -152,7 +154,7 @@ class MemoryGatePipeline:
         reason: str = "manual_review_reject",
         actor: str = "manual_review",
     ) -> JsonDict:
-        with self._lock:
+        with self._lock, self._conn:
             review = self.get_review_item(review_id)
             if review["status"] != "open":
                 raise ValueError(f"review item is not open: {review_id}")
@@ -184,7 +186,7 @@ class MemoryGatePipeline:
         actor: str = "manual_review",
     ) -> JsonDict:
         deferred_until = until or (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
-        with self._lock:
+        with self._lock, self._conn:
             review = self.get_review_item(review_id)
             if review["status"] != "open":
                 raise ValueError(f"review item is not open: {review_id}")
@@ -314,14 +316,61 @@ class MemoryGatePipeline:
             raise ValueError(f"review item not found: {review_id}")
         return review_item_from_row(row)
 
-    def list_review_items(self, *, status: str | None = "open", limit: int = 50) -> list[JsonDict]:
+    def review_revision(self, review_id: str) -> str:
+        """Fingerprint the current review, candidate and evidence for explicit UI review."""
+        return self.review_snapshot(review_id)["revision"]
+
+    def review_snapshot(self, review_id: str) -> JsonDict:
+        """Read the displayed candidate and its decision revision under one owner lock."""
+        with self._lock:
+            review = self.get_review_item(review_id)
+            candidate = self._get_candidate(review["candidate_id"])
+            value = {"review": review, "candidate": candidate, "evidence": self._candidate_evidence(candidate)}
+            revision = hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, default=str, allow_nan=False).encode()).hexdigest()
+            return {"review": review, "candidate": candidate, "revision": revision}
+
+    def resolve_review_checked(self, review_id: str, *, action: str, expected_revision: str, actor: str) -> JsonDict:
+        """Serialize owner-side check and existing governed action; never retry uncertain effects."""
+        if action not in {"approve", "reject", "defer"}:
+            raise ValueError("unsupported review action")
+        with self._lock, self._conn:
+            review = self.get_review_item(review_id)
+            if review["status"] != "open":
+                resolution = str(review.get("resolution") or "")
+                matches = {"approve": resolution in {"approved", "committed"}, "reject": resolution == "rejected:desktop_review_reject", "defer": resolution.startswith("deferred_until:")}
+                same_request = review.get("resolution_revision") == expected_revision and review.get("resolution_action") == action
+                if review.get("resolved_by") == actor and matches[action] and same_request:
+                    return {"status": "already_resolved", "review": review, "audit_id": review.get("audit_trace_id")}
+                raise ValueError("review is no longer open")
+            if self.review_revision(review_id) != expected_revision:
+                raise ValueError("review revision changed")
+            if action == "approve":
+                result = self.approve_review(review_id, actor=actor)
+            elif action == "reject":
+                result = self.reject_review(review_id, reason="desktop_review_reject", actor=actor)
+            else:
+                result = self.defer_review(review_id, days=7, reason="desktop_review_defer", actor=actor)
+            audit_id = _new_id("reviewaudit")
+            self._conn.execute(
+                """INSERT INTO memory_review_resolution_audit
+                   (id,review_id,candidate_id,action,actor,expected_revision,resolved_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (audit_id, review_id, review["candidate_id"], action, actor, expected_revision, _utc_now()))
+            self._conn.execute(
+                "UPDATE memory_review_item SET resolution_revision=?,resolution_action=?,audit_trace_id=? WHERE id=?",
+                (expected_revision, action, audit_id, review_id))
+            result["review"] = self.get_review_item(review_id)
+            result["audit_id"] = audit_id
+            return result
+
+    def list_review_items(self, *, status: str | None = "open", limit: int = 50, offset: int = 0) -> list[JsonDict]:
         sql = "SELECT * FROM memory_review_item"
         params: list[Any] = []
         if status:
             sql += " WHERE status = ?"
             params.append(status)
-        sql += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
+        sql += " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
+        params.extend((limit, offset))
         with self._lock:
             rows = self._conn.execute(sql, params).fetchall()
         return [review_item_from_row(row) for row in rows]
@@ -336,17 +385,64 @@ class MemoryGatePipeline:
             raise ValueError(f"quarantine not found: {quarantine_id}")
         return quarantine_from_row(row)
 
-    def list_quarantines(self, *, status: str | None = "active", limit: int = 50) -> list[JsonDict]:
+    def list_quarantines(self, *, status: str | None = "active", limit: int = 50, offset: int = 0) -> list[JsonDict]:
         sql = "SELECT * FROM memory_quarantine"
         params: list[Any] = []
         if status:
             sql += " WHERE status = ?"
             params.append(status)
-        sql += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
+        sql += " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
+        params.extend((limit, offset))
         with self._lock:
             rows = self._conn.execute(sql, params).fetchall()
         return [quarantine_from_row(row) for row in rows]
+
+    def quarantine_snapshot(self, quarantine_id: str) -> JsonDict:
+        """Keep private candidate state and displayed disposition revision consistent."""
+        with self._lock:
+            quarantine = self.get_quarantine(quarantine_id)
+            try:
+                candidate = self._get_candidate(quarantine["source_id"]) if quarantine["source_type"] == "candidate" else None
+            except ValueError:
+                candidate = None
+            value = {"quarantine": quarantine, "candidate": candidate}
+            revision = hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, default=str, allow_nan=False).encode()).hexdigest()
+            return {**value, "revision": revision}
+
+    def dismiss_quarantine_checked(self, quarantine_id: str, *, expected_revision: str, actor: str) -> JsonDict:
+        """Reject one quarantined candidate without disclosing or committing its content."""
+        if not actor:
+            raise ValueError("quarantine disposition requires actor")
+        with self._lock:
+            if self._conn.in_transaction:
+                raise ValueError("memory store transaction is busy")
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                snapshot = self.quarantine_snapshot(quarantine_id)
+                quarantine, candidate = snapshot["quarantine"], snapshot["candidate"]
+                trace = {"action": "quarantine_dismiss", "quarantine_id": quarantine_id, "expected_revision": expected_revision, "actor": actor}
+                if quarantine["status"] != "active":
+                    audit_id = quarantine.get("audit_trace_id")
+                    audit = self.get_gate_decision(audit_id) if audit_id else {}
+                    if quarantine["status"] == "dismissed" and quarantine.get("resolved_by") == actor and audit.get("trace") == trace:
+                        self._conn.commit()
+                        return {"status": "already_dismissed", "quarantine_id": quarantine_id, "audit_id": audit_id, "resolved_at": quarantine["resolved_at"]}
+                    raise ValueError("quarantine is no longer active")
+                if snapshot["revision"] != expected_revision:
+                    raise ValueError("quarantine revision changed")
+                if not candidate or candidate["status"] != "quarantined" or candidate.get("quarantine_id") != quarantine_id:
+                    raise ValueError("quarantine candidate ownership changed")
+                now = _utc_now()
+                audit_id = self._record_gate_decision(GateDecision(candidate_id=candidate["candidate_id"], decision=GateDecisionAction.REJECT,
+                    operation=candidate.get("operation") or "ADD", target_memory_id=candidate.get("target_memory_id"),
+                    reasons=["explicit_quarantine_dismissal"], trace=trace))
+                self._conn.execute("UPDATE memory_candidate SET status='rejected', resolved_at=?, reason='explicit_quarantine_dismissal' WHERE id=? AND status='quarantined'", (now, candidate["candidate_id"]))
+                self._conn.execute("UPDATE memory_quarantine SET status='dismissed', resolved_at=?, resolved_by=?, audit_trace_id=? WHERE id=? AND status='active'", (now, actor, audit_id, quarantine_id))
+                self._conn.commit()
+                return {"status": "dismissed", "quarantine_id": quarantine_id, "audit_id": audit_id, "resolved_at": now}
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     def _record_gate_decision(self, decision: GateDecision) -> str:
         decision_id = _new_id("gdec")

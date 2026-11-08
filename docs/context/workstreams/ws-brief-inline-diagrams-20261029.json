@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/context/catalog/artifacts.json"
+  ],
+  "completed_at_utc": "2026-10-29T12:24:35Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-29T12:22:36Z",
+      "summary": "User correction: keep existing architecture boards in the main text. Move complete section back before subsystem explanation, preserve tokens and update reading references."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T12:24:35Z",
+      "summary": "Restored all four existing architecture boards to main section2 before subsystem explanation; current/target/historical labels preserved, reading references corrected, catalog revision refreshed."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-29T12:24:35Z",
+      "summary": "Restored all four existing architecture boards to main section2 before subsystem explanation; current/target/historical labels preserved, reading references corrected, catalog revision refreshed."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "docs/context/catalog/artifacts.json",
+    "outputs/brief-inline-diagrams-20261029"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-29T12:22:36Z",
+  "status": "completed",
+  "summary": "Restored all four existing architecture boards to main section2 before subsystem explanation; current/target/historical labels preserved, reading references corrected, catalog revision refreshed.",
+  "title": "Keep architecture diagrams in main text",
+  "updated_at_utc": "2026-10-29T12:24:35Z",
+  "verification": [
+    "Cloud final readback verified main headings1-9, four boards before section2.5, original resources/citations/PRD links retained, no appendixA references. Final revision in outputs/brief-inline-diagrams-20261029/verification.json.",
+    "project_context.py validate passed; documentation-only, no runtime changes or commit/push."
+  ],
+  "workstream_id": "ws-brief-inline-diagrams-20261029"
+}

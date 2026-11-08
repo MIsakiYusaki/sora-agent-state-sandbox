@@ -1,0 +1,69 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/components/ContextDrawer.tsx",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/transport",
+    "apps/desktop/src/views/NarrativePanel.tsx",
+    "content/worldops",
+    "src/sora_sandbox/conversation_gateway/desktop_narrative.py",
+    "src/sora_sandbox/worldops",
+    "tests/test_desktop_narrative.py"
+  ],
+  "completed_at_utc": "2026-11-08T10:26:27Z",
+  "decision_ids": [
+    "adr-20261108-15045fae46",
+    "adr-20261108-981305e0eb"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T09:22:11Z",
+      "summary": "User sequence B3core delivered then B4 now before B2. Reviewed same-chat broad UI/Host/Gateway overlap; preserve dirty changes. Connect signed authored choices and actual task/timeline/Memory evidence; typed deterministic UI actions use atomic nested owner transactions and durable request receipts. Explicitly label existing local_split_development content; no fake official approvals, no signing keys in clients and no production-service deployment claim. Authored new content remains reviewable until actual release trust exists."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "Typed narrative participation and true task/timeline/shared-memory state shipped in r9; local-preview label and official-content dependency remain."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "Typed narrative participation and true task/timeline/shared-memory state shipped in r9; local-preview label and official-content dependency remain."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/components/ContextDrawer.tsx",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/transport",
+    "apps/desktop/src/views/NarrativePanel.test.tsx",
+    "apps/desktop/src/views/NarrativePanel.tsx",
+    "content/worldops",
+    "outputs/narrative-client-20261108",
+    "src/sora_sandbox/conversation_gateway/desktop_narrative.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/worldops/connection.py",
+    "src/sora_sandbox/worldops/runtime.py",
+    "src/sora_sandbox/worldops/schema.py",
+    "src/sora_sandbox/worldops/store.py",
+    "src/sora_sandbox/worldops/system.py",
+    "tests/test_desktop_narrative.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T09:22:11Z",
+  "status": "completed",
+  "summary": "Typed narrative participation and true task/timeline/shared-memory state shipped in r9; local-preview label and official-content dependency remain.",
+  "title": "Real narrative participation and timeline",
+  "updated_at_utc": "2026-11-08T10:26:27Z",
+  "verification": [
+    "55 narrative/WorldOps tests; final Python684; frontend147; Host18+2ignored",
+    "12 visual scenes; r9 build/installed Gateway5 checks and actual native narrative read; report outputs/memory-effectiveness-20261108/VERIFICATION.md"
+  ],
+  "workstream_id": "ws-narrative-client-loop-20261108"
+}

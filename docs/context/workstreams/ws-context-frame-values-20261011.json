@@ -1,0 +1,70 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/contracts/generated.ts",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "apps/desktop/src/views/FrameInspector.test.tsx",
+    "apps/desktop/src/views/FrameInspector.tsx",
+    "contracts/desktop",
+    "outputs/context-frames-20261011",
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "src/sora_sandbox/conversation_runtime/context.py",
+    "src/sora_sandbox/conversation_runtime/debug_frames.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "src/sora_sandbox/desktop_contracts.py",
+    "src/sora_sandbox/turn_observability.py",
+    "tests/test_debug_frames.py",
+    "tests/test_desktop_contracts.py"
+  ],
+  "completed_at_utc": "2026-10-15T11:43:32Z",
+  "decision_ids": [
+    "adr-typed-context-frame-projection-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-11T03:55:22Z",
+      "summary": "Capture bounded allowlisted values from the exact sealed generation frames; source-labelled legacy fallback, strict DTO, safe provenance, observed-null distinction, per-turn comparison and existing native debug transport."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-15T11:43:32Z",
+      "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-15T11:43:32Z",
+      "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/contracts/generated.ts",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "apps/desktop/src/views/FrameInspector.test.tsx",
+    "apps/desktop/src/views/FrameInspector.tsx",
+    "contracts/desktop",
+    "outputs/context-frames-20261011",
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "src/sora_sandbox/conversation_runtime/context.py",
+    "src/sora_sandbox/conversation_runtime/debug_frames.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "src/sora_sandbox/desktop_contracts.py",
+    "src/sora_sandbox/turn_observability.py",
+    "tests/test_debug_frames.py",
+    "tests/test_desktop_contracts.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-11T03:55:22Z",
+  "status": "completed",
+  "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion.",
+  "title": "Typed safe per-turn context frame values and provenance",
+  "updated_at_utc": "2026-10-15T11:43:32Z",
+  "verification": [
+    "outputs/context-frames-20261011/DELIVERY.md: existing Python557/frontend56 reports; fresh Host7; package and installed no-model smoke; reviewed frame layout fixtures; upgrade metadata preserved. Native frame sampling/real-model/restart and full release gates remain explicitly open."
+  ],
+  "workstream_id": "ws-context-frame-values-20261011"
+}

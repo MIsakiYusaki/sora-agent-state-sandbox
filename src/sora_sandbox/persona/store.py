@@ -820,7 +820,7 @@ class PersonaStore:
 
         return self._write(operation, priority=1, name="commit_candidate")
 
-    def set_candidate_status(self, candidate_id: str, status: str, *, reason: str, actor: str) -> JsonDict:
+    def set_candidate_status(self, candidate_id: str, status: str, *, reason: str, actor: str, expected_revision: str | None = None, expected_user_id: str | None = None) -> JsonDict:
         if status not in {"approved", "rejected", "pending_review"}:
             raise ValueError(f"unsupported Persona candidate status: {status}")
 
@@ -828,6 +828,11 @@ class PersonaStore:
             row = conn.execute("SELECT * FROM persona_candidate WHERE id=?", (candidate_id,)).fetchone()
             if row is None:
                 raise ValueError(f"Persona candidate not found: {candidate_id}")
+            if expected_revision is not None:
+                if _hash_json(self._candidate_from_row(row)) != expected_revision or row["status"] != "pending_review":
+                    raise ValueError("persona_candidate_revision_conflict")
+                if expected_user_id is not None and row["user_id"] not in {None, expected_user_id}:
+                    raise ValueError("persona_candidate_owner_mismatch")
             if row["status"] == "committed":
                 raise ValueError("committed Persona candidate must be rolled back, not relabeled")
             if status == "approved" and row["status"] != "pending_review":
@@ -845,11 +850,16 @@ class PersonaStore:
 
         return self._write(operation, priority=1, name=f"candidate_{status}")
 
-    def rollback_contribution(self, contribution_id: str, *, reason: str, actor: str) -> JsonDict:
+    def rollback_contribution(self, contribution_id: str, *, reason: str, actor: str, expected_revision: str | None = None, expected_user_id: str | None = None) -> JsonDict:
         def operation(conn: sqlite3.Connection) -> JsonDict:
             row = conn.execute("SELECT * FROM persona_contribution WHERE id=?", (contribution_id,)).fetchone()
             if row is None:
                 raise ValueError(f"Persona contribution not found: {contribution_id}")
+            if expected_revision is not None:
+                if _hash_json(self._contribution_from_row(row)) != expected_revision or not row["active"]:
+                    raise ValueError("persona_contribution_revision_conflict")
+                if expected_user_id is not None and row["user_id"] not in {None, expected_user_id}:
+                    raise ValueError("persona_contribution_owner_mismatch")
             if not row["active"]:
                 return {"contribution": self._contribution_from_row(row), "snapshot": self._active_snapshot_conn(conn), "idempotent": True}
             conn.execute(
@@ -936,12 +946,15 @@ class PersonaStore:
         growth_paused: bool | None = None,
         self_reference_permission: str | None = None,
         actor: str = "user",
+        expected_revision: str | None = None,
     ) -> JsonDict:
         if self_reference_permission not in {None, "silent", "implicit", "explicit"}:
             raise ValueError("invalid Persona self-reference permission")
 
         def operation(conn: sqlite3.Connection) -> JsonDict:
             current = self.get_control(user_id=user_id)
+            if expected_revision is not None and expected_revision != _hash_json(current):
+                raise ValueError("persona_control_revision_conflict")
             paused = current["growth_paused"] if growth_paused is None else bool(growth_paused)
             permission = current["self_reference_permission"] if self_reference_permission is None else self_reference_permission
             conn.execute(
@@ -959,6 +972,9 @@ class PersonaStore:
             return {"agent_id": self.agent_id, "user_id": user_id, "growth_paused": paused, "self_reference_permission": permission}
 
         return self._write(operation, priority=0, name="set_persona_control")
+
+    def control_revision(self, *, user_id: str | None = None) -> str:
+        return _hash_json(self.get_control(user_id=user_id))
 
     def list_candidates(self, *, status: str | None = None, limit: int = 50) -> list[JsonDict]:
         if status:

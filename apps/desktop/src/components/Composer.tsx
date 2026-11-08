@@ -1,4 +1,4 @@
-import { LoaderCircle, PlugZap, RefreshCw, Send, ShieldAlert, Square } from "lucide-react";
+import { ChevronDown, LoaderCircle, PlugZap, RefreshCw, Send, ShieldAlert, Sparkles, Square } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 
 export type ComposerMode =
@@ -17,6 +17,9 @@ interface ComposerProps {
   readonly onCancel: () => void;
   readonly onReconnect: () => void;
   readonly onConnectProvider: () => void;
+  readonly controlLabel: string;
+  readonly followUpLabel: string;
+  readonly onOpenControls: () => void;
 }
 
 const placeholders: Record<ComposerMode, string> = {
@@ -36,10 +39,18 @@ export function Composer({
   onCancel,
   onReconnect,
   onConnectProvider,
+  controlLabel,
+  followUpLabel,
+  onOpenControls,
 }: ComposerProps) {
   const composingRef = useRef(false);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Escape" && mode === "streaming" && !composingRef.current && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      onCancel();
+      return;
+    }
     if (
       event.key === "Enter" &&
       !event.shiftKey &&
@@ -69,14 +80,22 @@ export function Composer({
           composingRef.current = false;
         }}
       />
-      <ComposerAction
-        mode={mode}
-        canSend={Boolean(value.trim())}
-        onSubmit={onSubmit}
-        onCancel={onCancel}
-        onReconnect={onReconnect}
-        onConnectProvider={onConnectProvider}
-      />
+      <div className="composer__footer">
+        <div className="composer__mode">
+          <button type="button" aria-label="打开这次聊天的回应方式" onClick={onOpenControls}>
+            <Sparkles size={14} />{controlLabel}<ChevronDown size={13} />
+          </button>
+          <span>{followUpLabel}</span>
+        </div>
+        <ComposerAction
+          mode={mode}
+          canSend={Boolean(value.trim())}
+          onSubmit={onSubmit}
+          onCancel={onCancel}
+          onReconnect={onReconnect}
+          onConnectProvider={onConnectProvider}
+        />
+      </div>
       <span className="sr-only" id="composer-status" aria-live="polite">
         {mode === "offline"
           ? "当前离线，草稿会保留"
@@ -87,7 +106,7 @@ export function Composer({
             : mode === "submitting"
               ? "正在等待消息确认"
               : mode === "streaming"
-                ? "Sora 正在回应"
+                ? "Sora 正在回应，可按 Esc 停止生成"
                 : "可以发送消息"}
       </span>
     </div>
@@ -129,7 +148,8 @@ function ComposerAction({
         type="button"
         className="composer__action composer__action--stop"
         aria-label="停止生成"
-        title="停止生成"
+        title="停止生成 (Esc)"
+        aria-keyshortcuts="Escape"
         onClick={onCancel}
       >
         <Square size={15} fill="currentColor" />

@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "Quarantine dismissal does not erase source evidence or bypass policy. Saving corrected permitted information requires a new proposal through Gate. Missing/changed/noncandidate sources fail closed."
+  ],
+  "context": "F16 lists active quarantine metadata but has no product disposition. Sensitive candidates cannot be released through low-disclosure review UI.",
+  "decided_at_utc": "2026-10-28T11:46:21Z",
+  "decision": "Add owner-side BEGIN IMMEDIATE quarantine dismissal with full candidate/quarantine revision check, REJECT Gate audit and candidate/quarantine state changes in one transaction. A dedicated permission in the explicit five-minute review session allows only reject-and-dismiss; never direct release, approval or payload disclosure. Preserve disposition records and idempotent audit receipt.",
+  "decision_id": "adr-memory-quarantine-disposition-v1",
+  "references": [
+    "outputs/desktop-functional-repair-20261028/VERIFICATION.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Reject a quarantined candidate with atomic audited disposition",
+  "workstream_id": "ws-memory-review-cas-20261015"
+}

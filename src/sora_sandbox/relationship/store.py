@@ -477,26 +477,29 @@ class RelationshipStore:
         params.append(limit)
         return [self._candidate_row(row) for row in self._read_all(f"SELECT * FROM relationship_candidate{where} ORDER BY created_at DESC LIMIT ?", tuple(params))]
 
-    def set_candidate_status(self, candidate_id: str, status: str, *, reason: str, actor: str) -> JsonDict:
+    def set_candidate_status(self, candidate_id: str, status: str, *, reason: str, actor: str, expected_revision: str | None = None, expected_pair_id: str | None = None) -> JsonDict:
         timestamp = utc_now()
         with self._lock:
-            row = self._conn.execute("SELECT pair_id FROM relationship_candidate WHERE candidate_id=?", (candidate_id,)).fetchone()
-            if row is None:
-                raise ValueError(f"Relationship candidate not found: {candidate_id}")
-            self._conn.execute(
-                "UPDATE relationship_candidate SET status=?,gate_reason=?,updated_at=?,decided_at=? WHERE candidate_id=?",
-                (status, reason, timestamp, timestamp, candidate_id),
-            )
-            self._insert_audit(
-                self._conn,
-                pair_id=row["pair_id"],
-                action="relationship_candidate_status_changed",
-                entity_type="candidate",
-                entity_id=candidate_id,
-                actor=actor,
-                details={"status": status, "reason": reason},
-            )
-            self._conn.commit()
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute("SELECT * FROM relationship_candidate WHERE candidate_id=?", (candidate_id,)).fetchone()
+                if row is None:
+                    raise ValueError(f"Relationship candidate not found: {candidate_id}")
+                if expected_revision is not None:
+                    if hashlib.sha256(json_dumps(self._candidate_row(row)).encode("utf-8")).hexdigest() != expected_revision or row["status"] not in {"pending_review", "deferred"}:
+                        raise ValueError("relationship_candidate_revision_conflict")
+                    if expected_pair_id is not None and row["pair_id"] != expected_pair_id:
+                        raise ValueError("relationship_candidate_owner_mismatch")
+                self._conn.execute(
+                    "UPDATE relationship_candidate SET status=?,gate_reason=?,updated_at=?,decided_at=? WHERE candidate_id=?",
+                    (status, reason, timestamp, timestamp, candidate_id),
+                )
+                self._insert_audit(self._conn, pair_id=row["pair_id"], action="relationship_candidate_status_changed",
+                    entity_type="candidate", entity_id=candidate_id, actor=actor, details={"status": status, "reason": reason})
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
         return self.candidate(candidate_id) or {}
 
     def active_contributions(self, pair_id: str) -> list[JsonDict]:
@@ -784,13 +787,22 @@ class RelationshipStore:
         reason: str,
         actor: str,
         correlation_id: str | None = None,
+        expected_revision: str | None = None,
+        expected_pair_id: str | None = None,
     ) -> JsonDict:
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
-                row = self._conn.execute("SELECT pair_id FROM relationship_contribution WHERE contribution_id=?", (contribution_id,)).fetchone()
+                row = self._conn.execute("SELECT * FROM relationship_contribution WHERE contribution_id=?", (contribution_id,)).fetchone()
                 if row is None:
                     raise ValueError(f"Relationship contribution not found: {contribution_id}")
+                if expected_revision is not None:
+                    status_row = self._conn.execute("SELECT status,reason FROM relationship_contribution_status_event WHERE contribution_id=? ORDER BY occurred_at DESC,status_event_id DESC LIMIT 1", (contribution_id,)).fetchone()
+                    current = self._contribution_row(row) | {"status": status_row["status"], "status_reason": status_row["reason"]}
+                    if hashlib.sha256(json_dumps(current).encode("utf-8")).hexdigest() != expected_revision or status_row["status"] != "active":
+                        raise ValueError("relationship_contribution_revision_conflict")
+                    if expected_pair_id is not None and row["pair_id"] != expected_pair_id:
+                        raise ValueError("relationship_contribution_owner_mismatch")
                 self._insert_status_event(
                     self._conn,
                     contribution_id=contribution_id,
@@ -801,6 +813,8 @@ class RelationshipStore:
                     correlation_id=correlation_id,
                 )
                 result = self._rebuild_pair_tx(self._conn, pair_id=row["pair_id"], engine=engine, reason="contribution_rollback", actor=actor, correlation_id=correlation_id)
+                if expected_revision is not None:
+                    self._insert_audit(self._conn, pair_id=row["pair_id"], action="contribution_rolled_back", entity_type="contribution", entity_id=contribution_id, actor=actor, details={"reason": reason, "source_revision": expected_revision})
                 self._conn.commit()
             except Exception:
                 self._conn.rollback()
@@ -924,6 +938,7 @@ class RelationshipStore:
         value: Any,
         source_ref: str,
         actor: str = "user",
+        expected_revision: str | None = None,
     ) -> JsonDict:
         if control_type not in {"learning_paused", "surface_permission"}:
             raise ValueError(f"unsupported Relationship control: {control_type}")
@@ -935,6 +950,8 @@ class RelationshipStore:
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
+                if expected_revision is not None and expected_revision != self.control_revision(pair_id):
+                    raise ValueError("relationship_control_revision_conflict")
                 if self._conn.execute("SELECT 1 FROM relationship_pair WHERE pair_id=?", (pair_id,)).fetchone() is None:
                     raise ValueError(f"Relationship pair not found: {pair_id}")
                 self._conn.execute(f"UPDATE relationship_pair SET {column}=?,updated_at=? WHERE pair_id=?", (stored_value, utc_now(), pair_id))
@@ -964,6 +981,18 @@ class RelationshipStore:
                 self._conn.rollback()
                 raise
         return {"schema_version": "RelationshipControlReceipt.v1", "receipt_id": receipt_id, "pair_id": pair_id, "control_type": control_type, "value": value, "effective": "next_read"}
+
+    def control_revision(self, pair_id: str) -> str:
+        pair = self.pair(pair_id=pair_id)
+        if pair is None:
+            raise ValueError("relationship_pair_missing")
+        return self.control_fingerprint(pair)
+
+    @staticmethod
+    def control_fingerprint(pair: Mapping[str, Any]) -> str:
+        return hashlib.sha256(json_dumps({key: pair.get(key) for key in (
+            "pair_id", "user_id", "sora_id", "learning_paused", "surface_permission", "updated_at"
+        )}).encode("utf-8")).hexdigest()
 
     def propose_agreement_amendment(
         self,
@@ -1159,11 +1188,13 @@ class RelationshipStore:
                 raise
         return {"status": result_status, "agreement": agreement, **rebuild}
 
-    def revoke_agreement(self, pair_id: str, *, engine: RelationshipDynamicsEngine, actor: str = "user", reason: str = "user_revoked") -> JsonDict:
+    def revoke_agreement(self, pair_id: str, *, engine: RelationshipDynamicsEngine, actor: str = "user", reason: str = "user_revoked", expected_revision: str | None = None) -> JsonDict:
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 current = self._active_agreement_tx(self._conn, pair_id)
+                if expected_revision is not None and expected_revision != hashlib.sha256(json_dumps(current).encode("utf-8")).hexdigest():
+                    raise ValueError("agreement_revision_conflict")
                 self._conn.execute("UPDATE relationship_agreement SET status='revoked',updated_at=? WHERE pair_id=? AND status='active'", (utc_now(), pair_id))
                 rebuild = self._rebuild_pair_tx(self._conn, pair_id=pair_id, engine=engine, reason="agreement_revoked", actor=actor, bypass_debounce=True)
                 self._enqueue_domain_event_tx(
@@ -1237,6 +1268,8 @@ class RelationshipStore:
         actor: str,
         repair_action: Mapping[str, Any] | None = None,
         user_outcome: str | None = None,
+        expected_status: str | None = None,
+        expected_pair_id: str | None = None,
     ) -> JsonDict:
         if to_state not in REPAIR_STATES:
             raise ValueError(f"unsupported Repair state: {to_state}")
@@ -1246,7 +1279,11 @@ class RelationshipStore:
                 row = self._conn.execute("SELECT * FROM relationship_repair_episode WHERE repair_episode_id=?", (repair_id,)).fetchone()
                 if row is None:
                     raise ValueError(f"Repair episode not found: {repair_id}")
+                if expected_pair_id is not None and row["pair_id"] != expected_pair_id:
+                    raise ValueError("repair_owner_mismatch")
                 current = str(row["status"])
+                if expected_status is not None and current != expected_status:
+                    raise ValueError("repair_revision_conflict")
                 if to_state not in REPAIR_TRANSITIONS.get(current, set()):
                     raise ValueError(f"illegal Repair transition: {current} -> {to_state}")
                 if to_state == "repaired":

@@ -8,6 +8,7 @@ from typing import Callable, Protocol
 from urllib.request import Request, urlopen
 
 from .contracts import JsonDict, SubsystemHealth, TurnContext, validate_signal
+from .turn_observability import capture_context, observed_worker
 
 
 SignalBuilder = Callable[[TurnContext], list[JsonDict]]
@@ -137,7 +138,11 @@ class SubsystemRegistry:
             started = time.perf_counter()
             submitted[name] = (
                 adapter,
-                executor.submit(_evaluate_adapter, adapter, context),
+                executor.submit(
+                    observed_worker, capture_context(),
+                    "signal." + (name if name in {"dialogue", "behavior", "memory", "persona", "origin", "affect", "relationship", "worldops", "initiative"} else "external"),
+                    _evaluate_adapter, adapter, context,
+                ),
                 started,
             )
 

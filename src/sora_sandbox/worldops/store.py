@@ -5,12 +5,14 @@ import json
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
 from ..memory_schema import json_dumps, json_loads, new_id
 from .compiler import Ed25519BundleVerifier, verify_compiled_bundle
+from .connection import WorldOpsConnection
 from .contracts import (
     EVENT_STATES,
     IdentityScope,
@@ -63,7 +65,7 @@ class WorldOpsStore:
         self._read_local = threading.local()
         self._read_connections: list[sqlite3.Connection] = []
         self._read_connections_lock = threading.Lock()
-        self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        self._conn = sqlite3.connect(self.path, check_same_thread=False, factory=WorldOpsConnection)
         self._conn.row_factory = sqlite3.Row
         self._configure(self._conn, query_only=False)
         self._conn.executescript(WORLDOPS_CLIENT_SCHEMA_SQL)
@@ -113,6 +115,8 @@ class WorldOpsStore:
             connection.execute("PRAGMA synchronous = FULL")
 
     def _read_connection(self) -> sqlite3.Connection:
+        if self._conn.owns_transaction:
+            return self._conn
         connection = getattr(self._read_local, "connection", None)
         if connection is not None:
             return connection
@@ -124,6 +128,36 @@ class WorldOpsStore:
             self._read_connections.append(connection)
         return connection
 
+    @contextmanager
+    def transaction(self):
+        with self._lock, self._conn:
+            yield
+
+    def desktop_action(self, request_id: str, request_hash: str) -> JsonDict | None:
+        row = self._read_connection().execute(
+            "SELECT request_hash,result_json FROM worldops_desktop_action WHERE timeline_id=? AND request_id=?",
+            (self.identity.timeline_id, request_id),
+        ).fetchone()
+        if row is None:
+            return None
+        if row["request_hash"] != request_hash:
+            raise WorldOpsConflictError("narrative_request_payload_conflict")
+        return json_loads(row["result_json"], {})
+
+    def record_desktop_action(self, request_id: str, request_hash: str, result: Mapping[str, Any]) -> None:
+        if not self._conn.owns_transaction:
+            raise WorldOpsContractError("narrative_action_requires_owner_transaction")
+        self._conn.execute("INSERT INTO worldops_desktop_action VALUES (?,?,?,?,?)",
+            (self.identity.timeline_id, request_id, request_hash, json_dumps(dict(result)), utc_now()))
+
+    def event_history(self, instance_id: str, *, limit: int = 50) -> list[JsonDict]:
+        rows = self._read_connection().execute(
+            "SELECT transition_id,from_state,to_state,choice_id,created_at AS occurred_at,correlation_id "
+            "FROM worldops_transition_ledger WHERE timeline_id=? AND instance_id=? ORDER BY created_at DESC LIMIT ?",
+            (self.identity.timeline_id, instance_id, max(1, min(limit, 100))),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def close(self) -> None:
         with self._lock:
             with self._read_connections_lock:
@@ -134,6 +168,7 @@ class WorldOpsStore:
 
     def reset(self) -> None:
         tables = [
+            "worldops_desktop_action",
             "worldops_forget_tombstone",
             "worldops_memory_projection",
             "worldops_sync_conflict",
@@ -315,7 +350,7 @@ class WorldOpsStore:
             )
             self._trace_locked("key_revoked", "applied", {"key_id": key_id, "reason": reason})
 
-    def install_bundle(self, compiled: Mapping[str, Any], *, allow_expired_for_recovery: bool = False) -> JsonDict:
+    def verify_bundle(self, compiled: Mapping[str, Any], *, allow_expired_for_recovery: bool = False) -> WorldBundleManifest:
         raw_manifest = dict(compiled.get("manifest") or {})
         key_id = str(raw_manifest.get("key_id") or "")
         key = self._read_connection().execute(
@@ -349,6 +384,10 @@ class WorldOpsStore:
             raise WorldOpsSecurityError("bundle uses a stale revocation list")
         if manifest.release_sequence < int(identity["minimum_accepted_sequence"]):
             raise WorldOpsSecurityError("bundle is below the minimum accepted release sequence")
+        return manifest
+
+    def install_bundle(self, compiled: Mapping[str, Any], *, allow_expired_for_recovery: bool = False) -> JsonDict:
+        manifest = self.verify_bundle(compiled, allow_expired_for_recovery=allow_expired_for_recovery)
         now = utc_now()
         bundle = dict(compiled["bundle"])
         version = manifest.canon_version

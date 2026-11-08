@@ -1,0 +1,74 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop-design-prototype/DESIGN_SYSTEM.md",
+    "apps/desktop/src",
+    "apps/desktop/src-tauri/src",
+    "contracts/desktop",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/workstreams/ws-desktop-production-v2.json",
+    "src/sora_sandbox/conversation_gateway",
+    "src/sora_sandbox/desktop_contracts.py",
+    "tests/test_conversation_gateway.py",
+    "tests/test_desktop_contracts.py"
+  ],
+  "completed_at_utc": "2026-09-02T13:26:40Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-01T13:30:02Z",
+      "summary": "Rebuild the production Windows client around real Project Sora capabilities, evolve Quiet Companion Desk where needed, fix conversation/history/memory UX, and replace fake Developer Mode integration states with capability-gated real evidence."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-02T13:19:15Z",
+      "summary": "Migrated the accepted conversation and Composer behavior, rebuilt History and Memory around real contracts, added authenticated/redacted runtime debug snapshots across Gateway/Tauri/React, and produced a verified unsigned NSIS candidate. Browser screenshot automation remains blocked by the Windows ACL helper; signing and wider release gates remain open."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-02T13:26:40Z",
+      "summary": "Delivered the production desktop v2 candidate with the accepted conversation UX, real History and Memory/Privacy flows, authenticated redacted Developer Mode runtime evidence, regression coverage, and a verified unsigned NSIS installer; signing, update/Beta gates and current-candidate visual automation remain explicitly open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-02T13:26:40Z",
+      "summary": "Delivered the production desktop v2 candidate with the accepted conversation UX, real History and Memory/Privacy flows, authenticated redacted Developer Mode runtime evidence, regression coverage, and a verified unsigned NSIS installer; signing, update/Beta gates and current-candidate visual automation remain explicitly open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop",
+    "apps/desktop-design-prototype",
+    "contracts/desktop",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "scripts/build_desktop_release.ps1",
+    "scripts/verify_desktop_release.ps1",
+    "src/sora_sandbox/conversation_gateway",
+    "src/sora_sandbox/desktop_contracts.py",
+    "tests/test_conversation_gateway.py",
+    "tests/test_desktop_contracts.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-01T13:30:02Z",
+  "status": "completed",
+  "summary": "Delivered the production desktop v2 candidate with the accepted conversation UX, real History and Memory/Privacy flows, authenticated redacted Developer Mode runtime evidence, regression coverage, and a verified unsigned NSIS installer; signing, update/Beta gates and current-candidate visual automation remain explicitly open.",
+  "title": "Production desktop client v2",
+  "updated_at_utc": "2026-09-02T13:26:40Z",
+  "verification": [
+    "Frontend Vitest: 18 passed; TypeScript and Vite production build passed",
+    "Full Python regression suite: 426 passed in 88.20 seconds",
+    "Gateway and Desktop Contract focused suite: 29 passed in the project virtual environment",
+    "Rust trusted Host: 5 passed",
+    "Generated desktop contracts: in sync; git diff check passed",
+    "NSIS release verification passed: 28,592,427-byte installer; bundled 24,611,102-byte Gateway sidecar matched its manifest",
+    "NSIS SHA256: 50e1e3670e8d8116358ec77697ca7ea6c62178a8323c2eb1af5b29e34739da20; Authenticode status: NotSigned",
+    "Fresh browser screenshot automation blocked by helper_unknown_error while applying Windows deny-read ACLs; no current-candidate visual-pass claim"
+  ],
+  "workstream_id": "ws-desktop-production-v2"
+}

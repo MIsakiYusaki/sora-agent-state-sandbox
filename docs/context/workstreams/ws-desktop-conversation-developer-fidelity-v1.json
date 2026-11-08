@@ -1,0 +1,65 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop-design-prototype/DESIGN_SYSTEM.md",
+    "apps/desktop/src",
+    "apps/desktop/vite.config.ts",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "tests/test_conversation_gateway.py"
+  ],
+  "completed_at_utc": "2026-09-07T12:35:00Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-03T11:35:00Z",
+      "summary": "Correct production user-message alignment and restore the prototype-defined Developer Mode information architecture using real debug snapshot and Gateway event evidence without fabricated values."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-06T14:50:24Z",
+      "summary": "Completed diagnostic polling, unknown-metric semantics, message alignment and readable theme/compact fixes. Final installer verification underway."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-07T12:35:00Z",
+      "summary": "Delivered conversation/developer fidelity repair and verified unsigned NSIS candidate; broader frame contents, command execution and release acceptance remain open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-07T12:35:00Z",
+      "summary": "Delivered conversation/developer fidelity repair and verified unsigned NSIS candidate; broader frame contents, command execution and release acceptance remain open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop-design-prototype/DESIGN_SYSTEM.md",
+    "apps/desktop/vite.config.ts",
+    "apps/desktop/src",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "docs/context/workstreams/ws-desktop-conversation-developer-fidelity-v1.json",
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "tests/test_conversation_gateway.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-03T11:35:00Z",
+  "status": "completed",
+  "summary": "Delivered conversation/developer fidelity repair and verified unsigned NSIS candidate; broader frame contents, command execution and release acceptance remain open.",
+  "title": "Conversation and Developer Mode fidelity repair",
+  "updated_at_utc": "2026-09-07T12:35:00Z",
+  "verification": [
+    "22 frontend tests; 431 Python tests; 5 Rust Host tests; contracts synchronized",
+    "22 Vitest tests, TypeScript/Vite release build, 431 Python tests, 27 final Gateway tests and 5 Rust Host tests passed; contracts synchronized",
+    "1440x900 light/dark and earlier 420x560 screenshot review; final dark sidebar fixed; tag contrast 8.50:1, scale 8.65:1; preview console no warnings/errors. Duplicate compact check on Sep 7 timed out during permission review.",
+    "NSIS 28631573 bytes, SHA256 07aacb5c2461e420611db802ef8797a430cd876a6af80a15cdee46990ae62b2b; sidecar 24860409 bytes matches manifest; unsigned; no installed real-provider E2E claim"
+  ],
+  "workstream_id": "ws-desktop-conversation-developer-fidelity-v1"
+}

@@ -1,0 +1,49 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/conversation_gateway/state.py",
+    "tests/test_gateway_profile_paths.py"
+  ],
+  "completed_at_utc": "2026-09-21T12:33:41Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-19T09:00:05Z",
+      "summary": "Resolve installation acceptance failure without changing Windows policy or canonical filenames: explicit extended paths for Windows profile-state file I/O; preserve atomic replace and identity checks."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-19T09:02:35Z",
+      "summary": "Windows MAX_PATH regression reproduced before fix (1 failed/1 passed); extended-path I/O now preserves filename and atomic rollback; 33 focused tests pass, candidate rebuild running."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-21T12:33:41Z",
+      "summary": "Fixed Windows profile atomic save beyond MAX_PATH without changing policy, filename identity or scope checks; real installed original-long-root turns and restart verified."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-21T12:33:41Z",
+      "summary": "Fixed Windows profile atomic save beyond MAX_PATH without changing policy, filename identity or scope checks; real installed original-long-root turns and restart verified."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_gateway/state.py",
+    "tests/test_gateway_profile_paths.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-19T09:00:05Z",
+  "status": "completed",
+  "summary": "Fixed Windows profile atomic save beyond MAX_PATH without changing policy, filename identity or scope checks; real installed original-long-root turns and restart verified.",
+  "title": "Fix installed Gateway profile state on Windows long paths",
+  "updated_at_utc": "2026-09-21T12:33:41Z",
+  "verification": [
+    "long-path-before.xml and long-path-after.xml preserve fail-to-pass evidence; Windows long-path policy unchanged.",
+    "outputs/installed-e2e-20260917/long-path-before.xml: 1 failed/1 passed; long-path-after.xml: 33 passed.",
+    "pytest-full-20260920.xml: 500 passed; installed-metadata-1789993771567.json: six committed long-root turns, twelve history rows. Full product acceptance remains open."
+  ],
+  "workstream_id": "ws-profile-long-path-20260919"
+}

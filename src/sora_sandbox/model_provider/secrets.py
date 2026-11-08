@@ -108,6 +108,9 @@ class SecretStore(Protocol):
     def delete(self, secret_ref: str, profile_id: str) -> None:
         ...
 
+    def delete_if_present(self, secret_ref: str, profile_id: str) -> None:
+        ...
+
 
 class OSKeyringSecretStore:
     """Fail-closed OS credential storage. It never falls back to a plaintext file."""
@@ -174,6 +177,20 @@ class OSKeyringSecretStore:
                 "the OS credential backend could not delete the provider credential",
             ) from exc
 
+    def delete_if_present(self, secret_ref: str, profile_id: str) -> None:
+        """Resume erasure only for a genuinely absent or matching owned secret."""
+        try:
+            raw = self.backend.get_password(self.service_name, secret_ref)
+        except Exception as exc:
+            raise ModelProviderError(ProviderErrorCode.CREDENTIAL_UNAVAILABLE, "the OS credential backend is unavailable") from exc
+        if raw is None:
+            return
+        SecretMaterial.from_json(raw, expected_profile_id=profile_id)
+        try:
+            self.backend.delete_password(self.service_name, secret_ref)
+        except Exception as exc:
+            raise ModelProviderError(ProviderErrorCode.CREDENTIAL_UNAVAILABLE, "the OS credential backend could not delete the provider credential") from exc
+
     def _get(self, secret_ref: str) -> str:
         try:
             raw = self.backend.get_password(self.service_name, secret_ref)
@@ -234,3 +251,7 @@ class InMemorySecretStore:
     def delete(self, secret_ref: str, profile_id: str) -> None:
         self.use(secret_ref, profile_id, lambda _material: None)
         self._values.pop(secret_ref, None)
+
+    def delete_if_present(self, secret_ref: str, profile_id: str) -> None:
+        if secret_ref in self._values:
+            self.delete(secret_ref, profile_id)

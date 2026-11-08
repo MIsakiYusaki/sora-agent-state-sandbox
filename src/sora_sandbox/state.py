@@ -36,7 +36,7 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def seed_state() -> JsonDict:
+def seed_state(*, include_example_memories: bool = False) -> JsonDict:
     created_at = now_ms()
     behavior = read_json(SEEDS_DIR / "behavior.seed.json")
     behavior["current"] = {
@@ -49,7 +49,7 @@ def seed_state() -> JsonDict:
         "schema_version": 1,
         "created_at": created_at,
         "memory": {
-            "items": load_jsonl(SEEDS_DIR / "memory.seed.jsonl"),
+            "items": load_jsonl(SEEDS_DIR / "memory.seed.jsonl") if include_example_memories else [],
             "surface_overrides": {},
             "memory_hooks": [],
         },

@@ -33,6 +33,7 @@ from sora_sandbox.model_provider.admin import (
     ModelProviderAdminService,
 )
 from sora_sandbox.model_provider.contracts import EndpointMode, ProviderEndpoint
+from sora_sandbox.model_provider.adapters import GeminiNativeAdapter
 from sora_sandbox.model_provider.errors import ModelProviderError, ProviderErrorCode
 from sora_sandbox.memory_extractor_worker import AsyncMemoryExtractorWorker
 from sora_sandbox.memory_runtime import MemoryRuntime
@@ -343,6 +344,32 @@ class ModelProviderSystemTests(unittest.TestCase):
         self.assertEqual(row["status"], "completed")
         self.assertEqual(row["prompt_tokens"], 10)
         self.assertNotIn("sk-super-secret", json.dumps(dict(row)))
+
+    def test_invocation_usage_preserves_unknown_zero_and_aliases(self) -> None:
+        for usage, expected in (
+            ({}, (None, None)),
+            ({"prompt_tokens": 0, "completion_tokens": 0}, (0, 0)),
+            ({"input_tokens": 8, "output_tokens": 2}, (8, 2)),
+            ({"prompt_tokens": 0, "input_tokens": 8,
+              "completion_tokens": 0, "output_tokens": 2}, (0, 0)),
+            ({"prompt_tokens": None, "output_tokens": 2}, (None, 2)),
+        ):
+            with self.subTest(usage=usage):
+                system, _ = self._configured_chat_system(lambda _request: httpx.Response(
+                    200, json={"model": "fast-model", "usage": usage,
+                               "choices": [{"message": {"content": "ok"}}]},
+                ))
+                system.llm.chat("system", "user", workload=Workload.TURN_INTERPRETATION)
+                row = system.registry._conn.execute(
+                    "SELECT prompt_tokens, completion_tokens FROM provider_invocation_trace"
+                ).fetchone()
+                self.assertEqual(tuple(row), expected)
+
+    def test_gemini_usage_does_not_invent_missing_counts(self) -> None:
+        self.assertEqual(GeminiNativeAdapter._usage({}), {})
+        self.assertEqual(GeminiNativeAdapter._usage({"usageMetadata": {
+            "promptTokenCount": 0, "totalTokenCount": 5,
+        }}), {"prompt_tokens": 0, "total_tokens": 5})
 
     def test_redirect_is_rejected_and_never_followed(self) -> None:
         requests: list[str] = []

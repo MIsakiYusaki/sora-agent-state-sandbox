@@ -1,0 +1,37 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/app.py",
+    "src/sora_sandbox/conversation_gateway/cli.py",
+    "tests/test_desktop_space_provider_isolation.py"
+  ],
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-28T12:19:04Z",
+      "summary": "New managed spaces must not auto-import shared legacy credentials; explicit desktop switch remains owner-scoped. Same-task CLI scope overlap reviewed."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-29T11:02:50Z",
+      "summary": "Managed desktop --no-legacy-migration avoids importing global legacy secrets into empty spaces;2focused tests pass Oct29. Host/source CLI contract requires sidecar rebuild; no new packaged acceptance. Keep active pending combined regression and package."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/app.py",
+    "src/sora_sandbox/conversation_gateway/cli.py",
+    "tests/test_desktop_space_provider_isolation.py"
+  ],
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-28T12:19:04Z",
+  "status": "active",
+  "summary": "Managed desktop --no-legacy-migration avoids importing global legacy secrets into empty spaces;2focused tests pass Oct29. Host/source CLI contract requires sidecar rebuild; no new packaged acceptance. Keep active pending combined regression and package.",
+  "title": "Prevent legacy credential import into independent spaces",
+  "updated_at_utc": "2026-10-29T11:02:50Z",
+  "verification": [
+    "Oct29 focused Python6 passed including2 isolation tests; outputs/client-status-sync-20261029/verification.json"
+  ],
+  "workstream_id": "ws-desktop-space-provider-isolation-20261028"
+}

@@ -10,6 +10,7 @@ from time import perf_counter
 from typing import Any, Protocol
 
 from .memory_schema import JsonDict, RecallPlan, json_dumps
+from .turn_observability import observe_http
 
 
 SURFACE_POLICY_VERSION = "surface_policy_v1"
@@ -343,7 +344,7 @@ class OpenAICompatibleSurfacePolicyProvider:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with observe_http("provider.http.compat_surface"), urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:  # pragma: no cover - network/provider path.
             detail = exc.read().decode("utf-8", errors="replace")

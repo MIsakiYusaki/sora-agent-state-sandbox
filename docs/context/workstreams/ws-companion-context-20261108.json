@@ -1,0 +1,44 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/catalog/systems.json"
+  ],
+  "completed_at_utc": "2026-11-08T09:16:00Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T09:12:26Z",
+      "summary": "Reviewed same-chat installed-e2e systems catalog overlap. Record B3 core r7 owner controls, governance,654Python/138frontend/18Host plus2ignored,8fixture scenes, frozen build/installed API and actual Host/WebView read evidence. Preserve protected approvals/remaining domains and B4thenB2 priority. No cloud writes."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T09:16:00Z",
+      "summary": "Recorded B3core r7 implementation and bounded evidence in current dataflow, systems and START_HERE. Source of truth context32/ledger26 updated by same-chat primary stream. Next B4 then B2. No cloud writes, no full-release claims."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T09:16:00Z",
+      "summary": "Recorded B3core r7 implementation and bounded evidence in current dataflow, systems and START_HERE. Source of truth context32/ledger26 updated by same-chat primary stream. Next B4 then B2. No cloud writes, no full-release claims."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/catalog/systems.json"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T09:12:26Z",
+  "status": "completed",
+  "summary": "Recorded B3core r7 implementation and bounded evidence in current dataflow, systems and START_HERE. Source of truth context32/ledger26 updated by same-chat primary stream. Next B4 then B2. No cloud writes, no full-release claims.",
+  "title": "Record companion delivery and next narrative batch",
+  "updated_at_utc": "2026-11-08T09:16:00Z",
+  "verification": [
+    "outputs/companion-controls-20261108/VERIFICATION.md; context status --check32 passed; git diff --check; program integrity/installer hash/native read evidence"
+  ],
+  "workstream_id": "ws-companion-context-20261108"
+}

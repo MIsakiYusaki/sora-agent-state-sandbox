@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "The inspector remains integrated in the existing main window; this does not claim the separate inspector-window or complete L3/L4/Frame-content/replay/export targets. Client wait uses the existing90-second Host transport limit, not a provider abort guarantee. Audits store scope hashes, preview hash, result and rollback status; uncertain effects stay open for review."
+  ],
+  "context": "The accepted Desktop PRD revision134 requires typed preview/execute, idempotency, expected revision, short process/profile/window-scoped debug capabilities and audit. The current console only lists real admin specs; generic execute can duplicate effects before recording completion.",
+  "decided_at_utc": "2026-10-10T19:26:24Z",
+  "decision": "Expose seven explicitly adapted L1 maintenance commands through five-minute child capabilities opened by the Rust main-window broker. Keep all capability tokens native-only, enforce profile/owner/origin/client scope, schema validation, preview fingerprints and durable actor/request-key preview identity. Claim execution before handler entry; unknown effects are never retried automatically. Permit same-profile redacted audit reads across process restarts, but only the originating client may execute its preview. Keep unadapted schemas and minimum levels unknown, and data/force/filesystem/L4 actions disabled.",
+  "decision_id": "adr-desktop-maintenance-commands-v1",
+  "references": [
+    "https://qcnqo2xrtj31.feishu.cn/wiki/RrFkwF6p9iqtIJkaa9fcELABnld",
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Native scoped maintenance command broker",
+  "workstream_id": "ws-desktop-admin-bridge-20261011"
+}

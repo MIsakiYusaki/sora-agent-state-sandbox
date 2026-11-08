@@ -1,0 +1,80 @@
+{
+  "schema_version": "MemoryBackgroundIngestionEvidence.v1",
+  "verified_at": "2026-09-10",
+  "workstream_id": "ws-memory-background-ingestion-p0-20260910",
+  "head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "scope": "Current dirty working tree; only the two Memory integration P0s are accepted. No commit, push, installed-app or production-release acceptance.",
+  "remote_git_fetched": false,
+  "resolved_items": ["memory-default-extractor-scheduler", "memory-source-identity"],
+  "tests": {
+    "command": ".venv/Scripts/python.exe -m pytest -q --maxfail=5 --junitxml=outputs/memory-p0-20260910/pytest-full.xml",
+    "timestamp": "2026-09-10T21:27:46.191085+08:00",
+    "passed": 462,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "elapsed_seconds": 75.35,
+    "focused_background_cases": 24,
+    "warnings": ["Starlette testclient httpx deprecation", "Pytest cache ACL denied; JUnit report written successfully"]
+  },
+  "real_model_smoke": {
+    "model": "deepseek-v4-flash",
+    "provider": "openai_compatible",
+    "scope": "Synthetic dialogue in isolated temporary database; no production conversation or store used.",
+    "status": "completed",
+    "attempts": 1,
+    "elapsed_seconds": 10.45,
+    "llm_evidence_count": 1,
+    "candidate_count": 1,
+    "candidate_statuses": ["needs_review"],
+    "canonical_count": 0,
+    "source_identity_preserved": true,
+    "limitation": "One wiring smoke sample, not accuracy, performance-SLO or installed-app acceptance."
+  },
+  "source_sha256": {
+    "src/sora_sandbox/memory_committed_turn.py": "bd57a70b32688b6b93f719ddceec78b212017032cbf9b072866db82f037f87dd",
+    "src/sora_sandbox/memory_extraction_scheduler.py": "182f35893dc6a23d698a94f13e61cb4fadd13da722a4d515eee40b8dc48c7eb2",
+    "src/sora_sandbox/memory_extraction_delivery.py": "38c9cfc2f3ba7099a0b62d95250fddb98af8e93bd42dc363a70fdbc222ad9e0a",
+    "src/sora_sandbox/memory_extractor_worker.py": "579e329437267cb105dbc1e8b6cd1ba67145242847138802de44bed841e0084b",
+    "src/sora_sandbox/memory_episode_ingestion.py": "368978a8df2450b28ed3d3b8e17b8e9da667ef383e4fed040699472a4014b41a",
+    "src/sora_sandbox/memory_runtime.py": "b646ea6abed9bfed237f5fe54977a477049c847b3c282fe65cc93a4216123ee6",
+    "src/sora_sandbox/memory_store.py": "58a9360f4d18f736c44b4cb29f83e71bd48be662fc95e40d03b2b9a17b0b8711",
+    "src/sora_sandbox/memory_system.py": "028be46973b89b25b98cf2b7238d6bebcebf996b3d4772054aa4eb446c361da9",
+    "src/sora_sandbox/memory_gate.py": "d254f9d6d4a05eb6911290fc382687d2cea99f245ba972cb8f72bec3d9821d22",
+    "src/sora_sandbox/runtime_stack.py": "5ad5e1336a8e4ef35784c3a4f2810f9e3d6a6eeacb7001ec6f22a669b6ce1fd3",
+    "src/sora_sandbox/conversation_runtime/post_turn.py": "d298f9e14250291527ad606d41ecd0b4ae50a3a28c975ddd5a38ff1e662bc053",
+    "src/sora_sandbox/conversation_runtime/runtime.py": "5e275cd9af77b62932841eb919afa03e67edd09a0e437cd455744e721bab1c5f",
+    "tests/test_memory_background.py": "a207931d46cc9b6daf6e89282fbfcd08390447176464c428a23ad6232f0877bd",
+    "docs/architecture/CONVERSATION_DATAFLOW.md": "27499b2aff4b9d38c7d0ab1cc125481df117a315356bf57557b08a44b65623ac"
+  },
+  "feishu": {
+    "flow": {"document_id": "Wl2cdE1y7oP4zaxIVAycQV2pnKe", "revision_id": 31, "verified_body_patches": 12},
+    "architecture": {"document_id": "Ax9FdxrV5oNHqlxW7O4cEebln3e", "revision_id": 169, "verified_body_patches": 10},
+    "navigation": {"document_id": "E9U5dJnQBo3nevxd27ecU2EJnoe", "revision_id": 264, "verified_body_patches": 3},
+    "flow_diagrams": {
+      "system_board": "M2t8wNmE5hRbKJbrsTtcAxXmn10",
+      "background_board": "ZpV7w8mvKhS6Uibmz7acGsrrnTh",
+      "source_and_node_readback_verified": true,
+      "sequence_board_unchanged": "B1qFwKRqMhecX1bZ2eLct1c1nFc",
+      "system_nodes_before_after": [90, 91],
+      "background_nodes_before_after": [42, 44]
+    },
+    "architecture_diagram": {
+      "board_token": "OhMTwr3rvhJF6rbAcK4cD9H3nDe",
+      "block_id": "doxcn72Fwek84DtUkuWWhFO3oOe",
+      "nodes_before_after": [90, 91],
+      "token_and_block_preserved": true,
+      "source_and_node_readback_verified": true,
+      "jpeg_preview_visually_inspected": true,
+      "six_historical_board_node_hashes_unchanged": true
+    },
+    "board_evidence": "outputs/memory-p0-20260910/boards/verification-all-three.json"
+  },
+  "remaining": [
+    "Periodic lifecycle scheduler",
+    "Independent index/projector outbox scheduling",
+    "Production model and multilingual quality calibration",
+    "Installed-app real-provider E2E and release gates",
+    "Cross-domain global atomicity is not promised"
+  ]
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import ssl
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
@@ -14,6 +15,12 @@ datas = [
     (str(ROOT / "prompts"), "prompts"),
 ]
 datas += collect_data_files("sora_sandbox", include_py_files=False)
+
+# Some build runtimes load a sibling certificate policy from SSLContext.__new__.
+# Keep that runtime dependency alongside the frozen ssl module.
+ssl_policy = Path(ssl.__file__).with_name("codex-rejected-cas.pem")
+if ssl_policy.is_file():
+    datas.append((str(ssl_policy), "."))
 
 hidden_imports = sorted(
     set(

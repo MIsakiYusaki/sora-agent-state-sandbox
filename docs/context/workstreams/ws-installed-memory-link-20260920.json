@@ -1,0 +1,43 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "tests/test_installed_debug_memory_identity.py"
+  ],
+  "completed_at_utc": "2026-09-21T12:33:41Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-20T12:16:30Z",
+      "summary": "Installed E2E found completed Memory jobs omitted because external conversation ID is passed to canonical Memory observation; preserve identity authorization and verify real Gateway binding mapping."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-21T12:33:41Z",
+      "summary": "Fixed installed timeline Memory lookup to use canonical runtime conversation ID from the existing identity-scoped binding, preserving all ownership and correlation filters; packaged UI association verified."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-21T12:33:41Z",
+      "summary": "Fixed installed timeline Memory lookup to use canonical runtime conversation ID from the existing identity-scoped binding, preserving all ownership and correlation filters; packaged UI association verified."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "tests/test_installed_debug_memory_identity.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-20T12:16:30Z",
+  "status": "completed",
+  "summary": "Fixed installed timeline Memory lookup to use canonical runtime conversation ID from the existing identity-scoped binding, preserving all ownership and correlation filters; packaged UI association verified.",
+  "title": "Fix installed timeline Memory identity mapping",
+  "updated_at_utc": "2026-09-21T12:33:41Z",
+  "verification": [
+    "memory-link-before.xml: 1 failed/5 passed; memory-link-after.xml: 41 passed; pytest-full-20260920.xml: 500 passed.",
+    "Actual installed UI 09-fixed-memory-timeline, 12-memory-job-details, 14-memory-attempt-phases dated 20260920 show real jobs and phases; ACCEPTANCE.md records limits."
+  ],
+  "workstream_id": "ws-installed-memory-link-20260920"
+}

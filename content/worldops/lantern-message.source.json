@@ -1,0 +1,42 @@
+{
+  "world": { "world_id": "world.default", "name": "澄空域" },
+  "entities": [{ "entity_id": "entity.sora", "name": "Sora" }],
+  "factions": [],
+  "relations": [],
+  "statements": [],
+  "events": [{
+    "event_id": "evt_starport_lamp_001",
+    "definition_version": 2,
+    "title": "星灯节前夜",
+    "summary": "星港的灯快要亮了。Sora 留下一张空白灯笺，想和你一起选一句送给夜空的话。你也可以改天再来，或让这张灯笺继续空着。",
+    "initial_state": "dormant",
+    "expression_default": "L2",
+    "active_mention_allowed": true,
+    "entity_ids": ["entity.sora"],
+    "eligibility": { "op": "always" },
+    "choices": [
+      { "choice_id": "safe_return", "label": "愿每个赶路的人，都有一盏回家的灯。", "aliases": [] },
+      { "choice_id": "small_courage", "label": "愿明天的我们，比今天多一点勇气。", "aliases": [] },
+      { "choice_id": "ordinary_evening", "label": "愿平常的夜晚，也有值得记住的小事。", "aliases": [] },
+      { "choice_id": "defer", "label": "改天再选", "aliases": ["改天再选"] },
+      { "choice_id": "decline", "label": "这次让灯笺空着", "aliases": ["这次不参加"] }
+    ],
+    "tasks": [{ "task_id": "lantern_message", "title": "和 Sora 选定一句星灯留言", "completion": { "op": "evidence_count", "evidence_type": "user_choice", "min": 1 } }],
+    "transitions": [
+      { "from": "dormant", "to": "hinted", "trigger": "eligible" },
+      { "from": "hinted", "to": "invited", "trigger": "surface_selected" },
+      { "from": "invited", "to": "active", "trigger": "choice", "choice_ids": ["safe_return"], "effects": [{ "op": "set_fact", "key": "starport.lantern.message", "value": "愿每个赶路的人，都有一盏回家的灯。" }] },
+      { "from": "invited", "to": "active", "trigger": "choice", "choice_ids": ["small_courage"], "effects": [{ "op": "set_fact", "key": "starport.lantern.message", "value": "愿明天的我们，比今天多一点勇气。" }] },
+      { "from": "invited", "to": "active", "trigger": "choice", "choice_ids": ["ordinary_evening"], "effects": [{ "op": "set_fact", "key": "starport.lantern.message", "value": "愿平常的夜晚，也有值得记住的小事。" }] },
+      { "from": "invited", "to": "hinted", "trigger": "choice", "choice_ids": ["defer"] },
+      { "from": "invited", "to": "archived", "trigger": "choice", "choice_ids": ["decline"] },
+      { "from": "active", "to": "completed", "trigger": "tasks_complete" },
+      { "from": "completed", "to": "archived", "trigger": "retention" }
+    ],
+    "memory_policy": { "write_only_if_user_participates": true },
+    "contribution_policy": { "eligible": true, "default_anonymous": true }
+  }],
+  "assets": [],
+  "locales": {},
+  "defaults": { "frequency": "low", "can_ignore": true, "no_penalty": true, "write_memory_only_if_user_participates": true }
+}

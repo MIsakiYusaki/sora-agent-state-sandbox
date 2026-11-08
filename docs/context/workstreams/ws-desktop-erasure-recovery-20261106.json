@@ -1,0 +1,53 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src",
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src-tauri/src/profile_store.rs",
+    "outputs/desktop-privacy-20261106",
+    "src/sora_sandbox/conversation_gateway/cli.py",
+    "src/sora_sandbox/conversation_gateway/privacy_cli.py",
+    "tests/test_desktop_privacy.py"
+  ],
+  "completed_at_utc": "2026-11-06T14:49:33Z",
+  "decision_ids": [
+    "adr-desktop-privacy-erasure-recovery-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T14:10:37Z",
+      "summary": "Same-thread overlaps reviewed with privacy export and earlier desktop/privacy streams. Add durable erasure fence, Host drain/helper/reconcile, exact-confirm UI and isolated crash/retry tests. Preserve daily data and real credentials."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-06T14:49:33Z",
+      "summary": "Connected durable erasure intent, Host drain/helper reconciliation, catalog/preference cleanup and fresh identity restart command. Pending erasure blocks Host/Gateway opening and exposes safe UI recovery even when history fails. Source/integration acceptance complete within recorded bounds, installed/WebView/real-vault/fault coverage remains."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-06T14:49:33Z",
+      "summary": "Connected durable erasure intent, Host drain/helper reconciliation, catalog/preference cleanup and fresh identity restart command. Pending erasure blocks Host/Gateway opening and exposes safe UI recovery even when history fails. Source/integration acceptance complete within recorded bounds, installed/WebView/real-vault/fault coverage remains."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src",
+    "apps/desktop/src-tauri",
+    "outputs/desktop-privacy-20261106",
+    "src/sora_sandbox/conversation_gateway",
+    "tests/test_desktop_privacy.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T14:10:37Z",
+  "status": "completed",
+  "summary": "Connected durable erasure intent, Host drain/helper reconciliation, catalog/preference cleanup and fresh identity restart command. Pending erasure blocks Host/Gateway opening and exposes safe UI recovery even when history fails. Source/integration acceptance complete within recorded bounds, installed/WebView/real-vault/fault coverage remains.",
+  "title": "Recoverable current-space erasure",
+  "updated_at_utc": "2026-11-06T14:49:33Z",
+  "verification": [
+    "Python610/frontend116/Host17;7 privacy backend cases included;separately enabled isolated Host/realGateway erasure1pass confirms drain, removal, neighbour preservation, receipt and empty replacement reassembly.8layout/error scenes and production frontend/debug Host build. VERIFICATION.md details limits."
+  ],
+  "workstream_id": "ws-desktop-erasure-recovery-20261106"
+}

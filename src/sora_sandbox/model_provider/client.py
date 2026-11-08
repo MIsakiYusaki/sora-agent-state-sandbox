@@ -195,6 +195,12 @@ class ProviderLLMClient:
         provider_request_id: str | None = None,
     ) -> None:
         usage_data = dict(usage or {})
+        prompt_tokens = usage_data.get("prompt_tokens")
+        if prompt_tokens is None:
+            prompt_tokens = usage_data.get("input_tokens")
+        completion_tokens = usage_data.get("completion_tokens")
+        if completion_tokens is None:
+            completion_tokens = usage_data.get("output_tokens")
         self.registry.record_invocation(
             {
                 "invocation_id": invocation_id,
@@ -205,8 +211,8 @@ class ProviderLLMClient:
                 "routing_revision": snapshot.registry_revision,
                 "status": status,
                 "latency_ms": round(latency_ms, 2),
-                "prompt_tokens": int(usage_data.get("prompt_tokens") or usage_data.get("input_tokens") or 0),
-                "completion_tokens": int(usage_data.get("completion_tokens") or usage_data.get("output_tokens") or 0),
+                "prompt_tokens": int(prompt_tokens) if prompt_tokens is not None else None,
+                "completion_tokens": int(completion_tokens) if completion_tokens is not None else None,
                 "retry_count": max(0, ordinal),
                 "fallback_ordinal": ordinal,
                 "error_code": error.code.value if error else None,

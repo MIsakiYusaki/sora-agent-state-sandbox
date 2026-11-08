@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "Requeue is not a successful external delivery. Unknown outcomes use existing durable admin receipts and explicit reread. No arbitrary payload editing, force commit or external-model run is introduced. Packaged/installed queue recovery and broader cross-database crash consistency require separate verification."
+  ],
+  "context": "Desktop exposed only bulk queue drain. Replaying historical projection snapshots or index tombstones can conflict with later correction, privacy restrictions or restoration.",
+  "decided_at_utc": "2026-11-06T15:11:00Z",
+  "decision": "Add one revision-checked owner-scoped metadata requeue command behind existing native maintenance preview/confirm/audit. Preserve payload, event idempotency and cumulative attempts, add three bounded attempts, atomically persist scheduling and audit. Real consumers check current canonical state before projection delivery or stale index deletion and report rejected_policy without applying superseded payloads. UI displays consumer outcome separately from queue scheduling.",
+  "decision_id": "adr-memory-single-event-recovery-v1",
+  "references": [
+    "outputs/desktop-queue-20261106/VERIFICATION.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Audited single-event retries with canonical delivery checks",
+  "workstream_id": "ws-desktop-single-queue-recovery-20261106"
+}

@@ -1,6 +1,11 @@
 import type {
+  DesktopDebugSession, DesktopAdminRegistry, DesktopAdminActionView,
+  DesktopAdminPreviewRequest, DesktopAdminExecuteRequest,
   CreateProfileRequest,
   DesktopCancelTurnRequest,
+  DesktopDebugSnapshot,
+  DesktopDebugFrameRequest, DesktopDebugFrameDetail,
+  DesktopFrameObservation,
   DesktopEventEnvelope,
   DesktopHistoryRequest,
   DesktopProviderCredentialPromptRequest,
@@ -31,6 +36,50 @@ import type {
 const now = () => Date.now();
 
 export class MockDesktopTransport implements DesktopTransport {
+  async getNarrative(): Promise<import("./narrative").NarrativeView> { throw new Error("布局预览不提供真实故事与时间线。"); }
+  async getMemoryMaintenance(): Promise<import("./maintenance").MemoryMaintenanceView> { throw new Error("布局预览不提供真实维护状态。"); }
+  async setMemoryMaintenance(_request: import("./maintenance").MemoryMaintenanceRequest): Promise<import("./maintenance").MemoryMaintenanceView> { throw new Error("布局预览不修改维护状态。"); }
+  async narrativeAction(_request: import("./narrative").NarrativeActionRequest): Promise<import("./narrative").NarrativeActionResult> { throw new Error("布局预览不记录故事选择。"); }
+  async getCompanion(): Promise<import("./companion").CompanionView> { throw new Error("布局预览不读取真实陪伴状态。"); }
+  async companionAction(_request: import("./companion").CompanionActionRequest): Promise<import("./companion").CompanionView> { throw new Error("布局预览不修改真实陪伴状态。"); }
+  async getCompanionGovernance(_domain: "persona" | "relationship"): Promise<import("./companion").CompanionGovernanceView> { throw new Error("布局预览不提供领域治理记录。"); }
+  async openCompanionSession(): Promise<DesktopDebugSession> { throw new Error("布局预览不授予领域管理权限。"); }
+  async resolveCompanionGovernance(_request: import("./companion").CompanionGovernanceDecision): Promise<import("./companion").CompanionGovernanceReceipt> { throw new Error("布局预览不执行领域治理。"); }
+  async getPrivacyState(): Promise<import("./DesktopTransport").PrivacyState> { throw new Error("布局预览不读取真实删除状态。"); }
+  async eraseSpace(_request: import("./DesktopTransport").PrivacyEraseRequest): Promise<void> { throw new Error("布局预览不能删除真实空间。"); }
+  async exportPrivacy(_request: import("./DesktopTransport").PrivacyExportRequest): Promise<import("./DesktopTransport").PrivacyExportReceipt> {
+    throw new Error("布局预览无法保存真实隐私导出文件。");
+  }
+  async listSpaces(): Promise<import("./DesktopTransport").SpacePage> { throw new Error("布局预览不读取真实空间目录。"); }
+  async createSpace(_name: string, _revision: string): Promise<import("./DesktopTransport").SpacePage> { throw new Error("布局预览不创建真实空间。"); }
+  async switchSpace(_request: import("./DesktopTransport").SpaceSwitchRequest): Promise<void> { throw new Error("布局预览不能切换真实空间。"); }
+  async openSpaceLocation(): Promise<void> { throw new Error("布局预览不打开真实数据目录。"); }
+  async getNotificationSettings(): Promise<import("./DesktopTransport").NotificationSettingsView> { throw new Error("布局预览不读取真实通知偏好。"); }
+  async saveNotificationSettings(_preferences: import("./DesktopTransport").NotificationPreferences, _revision: string): Promise<import("./DesktopTransport").NotificationSettingsView> { throw new Error("布局预览不保存真实通知偏好。"); }
+  async testNotification(): Promise<{ readonly status: "disabled" | "quiet" | "submitted_to_windows" }> { throw new Error("布局预览不发送 Windows 通知。"); }
+  async openQualitySession(): Promise<DesktopDebugSession> { throw new Error("模拟传输不能开启真实质量治理会话。"); }
+  async inspectQuality(_request: import("./DesktopTransport").QualityRequest): Promise<import("./DesktopTransport").QualityPage> { throw new Error("模拟传输没有真实质量运行记录。"); }
+  async resolveQualityEvent(_request: import("./DesktopTransport").QualityResolutionRequest): Promise<import("./DesktopTransport").QualityReceipt> { throw new Error("模拟传输不结案真实质量事件。"); }
+  async getMemoryQueue(_kind: "index" | "projection", _status: "all" | "pending" | "failed" | "dead_letter"): Promise<import("./DesktopTransport").MemoryQueuePage> { throw new Error("模拟传输不提供真实队列事件。"); }
+  async getMemoryDetail(_id: string): Promise<import("./DesktopTransport").UserMemoryDetail> { throw new Error("模拟传输不提供真实记忆来源。"); }
+  async correctMemory(_id: string, _request: import("./DesktopTransport").MemoryCorrectionRequest): Promise<{ readonly memory: UserMemoryView }> { throw new Error("模拟传输不修改真实记忆。"); }
+  async getResponseBasis(_conversation: string, _turn: string): Promise<import("./DesktopTransport").UserResponseBasis> { throw new Error("模拟传输不提供实际回应依据。"); }
+  async getFrameObservation(): Promise<import("../contracts/generated").DesktopFrameObservation> { throw new Error("模拟传输不读取真实采集状态。"); }
+  async saveConversationDefaults(_id: string, _request: import("./DesktopTransport").DefaultControlsRequest): Promise<ConversationControlsView> { throw new Error("模拟传输不保存真实默认偏好。"); }
+  async openReviewSession(): Promise<import("../contracts/generated").DesktopDebugSession> { throw new Error("模拟传输不能开启真实审核会话。"); }
+  async getMemoryGovernance(_kind: import("./DesktopTransport").GovernanceKind): Promise<import("./DesktopTransport").GovernancePage> { throw new Error("模拟传输不提供真实治理记录。"); }
+  async resolveMemoryReview(_request: import("./DesktopTransport").ReviewResolutionRequest): Promise<import("./DesktopTransport").ReviewReceipt> { throw new Error("模拟传输不处理真实审核。"); }
+  async dismissQuarantine(_request: import("./DesktopTransport").QuarantineDismissalRequest): Promise<import("./DesktopTransport").QuarantineReceipt> { throw new Error("模拟传输不处置真实隔离记录。"); }
+  async bindModelWorkload(_request: import("../contracts/generated").BindWorkloadRequest): Promise<import("../contracts/generated").WorkloadBinding> {
+    throw new Error("模拟传输不修改真实模型路由。");
+  }
+  async deleteProvider(_profileId: string): Promise<void> { throw new Error("模拟传输不删除真实模型配置。"); }
+  async openDebugSession(): Promise<DesktopDebugSession> { throw new Error("维护命令需要真实 Tauri Host；布局夹具不会执行命令。"); }
+  async closeDebugSession(_sessionId: string): Promise<void> { /* No native session is created by this fixture. */ }
+  async getAdminCommands(): Promise<DesktopAdminRegistry> { throw new Error("命令注册表未接入该布局夹具。"); }
+  async previewAdminCommand(_request: DesktopAdminPreviewRequest): Promise<DesktopAdminActionView> { throw new Error("布局夹具禁止预览维护命令。"); }
+  async executeAdminCommand(_request: DesktopAdminExecuteRequest): Promise<DesktopAdminActionView> { throw new Error("布局夹具禁止执行维护命令。"); }
+  async getAdminAction(_actionId: string): Promise<DesktopAdminActionView> { throw new Error("布局夹具没有真实审计回执。"); }
   private readonly listeners = new Set<DesktopEventListener>();
   private readonly cancelled = new Set<string>();
   private profiles: ProviderProfile[] = [];
@@ -48,7 +97,7 @@ export class MockDesktopTransport implements DesktopTransport {
     quiet: { value: false, scope: "default" },
     response_mute: { value: false, scope: "default" },
     reply_depth: { value: "balanced", scope: "default" },
-    follow_up: { value: "one", scope: "default" },
+    follow_up: { value: "none", scope: "default" },
     topic_shift: { value: "same_topic", scope: "default" },
     state_surface: { value: "implicit", scope: "default" },
   };
@@ -260,11 +309,60 @@ export class MockDesktopTransport implements DesktopTransport {
       quiet: { value: false, scope: "default" },
       response_mute: { value: false, scope: "default" },
       reply_depth: { value: "balanced", scope: "default" },
-      follow_up: { value: "one", scope: "default" },
+      follow_up: { value: "none", scope: "default" },
       topic_shift: { value: "same_topic", scope: "default" },
       state_surface: { value: "implicit", scope: "default" },
     };
     return this.controlsView(conversationId);
+  }
+
+  async getDebugFrame(_request: DesktopDebugFrameRequest): Promise<DesktopDebugFrameDetail> {
+    throw new Error("模拟传输不提供真实上下文帧；仅显式测试夹具可以覆盖。");
+  }
+  async setFrameObservation(enabled: boolean): Promise<DesktopFrameObservation> {
+    if (enabled) throw new Error("模拟传输不能开启真实帧采集。");
+    return { active: false, expires_at_ms: null }; // This fixture owns no sampler.
+  }
+
+  async getDebugSnapshot(conversationId: string): Promise<DesktopDebugSnapshot> {
+    const active = (subsystem_id: string, label: string, summary: string) => ({
+      schema_version: "DesktopDebugSubsystem.v1" as const,
+      subsystem_id,
+      label,
+      status: "active" as const,
+      summary,
+      details: {},
+    });
+    return {
+      schema_version: "DesktopDebugSnapshot.v1",
+      collected_at_ms: now(),
+      profile_id_hash: "mock-local-profile",
+      conversation_id: conversationId,
+      gateway: { status: "ready", active_turns: 0, runtime_status: "ready", registry_status: "ready" },
+      timeline: { status: "empty", turns: [], retention_limit: 20 },
+      routes: { status: "available", registry_revision: 0, binding_count: 0, bindings: [] },
+      systems: [
+        active("conversation_runtime", "文字会话运行时", "流式输出、取消和提交链路可用"),
+        active("interruptibility", "对话边界与可打断性", "自然语言控制已接入"),
+        active("memory", "记忆系统 01-10", "记忆治理、召回和质量层已组装"),
+        active("persona", "人格系统", "有界、可回滚的人格轨迹服务已组装"),
+        active("affect", "情绪与内部状态", "短期状态与衰减服务已组装"),
+        active("relationship", "关系连续性", "按用户隔离的关系服务已组装"),
+        active("worldops", "叙事世界", "内容与个人时间线服务已组装"),
+        active("model_provider", "模型服务与路由", "Provider 与 workload 路由已组装"),
+        active("module_10", "评测、观测与管理", "评测注册表与受控管理动作已组装"),
+      ],
+      memory: { status: "ok", active_memories: this.memories.length, pending_candidates: 0, open_reviews: 0 },
+      async_work: { pending: 0, failed: 0, dead_letter: 0 },
+      quality: { status: "ok", eval_suite_count: 0, quality_run_count: 0, baseline_count: 0, open_event_count: 0, admin_action_count: 0, eval_suites: [], latest_runs: [], baselines: [], open_events: [], admin_actions: [] },
+      bridges: [
+        { schema_version: "DesktopDebugBridge.v1", bridge_id: "gateway_events", label: "当前会话事件", status: "available", summary: "当前 turn 的真实 Gateway 事件可用" },
+        { schema_version: "DesktopDebugBridge.v1", bridge_id: "turn_diagnostics", label: "逐轮全链路诊断", status: "available", summary: "测试适配器提供事件级诊断" },
+        { schema_version: "DesktopDebugBridge.v1", bridge_id: "debug_snapshot", label: "脱敏运行快照", status: "available", summary: "身份隔离的 L0 快照可用" },
+        { schema_version: "DesktopDebugBridge.v1", bridge_id: "typed_frames", label: "逐轮类型化上下文帧", status: "partial", summary: "逐轮帧契约元数据已投影" },
+        { schema_version: "DesktopDebugBridge.v1", bridge_id: "typed_commands", label: "受控命令执行", status: "partial", summary: "命令注册表已投影，执行桥关闭" },
+      ],
+    };
   }
 
   private markVerified(profileId: string): ProviderProfile {

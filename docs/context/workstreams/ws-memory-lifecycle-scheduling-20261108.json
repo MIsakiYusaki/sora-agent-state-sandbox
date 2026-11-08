@@ -1,0 +1,63 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/transport",
+    "apps/desktop/src/views/MemoryMaintenance.test.tsx",
+    "apps/desktop/src/views/MemoryMaintenance.tsx",
+    "apps/desktop/src/views/MemoryView.tsx",
+    "src/sora_sandbox/conversation_gateway/desktop_maintenance.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/memory_lifecycle.py",
+    "tests/test_memory_maintenance.py"
+  ],
+  "completed_at_utc": "2026-11-08T10:26:27Z",
+  "decision_ids": [
+    "adr-20261108-fbc38b01b2"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T09:46:15Z",
+      "summary": "Reviewed same-chat overlap with narrative transport/Host/style and stale broad desktop streams; preserve all current changes. Scheduler implementation remains owned by ws-memory-effectiveness. Add least-recently-scored bounded batches and persistent pause/resume through typed identity-scoped read/confirmed-CAS-write controls; atomically record heat/retention/tombstone checkpoint. No automatic semantic consolidation or external model calls."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "Default bounded fair periodic maintenance and confirmed persisted pause/resume connected through main Host/Gateway and normal memory page."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "Default bounded fair periodic maintenance and confirmed persisted pause/resume connected through main Host/Gateway and normal memory page."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/transport",
+    "apps/desktop/src/views/MemoryMaintenance.test.tsx",
+    "apps/desktop/src/views/MemoryMaintenance.tsx",
+    "apps/desktop/src/views/MemoryView.tsx",
+    "src/sora_sandbox/conversation_gateway/desktop_maintenance.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/memory_lifecycle.py",
+    "tests/test_memory_maintenance.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T09:46:15Z",
+  "status": "completed",
+  "summary": "Default bounded fair periodic maintenance and confirmed persisted pause/resume connected through main Host/Gateway and normal memory page.",
+  "title": "Managed periodic memory maintenance",
+  "updated_at_utc": "2026-11-08T10:26:27Z",
+  "verification": [
+    "Python684/frontend147/Host18+2ignored;12 visual scenes; installed actual periodic expiry and restart checkpoint",
+    "Final unsigned r9 installed, exact Host/manifest check; real UI and API evidence distinguished in VERIFICATION.md"
+  ],
+  "workstream_id": "ws-memory-lifecycle-scheduling-20261108"
+}

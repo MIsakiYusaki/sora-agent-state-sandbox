@@ -1,0 +1,44 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/desktop-functional-repair-20261028",
+    "tests/test_conversation_gateway.py"
+  ],
+  "completed_at_utc": "2026-10-28T11:51:19Z",
+  "decision_ids": [
+    "adr-desktop-quality-event-resolution-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-28T11:02:21Z",
+      "summary": "Assert actual Persona coverage and incomplete failure semantics, retain isolated test evidence; no model requests or daily data mutations."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-28T11:51:19Z",
+      "summary": "Corrected real Persona/extraction aggregate assertions; full585 and bounded frontend95/Host9 evidence recorded with explicit fixture and uninstalled limits."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-28T11:51:19Z",
+      "summary": "Corrected real Persona/extraction aggregate assertions; full585 and bounded frontend95/Host9 evidence recorded with explicit fixture and uninstalled limits."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/desktop-functional-repair-20261028",
+    "tests/test_conversation_gateway.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-28T11:02:21Z",
+  "status": "completed",
+  "summary": "Corrected real Persona/extraction aggregate assertions; full585 and bounded frontend95/Host9 evidence recorded with explicit fixture and uninstalled limits.",
+  "title": "Close desktop audit integration regressions",
+  "updated_at_utc": "2026-10-28T11:51:19Z",
+  "verification": [
+    "Python585/functional27/gateway29; frontend95; TypeScript-Vite build; Host9; CUA quality/quarantine 1440x900 and420x560/error reviews. Reports in outputs/desktop-functional-repair-20261028."
+  ],
+  "workstream_id": "ws-desktop-audit-regressions-20261028"
+}

@@ -88,12 +88,16 @@ class TurnCoordinator:
         finally:
             self._release(execution)
 
-    def cancel(self, conversation_id: str, *, reason: str = "user_superseded") -> bool:
+    def cancel(
+        self, conversation_id: str, *, reason: str = "user_superseded",
+        turn_id: str | None = None,
+    ) -> bool:
         with self._lock:
             execution = self._active.get(conversation_id)
-        if execution is None:
-            return False
-        changed = execution.cancellation.cancel(reason)
+            if execution is None or (turn_id is not None and execution.turn_id != turn_id):
+                return False
+            # Match and signal the same execution while claim/release is fenced.
+            changed = execution.cancellation.cancel(reason)
         if changed:
             try:
                 context = self.journal.get_turn(execution.turn_id)

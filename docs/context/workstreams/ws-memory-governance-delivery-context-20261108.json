@@ -1,0 +1,62 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "README.md",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MEMORY_BACKGROUND_INGESTION.md",
+    "docs/MEMORY_PRD_IMPLEMENTATION_ALIGNMENT.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "completed_at_utc": "2026-11-08T07:52:44Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T07:46:28Z",
+      "summary": "Reviewed same-chat overlapping prior ws-installed-e2e-20260917 and ws-desktop-functional-repair-20261015. Update first P0 batch evidence only: atomic review, committed durable propagation/retry, native approve/reject/defer, real isolated Windows vault deletion and matching installed r6. Preserve historical records and remaining F01-F30/release gaps. No cloud writes."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T07:52:44Z",
+      "summary": "Updated12 claimed context/delivery documents and catalogs to first P0 r6 evidence. Reconciled stale current privacy/review/scheduling entries and dataflow diagram with actual post-commit durable delivery. Preserved dated historical evidence, open F01-F30/release gaps and unrelated active streams. No cloud writes."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T07:52:44Z",
+      "summary": "Updated12 claimed context/delivery documents and catalogs to first P0 r6 evidence. Reconciled stale current privacy/review/scheduling entries and dataflow diagram with actual post-commit durable delivery. Preserved dated historical evidence, open F01-F30/release gaps and unrelated active streams. No cloud writes."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "README.md",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MEMORY_BACKGROUND_INGESTION.md",
+    "docs/MEMORY_PRD_IMPLEMENTATION_ALIGNMENT.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T07:46:28Z",
+  "status": "completed",
+  "summary": "Updated12 claimed context/delivery documents and catalogs to first P0 r6 evidence. Reconciled stale current privacy/review/scheduling entries and dataflow diagram with actual post-commit durable delivery. Preserved dated historical evidence, open F01-F30/release gaps and unrelated active streams. No cloud writes.",
+  "title": "Record first P0 Memory governance delivery",
+  "updated_at_utc": "2026-11-08T07:52:44Z",
+  "verification": [
+    "outputs/memory-governance-20261108/VERIFICATION.md; git diff --check passed; project_context status --check passed revision29; installer hash and native/vault receipts rechecked"
+  ],
+  "workstream_id": "ws-memory-governance-delivery-context-20261108"
+}

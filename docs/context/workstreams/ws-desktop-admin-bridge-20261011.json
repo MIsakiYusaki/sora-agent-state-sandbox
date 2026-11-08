@@ -1,0 +1,78 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/contracts/generated.ts",
+    "apps/desktop/src/transport",
+    "apps/desktop/src/views/AdminCommandPanel.test.tsx",
+    "apps/desktop/src/views/AdminCommandPanel.tsx",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "contracts/desktop",
+    "src/sora_sandbox/conversation_gateway/cli.py",
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/desktop_contracts.py",
+    "src/sora_sandbox/memory_quality_ops.py",
+    "tests/test_admin_execution.py",
+    "tests/test_desktop_commands.py"
+  ],
+  "completed_at_utc": "2026-10-11T03:44:21Z",
+  "decision_ids": [
+    "adr-desktop-maintenance-commands-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-10T17:32:50Z",
+      "summary": "Connect registered typed maintenance actions through owner-scoped Gateway and native Host confirmations with durable one-shot claims, safe output and honest unsupported actions."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-10T19:26:24Z",
+      "summary": "Seven real L1 maintenance adapters wired through short native-only debug session, strict preview/confirmed execute/audit/history; durable one-shot effects and profile-read/client-write fences. L3/L4 and legacy unknown schemas remain disabled. Source/contract/52frontend/7Host checks pass; packaging and installed smoke underway."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-11T03:44:21Z",
+      "summary": "Seven real typed maintenance bridges delivered with native-only session, durable preview/claim, audit and honest unknown/unsupported states. Native trace-sync plus a real-model conversation and restart sample pass; broader release stays open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-11T03:44:21Z",
+      "summary": "Seven real typed maintenance bridges delivered with native-only session, durable preview/claim, audit and honest unknown/unsupported states. Native trace-sync plus a real-model conversation and restart sample pass; broader release stays open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/contracts/generated.ts",
+    "apps/desktop/src/transport",
+    "apps/desktop/src/views/AdminCommandPanel.test.tsx",
+    "apps/desktop/src/views/AdminCommandPanel.tsx",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "contracts/desktop",
+    "src/sora_sandbox/conversation_gateway/cli.py",
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/desktop_contracts.py",
+    "src/sora_sandbox/memory_quality_ops.py",
+    "tests/test_admin_execution.py",
+    "tests/test_desktop_commands.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-10T17:32:50Z",
+  "status": "completed",
+  "summary": "Seven real typed maintenance bridges delivered with native-only session, durable preview/claim, audit and honest unknown/unsupported states. Native trace-sync plus a real-model conversation and restart sample pass; broader release stays open.",
+  "title": "Typed desktop admin preview confirmation and execution",
+  "updated_at_utc": "2026-10-11T03:44:21Z",
+  "verification": [
+    "PRD revision134 read live after refreshed desktop-user authorization; sections32.4/32.7/32.8/32.9 align. Known invalid requests, uncertainty and session expiry differentiated without automatic resend.",
+    "543 Python, fresh 52 frontend/7Host pass; packaged and installed command smoke pass; actual native UI trace-sync audit and real-model Memory timeline/restart assertions pass. See outputs/admin-console-20261011/VERIFICATION.md."
+  ],
+  "workstream_id": "ws-desktop-admin-bridge-20261011"
+}

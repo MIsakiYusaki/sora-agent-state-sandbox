@@ -1,0 +1,18 @@
+{
+  "consequences": [
+    "No raw prompts, free-text gist, private evidence, exact domain scores or hidden reasoning are exported. Raw evidence remains outside this L0 bridge and needs a separately scoped flow.",
+    "Projection revision compares only permitted views; unknown/missing/null/false/zero and source-stage differences remain distinct."
+  ],
+  "context": "Frame metadata alone cannot debug actual controls and domain bands; delivery snapshots can differ from generation input and arbitrary recursive export would leak private content.",
+  "decided_at_utc": "2026-10-11T04:17:56Z",
+  "decision": "Capture bounded, strict scalar/enum/band/count/reference-hash projections immediately after the generation disclosure/budget seal, with failure isolation; persist in encrypted execution evidence and strip from timeline polling. Fetch a single validated owner/conversation/turn-scoped frame through Gateway and main-window native IPC. Mark old wave snapshots as legacy source, never generation input.",
+  "decision_id": "adr-typed-context-frame-projection-v1",
+  "references": [
+    "Desktop PRD revision134 sections32.6/32.8/32.9 read live 20261011",
+    "src/sora_sandbox/conversation_runtime/debug_frames.py"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "On-demand L0 frame values captured at sealed generation boundary",
+  "workstream_id": "ws-context-frame-values-20261011"
+}

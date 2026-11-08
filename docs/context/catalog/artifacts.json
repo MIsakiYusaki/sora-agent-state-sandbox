@@ -1,53 +1,603 @@
 {
   "schema_version": "ProjectSoraArtifactCatalog.v1",
-  "refreshed_at": "2026-08-31",
+  "refreshed_at": "2026-10-30",
+  "sync_note": "2026-10-29: all28 indexed PRDs/overviews refreshed with guarded implementation/contract/history edits and per-document readback; target requirements and release gaps retained. Evidence: outputs/prd-refresh-all-20261029/verification.json and COMPLETION.md. Earlier sync receipts remain historical.",
   "artifacts": [
-    {"id": "feishu-overall-architecture", "title": "Project Sora Overall Architecture", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/Ax9FdxrV5oNHqlxW7O4cEebln3e", "status": "canonical"},
-    {"id": "feishu-overall-progress", "title": "Project Sora Engineering Progress", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/QgHydreJHoktmxxO7VWceLd9nue", "status": "needs_refresh_check"},
-    {"id": "feishu-memory-architecture", "title": "Project Sora Memory Architecture", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/O8uDdAggsofRM2xrB5TcuoOhnUu", "status": "canonical"},
-    {"id": "feishu-memory-research", "title": "Market Memory System Research", "kind": "research", "url": "https://qcnqo2xrtj31.feishu.cn/docx/NEITdzEhcorMObxi8v3cjVcKndC", "status": "reference"},
-    {"id": "feishu-memory-research-2", "title": "Memory Research Follow-up", "kind": "research", "url": "https://qcnqo2xrtj31.feishu.cn/docx/J7c6d062ooMgxOxFyWPcJDKtngc", "status": "reference"},
-    {"id": "feishu-memory-module-01", "title": "Memory Module 01", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/K5Gvd02F8o00rexLWCzcy0Z2nMa", "status": "canonical"},
-    {"id": "feishu-memory-module-02", "title": "Memory Module 02 LLM Extractor", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/XBxPdktWaoUJI7xZMBqcloOwnTh", "status": "canonical"},
-    {"id": "feishu-memory-module-02-audit", "title": "Memory Module 02 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/BLeAdZfwzoM9kdxsZFUcRf7Vnce", "status": "historical"},
-    {"id": "feishu-memory-module-03", "title": "Memory Module 03 Gate", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/XlF7doxxWow4ClxbB9XcCkpVnWd", "status": "canonical"},
-    {"id": "feishu-memory-module-03-audit", "title": "Memory Module 03 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/VhB2dTbFZozsnqxFqSIcKrM3nBg", "status": "historical"},
-    {"id": "feishu-memory-module-04", "title": "Memory Module 04 Canonical Store", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/ZXEXdtB1Vo0KxHx8gPLc4zrfn8M", "status": "canonical"},
-    {"id": "feishu-memory-module-04-audit", "title": "Memory Module 04 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/XgiVdtTkRoyqS4xb0xbcIW1anTg", "status": "historical"},
-    {"id": "feishu-memory-module-05", "title": "Memory Module 05 Retrieval", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/U588ddMFpoj5fmxgDH5cEYjMnqh", "status": "canonical"},
-    {"id": "feishu-memory-module-05-audit", "title": "Memory Module 05 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/LQW7dNtQqoch3uxtv0ZcfD0RnYb", "status": "historical"},
-    {"id": "feishu-memory-module-06", "title": "Memory Module 06 Recall Planner", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/AJNodsUmeov55oxDvYace4IQnkb", "status": "canonical"},
-    {"id": "feishu-memory-module-06-audit", "title": "Memory Module 06 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/NnAhdYdzKo94urxg21cc8ixonod", "status": "historical"},
-    {"id": "feishu-memory-module-06-audit-2", "title": "Memory Module 06 Follow-up Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/KabddXMkroubHgxLsZocQkPQnt0", "status": "historical"},
-    {"id": "feishu-memory-module-07", "title": "Memory Module 07 Surface Policy", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/T5uddHGYboXxsBxFrlOczQtWnxc", "status": "canonical"},
-    {"id": "feishu-memory-module-07-audit", "title": "Memory Module 07 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/FBNrdCXRHoCyLoxKdMDcls64nDb", "status": "historical"},
-    {"id": "feishu-memory-module-08", "title": "Memory Module 08 Lifecycle", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/BJTSdsRMSoL05qxjUjLczuSnnlh", "status": "canonical"},
-    {"id": "feishu-memory-module-08-audit", "title": "Memory Module 08 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/Qf3VdE61Co8oQHxDAAsciNCJnXc", "status": "historical"},
-    {"id": "feishu-memory-module-09", "title": "Memory Module 09 Projection Gateway", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/MDpsdtnQpoVYQ9xqUwDcbYyZnzP", "status": "canonical"},
-    {"id": "feishu-memory-module-09-audit", "title": "Memory Module 09 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/WIZhdHdeAonzxGx2ARccisQ6n8E", "status": "historical"},
-    {"id": "feishu-memory-module-10", "title": "Memory Module 10 Quality Ops", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/AJfEdFEEEoKUQRxYq5ycAVU8nOX", "status": "canonical"},
-    {"id": "feishu-memory-module-10-audit", "title": "Memory Module 10 Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/XAj8dpccWozbI6xNrFjcPTdJn9e", "status": "historical"},
-    {"id": "feishu-interruptibility", "title": "Interruptibility System", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/Tn2td1lJqoXujOx8xgscnayunKc", "status": "canonical"},
-    {"id": "feishu-persona-legacy", "title": "Persona Early Design", "kind": "research", "url": "https://qcnqo2xrtj31.feishu.cn/docx/XIcodnT8To54fZxV5yJcp6Kznug", "status": "superseded"},
-    {"id": "feishu-persona-current", "title": "Persona System Engineering Design", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/FYKCdChDqoG9r3xYvNlcpjcgnFb", "status": "canonical"},
-    {"id": "feishu-persona-audit", "title": "Persona System Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/FXqYdXNPFoCgeDxL9ULc7pp3nmc", "status": "historical"},
-    {"id": "feishu-affect-v2", "title": "Affect and Internal State System v2", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/OJ4Ada3VSoolFOxspXpcRdrJnte", "status": "canonical"},
-    {"id": "feishu-affect-design-audit", "title": "Affect Design Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/VOZIdjiHsoaD1kxo5flcLwgCn2e", "status": "historical"},
-    {"id": "feishu-affect-implementation-audit", "title": "Affect Implementation Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/O52idpo2HoZ4gkxR9RScevcunXb", "status": "historical"},
-    {"id": "feishu-relationship-current", "title": "Relationship System Engineering Design", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/docx/D0bfd7aYaoBlY7x1l0Hc3sCCng7", "status": "canonical"},
-    {"id": "feishu-relationship-design-audit", "title": "Relationship Design Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/HOPudrP1xojbU4xXFescFdKbnMc", "status": "historical"},
-    {"id": "feishu-relationship-implementation-audit", "title": "Relationship Implementation Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/CaZIdiaHXoUDyPxm7oScEg47n6k", "status": "historical"},
-    {"id": "feishu-worldops-legacy", "title": "WorldOps Early Design", "kind": "research", "url": "https://qcnqo2xrtj31.feishu.cn/docx/VcJcd4zO3oqsaVxHOn3cehUAn9f", "status": "superseded"},
-    {"id": "feishu-worldops-implementation-audit", "title": "WorldOps Implementation Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/BcjTdXVXvoX3z8xDur4c7W1wnpb", "status": "historical"},
-    {"id": "repo-text-runtime", "title": "Text Conversation Runtime", "kind": "repository_doc", "path": "docs/TEXT_CONVERSATION_RUNTIME.md", "status": "canonical_local"},
-    {"id": "feishu-text-runtime-design-audit", "title": "Text Runtime Design Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/DbFZdBqmNopRQExsUcgcjdw4nEg", "status": "historical"},
-    {"id": "feishu-text-runtime-implementation-audit", "title": "Text Runtime Implementation Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/L2btdGlZ8ojkODxwC2Xcvoe0n6d", "status": "historical"},
-    {"id": "repo-conversation-gateway", "title": "Live Text Conversation Gateway", "kind": "repository_doc", "path": "docs/CONVERSATION_GATEWAY.md", "status": "canonical_local"},
-    {"id": "feishu-gateway-design-audit", "title": "Conversation Gateway Design Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/EhcPdTUf2o1G8bxFXg5ceWt8nTh", "status": "historical"},
-    {"id": "feishu-gateway-implementation-audit", "title": "Conversation Gateway Implementation Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/VpDkdaGasotqB0xTggMcXiFFn8g", "status": "historical"},
-    {"id": "feishu-desktop-prd", "title": "Desktop Shell and Text UX System", "kind": "canonical_doc", "url": "https://qcnqo2xrtj31.feishu.cn/wiki/RrFkwF6p9iqtIJkaa9fcELABnld", "status": "canonical", "known_revision": 133},
-    {"id": "feishu-desktop-prd-audit", "title": "Desktop PRD Audit", "kind": "audit_report", "url": "https://qcnqo2xrtj31.feishu.cn/docx/S0Qed3uG8od8NJxXI5mcfgVfnef", "status": "historical"},
-    {"id": "repo-desktop-design-system", "title": "Accepted Desktop Design System", "kind": "repository_doc", "path": "apps/desktop-design-prototype/DESIGN_SYSTEM.md", "status": "canonical_local"},
-    {"id": "feishu-project-wiki", "title": "Project Sora Knowledge Space", "kind": "knowledge_space", "url": "https://qcnqo2xrtj31.feishu.cn/wiki/MVPuwrL4XiadlBk7bKlcbzvinCb", "status": "canonical_index"}
+    {
+      "id": "repo-prd-index",
+      "title": "Project Sora component PRD index",
+      "kind": "repository_doc",
+      "path": "docs/PRD_INDEX.md",
+      "status": "canonical_local"
+    },
+    {
+      "id": "feishu-presence-behavior",
+      "title": "Presence and Behavior System production design v1.0",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/XaRDd6dYBodugZxlHLKcJf1PnUf",
+      "status": "canonical",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030.",
+      "known_revision": 7,
+      "verified_at": "2026-10-30"
+    },
+    {
+      "id": "feishu-expression-embodiment",
+      "title": "Expression and Embodiment System production design v1.0",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/Y6todoYs9oLXZzxuQV4ciRAjnfg",
+      "status": "canonical",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030.",
+      "known_revision": 7,
+      "verified_at": "2026-10-30"
+    },
+    {
+      "id": "feishu-contract-registry",
+      "title": "Cross-System Contract Registry production design v1.0",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/VfZadrfvToBtrkxCOBXcvJ1Sngh",
+      "status": "canonical",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030.",
+      "known_revision": 7,
+      "verified_at": "2026-10-30"
+    },
+    {
+      "id": "feishu-security-governance",
+      "title": "Security, Privacy and Data Governance production design v1.0",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/KfCOdB8n0oLbf2x2ur3c5BNInTb",
+      "status": "canonical",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030.",
+      "known_revision": 7,
+      "verified_at": "2026-10-30"
+    },
+    {
+      "id": "feishu-deployment-operations",
+      "title": "Provider, Deployment and Operations production design v1.0",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/ND39ditWHoCgFcx7HiacQeIOnRe",
+      "status": "canonical",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030.",
+      "known_revision": 8,
+      "verified_at": "2026-10-30"
+    },
+    {
+      "id": "feishu-release-governance",
+      "title": "Release Baseline, Changelog and Rollout Governance production design v1.0",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/M7kbdozetoOAqkxUdTTcPBoPnpf",
+      "status": "canonical",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030.",
+      "known_revision": 10,
+      "verified_at": "2026-10-30"
+    },
+    {
+      "id": "feishu-overall-architecture",
+      "title": "Project Sora Overall Architecture",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/Ax9FdxrV5oNHqlxW7O4cEebln3e",
+      "status": "canonical",
+      "known_revision": 183,
+      "verified_at": "2026-10-30",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-overall-progress",
+      "title": "Project Sora Engineering Progress",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/QgHydreJHoktmxxO7VWceLd9nue",
+      "status": "reference_refreshed_only",
+      "known_revision": 148,
+      "verified_at": "2026-10-30",
+      "verification_note": "Removed presentation-usage section at user request; PRD directory renumbered to section8. Complete remaining content and architecture resources read back unchanged. Evidence: outputs/brief-remove-usage-20261030/verification.json; earlier architecture/status evidence retained."
+    },
+    {
+      "id": "feishu-memory-architecture",
+      "title": "Project Sora Memory Architecture",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/O8uDdAggsofRM2xrB5TcuoOhnUu",
+      "status": "canonical",
+      "known_revision": 155,
+      "verified_at": "2026-10-30",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-memory-research",
+      "title": "Market Memory System Research",
+      "kind": "research",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/NEITdzEhcorMObxi8v3cjVcKndC",
+      "status": "reference"
+    },
+    {
+      "id": "feishu-memory-research-2",
+      "title": "Memory Research Follow-up",
+      "kind": "research",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/J7c6d062ooMgxOxFyWPcJDKtngc",
+      "status": "reference"
+    },
+    {
+      "id": "feishu-memory-module-01",
+      "title": "Memory Module 01",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/K5Gvd02F8o00rexLWCzcy0Z2nMa",
+      "status": "canonical",
+      "known_revision": 46,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-02",
+      "title": "Memory Module 02 LLM Extractor",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/XBxPdktWaoUJI7xZMBqcloOwnTh",
+      "status": "canonical",
+      "known_revision": 42,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-02-audit",
+      "title": "Memory Module 02 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/BLeAdZfwzoM9kdxsZFUcRf7Vnce",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-03",
+      "title": "Memory Module 03 Gate",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/XlF7doxxWow4ClxbB9XcCkpVnWd",
+      "status": "canonical",
+      "known_revision": 32,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-03-audit",
+      "title": "Memory Module 03 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/VhB2dTbFZozsnqxFqSIcKrM3nBg",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-04",
+      "title": "Memory Module 04 Canonical Store",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/ZXEXdtB1Vo0KxHx8gPLc4zrfn8M",
+      "status": "canonical",
+      "known_revision": 59,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-04-audit",
+      "title": "Memory Module 04 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/XgiVdtTkRoyqS4xb0xbcIW1anTg",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-05",
+      "title": "Memory Module 05 Retrieval",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/U588ddMFpoj5fmxgDH5cEYjMnqh",
+      "status": "canonical",
+      "known_revision": 39,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-05-audit",
+      "title": "Memory Module 05 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/LQW7dNtQqoch3uxtv0ZcfD0RnYb",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-06",
+      "title": "Memory Module 06 Recall Planner",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/AJNodsUmeov55oxDvYace4IQnkb",
+      "status": "canonical",
+      "known_revision": 31,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-06-audit",
+      "title": "Memory Module 06 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/NnAhdYdzKo94urxg21cc8ixonod",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-06-audit-2",
+      "title": "Memory Module 06 Follow-up Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/KabddXMkroubHgxLsZocQkPQnt0",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-07",
+      "title": "Memory Module 07 Surface Policy",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/T5uddHGYboXxsBxFrlOczQtWnxc",
+      "status": "canonical",
+      "known_revision": 33,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-07-audit",
+      "title": "Memory Module 07 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/FBNrdCXRHoCyLoxKdMDcls64nDb",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-08",
+      "title": "Memory Module 08 Lifecycle",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/BJTSdsRMSoL05qxjUjLczuSnnlh",
+      "status": "canonical",
+      "known_revision": 32,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-08-audit",
+      "title": "Memory Module 08 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/Qf3VdE61Co8oQHxDAAsciNCJnXc",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-09",
+      "title": "Memory Module 09 Projection Gateway",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/MDpsdtnQpoVYQ9xqUwDcbYyZnzP",
+      "status": "canonical",
+      "known_revision": 22,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-09-audit",
+      "title": "Memory Module 09 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/WIZhdHdeAonzxGx2ARccisQ6n8E",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-memory-module-10",
+      "title": "Memory Module 10 Quality Ops",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/AJfEdFEEEoKUQRxYq5ycAVU8nOX",
+      "status": "canonical",
+      "known_revision": 35,
+      "verified_at": "2026-10-30",
+      "verification_note": "Full PRD/current-code alignment audit; updated current contract/gap notes and specific stale enum/formula/status statements. Code defects remain open, not fixed by prose. All changed text, original resources/links read back. outputs/memory-prd-alignment-20261030."
+    },
+    {
+      "id": "feishu-memory-module-10-audit",
+      "title": "Memory Module 10 Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/XAj8dpccWozbI6xNrFjcPTdJn9e",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-interruptibility",
+      "title": "Interruptibility System",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/Tn2td1lJqoXujOx8xgscnayunKc",
+      "status": "canonical",
+      "known_revision": 62,
+      "verified_at": "2026-10-30",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-persona-legacy",
+      "title": "Persona Early Design",
+      "kind": "research",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/XIcodnT8To54fZxV5yJcp6Kznug",
+      "status": "superseded"
+    },
+    {
+      "id": "feishu-persona-current",
+      "title": "Persona System Engineering Design",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/FYKCdChDqoG9r3xYvNlcpjcgnFb",
+      "status": "canonical",
+      "known_revision": 41,
+      "verified_at": "2026-10-30",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-persona-audit",
+      "title": "Persona System Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/FXqYdXNPFoCgeDxL9ULc7pp3nmc",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-affect-v2",
+      "title": "Affect and Internal State System v2",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/ZxQidBZGZopHbNxnpw3cXk2Unug",
+      "status": "canonical",
+      "known_revision": 41,
+      "verified_at": "2026-10-30",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-affect-design-audit",
+      "title": "Affect Design Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/VOZIdjiHsoaD1kxo5flcLwgCn2e",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-affect-implementation-audit",
+      "title": "Affect Implementation Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/O52idpo2HoZ4gkxR9RScevcunXb",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-relationship-current",
+      "title": "Relationship System Engineering Design v3.1",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/MOceduqJroFb9VxkWhfc0gn1nhf",
+      "status": "canonical",
+      "known_revision": 28,
+      "verified_at": "2026-10-30",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-relationship-design-audit",
+      "title": "Relationship Design Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/HOPudrP1xojbU4xXFescFdKbnMc",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-relationship-implementation-audit",
+      "title": "Relationship Implementation Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/CaZIdiaHXoUDyPxm7oScEg47n6k",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-worldops-legacy",
+      "title": "WorldOps Early Design",
+      "kind": "research",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/VcJcd4zO3oqsaVxHOn3cehUAn9f",
+      "status": "superseded"
+    },
+    {
+      "id": "feishu-worldops-implementation-audit",
+      "title": "WorldOps Implementation Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/BcjTdXVXvoX3z8xDur4c7W1wnpb",
+      "status": "historical"
+    },
+    {
+      "id": "repo-text-runtime",
+      "title": "Text Conversation Runtime",
+      "kind": "repository_doc",
+      "path": "docs/TEXT_CONVERSATION_RUNTIME.md",
+      "status": "canonical_local"
+    },
+    {
+      "id": "feishu-text-runtime-design-audit",
+      "title": "Text Runtime Design Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/DbFZdBqmNopRQExsUcgcjdw4nEg",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-text-runtime-implementation-audit",
+      "title": "Text Runtime Implementation Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/L2btdGlZ8ojkODxwC2Xcvoe0n6d",
+      "status": "historical"
+    },
+    {
+      "id": "repo-conversation-gateway",
+      "title": "Live Text Conversation Gateway",
+      "kind": "repository_doc",
+      "path": "docs/CONVERSATION_GATEWAY.md",
+      "status": "canonical_local"
+    },
+    {
+      "id": "feishu-gateway-design-audit",
+      "title": "Conversation Gateway Design Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/EhcPdTUf2o1G8bxFXg5ceWt8nTh",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-gateway-implementation-audit",
+      "title": "Conversation Gateway Implementation Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/VpDkdaGasotqB0xTggMcXiFFn8g",
+      "status": "historical"
+    },
+    {
+      "id": "feishu-desktop-prd",
+      "title": "Desktop Shell and Text UX System",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/wiki/RrFkwF6p9iqtIJkaa9fcELABnld",
+      "status": "canonical",
+      "known_revision": 146,
+      "verified_at": "2026-10-30",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-desktop-prd-audit",
+      "title": "Desktop PRD Audit",
+      "kind": "audit_report",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/S0Qed3uG8od8NJxXI5mcfgVfnef",
+      "status": "historical"
+    },
+    {
+      "id": "repo-desktop-design-system",
+      "title": "Accepted Desktop Design System",
+      "kind": "repository_doc",
+      "path": "apps/desktop-design-prototype/DESIGN_SYSTEM.md",
+      "status": "canonical_local"
+    },
+    {
+      "id": "feishu-project-wiki",
+      "title": "Project Sora Knowledge Space",
+      "kind": "knowledge_space",
+      "url": "https://qcnqo2xrtj31.feishu.cn/wiki/MVPuwrL4XiadlBk7bKlcbzvinCb",
+      "status": "canonical_index",
+      "known_revision": 294,
+      "verified_at": "2026-10-30",
+      "verification_note": "Grouped PRD index published and read back; existing resources/citations preserved. See outputs/prd-directory-20261029."
+    },
+    {
+      "id": "feishu-relationship-audit-r3",
+      "title": "Relationship Code Audit R3",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/D0bfd7aYaoBlY7x1l0Hc3sCCng7",
+      "kind": "audit_report",
+      "status": "historical",
+      "verified_at": "2026-09-09"
+    },
+    {
+      "id": "feishu-worldops-current",
+      "title": "WorldOps Narrative System Engineering Design v2",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/OJ4Ada3VSoolFOxspXpcRdrJnte",
+      "kind": "canonical_doc",
+      "status": "canonical",
+      "verified_at": "2026-10-30",
+      "known_revision": 57,
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-model-provider",
+      "title": "Model Provider and BYOK PRD v1.0",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/XpWBdVgJKoVbBoxzWFacMxbXng5",
+      "kind": "canonical_doc",
+      "status": "canonical",
+      "verified_at": "2026-10-30",
+      "known_revision": 11,
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "feishu-text-runtime-current",
+      "title": "Text Conversation Runtime",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/J5Sid3laJo8PRAxOrmncyflqnPc",
+      "kind": "canonical_doc",
+      "status": "canonical",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030.",
+      "known_revision": 81,
+      "verified_at": "2026-10-30"
+    },
+    {
+      "id": "feishu-unified-dataflow",
+      "title": "Unified Conversation Dataflow and System Collaboration v1.4",
+      "url": "https://qcnqo2xrtj31.feishu.cn/docx/Wl2cdE1y7oP4zaxIVAycQV2pnKe",
+      "kind": "canonical_doc",
+      "status": "canonical",
+      "verified_at": "2026-10-30",
+      "known_revision": 41,
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030."
+    },
+    {
+      "id": "repo-unified-dataflow",
+      "title": "Current cross-system wiring source",
+      "path": "docs/architecture/CONVERSATION_DATAFLOW.md",
+      "kind": "repository_doc",
+      "status": "canonical_local"
+    },
+    {
+      "id": "repo-memory-background-ingestion",
+      "title": "Memory background extraction and committed-source runbook",
+      "path": "docs/MEMORY_BACKGROUND_INGESTION.md",
+      "kind": "repository_doc",
+      "status": "canonical_local"
+    },
+    {
+      "id": "repo-desktop-delivery-status",
+      "title": "Current desktop source, verification, installed delivery and remaining work",
+      "path": "docs/DESKTOP_DELIVERY_STATUS.md",
+      "kind": "repository_doc",
+      "status": "canonical_local",
+      "verified_at": "2026-10-29"
+    },
+    {
+      "id": "repo-desktop-functional-progress",
+      "title": "F01-F30 per-item repair ledger",
+      "path": "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+      "kind": "repository_doc",
+      "status": "current_local",
+      "verified_at": "2026-10-29"
+    },
+    {
+      "id": "repo-desktop-native-settings-verification",
+      "title": "Native settings incremental verification and limits",
+      "path": "outputs/desktop-native-settings-20261028/VERIFICATION.md",
+      "kind": "repository_doc",
+      "status": "current_local",
+      "verified_at": "2026-10-29"
+    },
+    {
+      "id": "repo-start-here",
+      "title": "New-task continuation guide",
+      "path": "docs/START_HERE.md",
+      "kind": "repository_doc",
+      "status": "canonical_local"
+    },
+    {
+      "id": "feishu-gateway-current",
+      "title": "Live Text Conversation Gateway",
+      "kind": "canonical_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/wiki/AFMOwQKPaijrkJkFVBNcmm7Dn7B",
+      "status": "canonical",
+      "verification_note": "Opening role/why, concrete IO, timing, mechanism, example and whole-system value added and read back. Original body/resources/links preserved except explicitly recorded duplicate title/history cleanup. Affect promises traced to mechanisms. No implementation/release acceptance change. outputs/prd-purpose-io-20261030.",
+      "verified_at": "2026-10-30",
+      "known_revision": 37
+    },
+    {
+      "id": "feishu-memory-system-overview",
+      "title": "Project Sora Memory 系统总览：十模块如何协作",
+      "kind": "system_overview",
+      "url": "https://qcnqo2xrtj31.feishu.cn/wiki/Zivwwi8cXidwYokMPAncj5oJnGc",
+      "status": "current_reference",
+      "known_revision": 17,
+      "verified_at": "2026-10-30",
+      "verification_note": "14 sections and two in-body diagrams; eleven source PRDs freshly read. Explanatory synthesis, not a replacement PRD or release acceptance. Full body/link readback: outputs/memory-overview-20261030/verification.json."
+    },
+    {
+      "id": "repo-memory-system-overview",
+      "title": "Memory ten-module explanatory overview",
+      "kind": "repository_doc",
+      "path": "docs/MEMORY_SYSTEM_OVERVIEW.md",
+      "status": "current_reference"
+    },
+    {
+      "id": "repo-prd-authoring-standard",
+      "title": "PRD role mechanism and IO opening standard",
+      "kind": "repository_doc",
+      "path": "docs/PRD_AUTHORING_STANDARD.md",
+      "status": "canonical_local"
+    },
+    {
+      "id": "feishu-memory-prd-alignment-audit",
+      "title": "Memory十模块PRD与当前代码一致性审查",
+      "kind": "audit_doc",
+      "url": "https://qcnqo2xrtj31.feishu.cn/wiki/IrC6wNyOriorMbktzjVcVLn2nje",
+      "status": "current_reference",
+      "known_revision": 11,
+      "verified_at": "2026-10-30"
+    },
+    {
+      "id": "repo-memory-prd-alignment",
+      "title": "Memory PRD implementation alignment audit",
+      "kind": "repository_doc",
+      "path": "docs/MEMORY_PRD_IMPLEMENTATION_ALIGNMENT.md",
+      "status": "current_reference"
+    }
   ]
 }

@@ -1,0 +1,49 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/CONVERSATION_GATEWAY.md",
+    "docs/TEXT_CONVERSATION_RUNTIME.md",
+    "src/sora_sandbox/conversation_runtime/journal.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "tests/test_conversation_runtime.py"
+  ],
+  "completed_at_utc": "2026-10-10T12:30:45Z",
+  "decision_ids": [
+    "adr-stale-recovery-atomic-fence-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-10T12:11:05Z",
+      "summary": "Recheck stale status and matching execution lease inside the write transaction; prevent a heartbeat or refreshed turn from racing periodic recovery."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-10T12:30:45Z",
+      "summary": "Atomic recovery checks prevent resumed leases or refreshed turns from being failed; terminal lease identity checks hardened. Final NSIS installed and service fixtures pass; new UI interaction remains blocked by runner initialization."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-10T12:30:45Z",
+      "summary": "Atomic recovery checks prevent resumed leases or refreshed turns from being failed; terminal lease identity checks hardened. Final NSIS installed and service fixtures pass; new UI interaction remains blocked by runner initialization."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_runtime/journal.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "tests/test_conversation_runtime.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-10T12:11:05Z",
+  "status": "completed",
+  "summary": "Atomic recovery checks prevent resumed leases or refreshed turns from being failed; terminal lease identity checks hardened. Final NSIS installed and service fixtures pass; new UI interaction remains blocked by runner initialization.",
+  "title": "Atomic stale recovery lease fencing",
+  "updated_at_utc": "2026-10-10T12:30:45Z",
+  "verification": [
+    "recovery-race-before-20261010.xml:3 failed; full post-fix533 passed in pytest-full-atomic-20261010.xml; TypeScript/Vite NSIS and manifest passed.",
+    "installation-20261010-atomic.json exit0; installed-atomic-service-20261010.json passed startup/periodic lease recovery, health/debug auth and graceful shutdown; package SHA2562b28a2d8a5e6a09b5bc830d2d61a4551409dac970dbd1b69b95e88edeac263b9."
+  ],
+  "workstream_id": "ws-stale-recovery-atomic-20261010"
+}

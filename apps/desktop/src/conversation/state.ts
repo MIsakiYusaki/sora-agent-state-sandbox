@@ -45,6 +45,7 @@ export interface ConversationState {
 }
 
 export type ConversationAction =
+  | { readonly type: "history.prepended"; readonly conversationId: string; readonly items: ReadonlyArray<HistoryItem> }
   | { readonly type: "conversation.selected"; readonly conversationId: string }
   | { readonly type: "boot.ready"; readonly status: DesktopStatus; readonly history: HistoryPage }
   | { readonly type: "boot.loading" }
@@ -103,6 +104,12 @@ export function conversationReducer(
   state: ConversationState,
   action: ConversationAction,
 ): ConversationState {
+  if (action.type === "history.prepended") {
+    if (action.conversationId !== state.conversationId) return state;
+    const existing = new Set(state.messages.map(message => message.id));
+    const older = action.items.map(historyMessage).filter(message => !existing.has(message.id));
+    return { ...state, messages: [...older, ...state.messages] };
+  }
   switch (action.type) {
     case "conversation.selected":
       return {
@@ -119,6 +126,7 @@ export function conversationReducer(
     case "boot.loading":
       return { ...state, boot: "loading", error: null };
     case "boot.ready":
+      if (action.history.conversation_id !== state.conversationId) return state;
       return {
         ...state,
         boot: "ready",
@@ -214,39 +222,67 @@ export function conversationReducer(
         };
       }
       if (action.event.event_type === "turn.cancelled") {
+        if (active?.turnId !== action.event.turn_id) return state;
         return {
           ...state,
           messages: patchTurn(state.messages, action.event.turn_id, (message) => ({
             ...message,
-            delivery: message.role === "sora" ? "cancelled" : message.delivery,
+            delivery: "cancelled",
           })),
           activeTurn: null,
           pendingSubmission: null,
         };
       }
       if (action.event.event_type === "turn.failed") {
+        // Only the current turn may change its composer/error state. Replayed
+        // terminal events must not reopen a dismissed alert or stop a newer turn.
+        if (active?.turnId !== action.event.turn_id) return state;
+        const submitted = state.messages.find(
+          (message) => message.turnId === action.event.turn_id && message.role === "user",
+        );
+        const incomplete = action.event.payload?.["error_code"] === "IncompleteModelResponse";
         return {
           ...state,
           messages: patchTurn(state.messages, action.event.turn_id, (message) => ({
             ...message,
-            delivery: message.role === "sora" ? "failed" : message.delivery,
+            delivery: "failed",
           })),
           activeTurn: null,
           pendingSubmission: null,
+          draft: state.draft || submitted?.content || "",
+          error: {
+            schema_version: "ShellError.v1",
+            code: "INTERNAL_ERROR",
+            message: incomplete
+              ? "这次回复没有完整生成，未保存为完整对话。你可以调整问题后重新发送。"
+              : "这次回复未完成。你可以重新发送，或稍后再试。",
+            retryable: true,
+            retry_after_ms: null,
+            correlation_id: action.event.correlation_id,
+            action: "retry",
+            safe_details: {},
+          },
         };
       }
       return { ...state, activeTurn: nextActive };
     }
-    case "turn.failed":
+    case "turn.failed": {
+      if (action.turnId && state.activeTurn && action.turnId !== state.activeTurn.turnId) return state;
+      const failedTurnId = action.turnId ?? state.activeTurn?.turnId ?? state.pendingSubmission?.localMessageId;
+      const submitted = state.messages.find(
+        (message) => message.turnId === failedTurnId && message.role === "user",
+      );
       return {
         ...state,
-        messages: action.turnId
-          ? patchTurn(state.messages, action.turnId, (message) => ({ ...message, delivery: "failed" }))
+        messages: failedTurnId
+          ? patchTurn(state.messages, failedTurnId, (message) => ({ ...message, delivery: "failed" }))
           : state.messages,
         activeTurn: null,
         pendingSubmission: null,
+        draft: state.draft || submitted?.content || state.pendingSubmission?.text || "",
         error: action.error,
       };
+    }
     case "error.dismissed":
       return { ...state, error: null };
     case "settings.changed":

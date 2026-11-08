@@ -1,0 +1,40 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/desktop-functional-audit-20261015"
+  ],
+  "completed_at_utc": "2026-10-15T12:00:26Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-15T11:51:02Z",
+      "summary": "Read-only functional review of mounted production UI, transport/Host/Gateway paths, inert controls, misleading statuses and explicit unimplemented flows; report only, no product changes."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-15T12:00:26Z",
+      "summary": "Read-only mounted-client audit delivered:30 distinct findings covering inert UI, hardcoded/misleading state, incomplete read-only workflows and explicitly unavailable operations. No production code/data/model changes."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-15T12:00:26Z",
+      "summary": "Read-only mounted-client audit delivered:30 distinct findings covering inert UI, hardcoded/misleading state, incomplete read-only workflows and explicitly unavailable operations. No production code/data/model changes."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/desktop-functional-audit-20261015"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-15T11:51:02Z",
+  "status": "completed",
+  "summary": "Read-only mounted-client audit delivered:30 distinct findings covering inert UI, hardcoded/misleading state, incomplete read-only workflows and explicitly unavailable operations. No production code/data/model changes.",
+  "title": "Desktop functional truth audit",
+  "updated_at_utc": "2026-10-15T12:00:26Z",
+  "verification": [
+    "outputs/desktop-functional-audit-20261015/AUDIT.md contains30 findings and source mappings. reproductions-final.xml:10 tests,0 failures/errors; PASS means defect reproduced. Installed Desktop/Gateway hashes match delivered candidate; no real memory reviews processed and no native UI/full-production acceptance claim."
+  ],
+  "workstream_id": "ws-desktop-functional-audit-20261015"
+}

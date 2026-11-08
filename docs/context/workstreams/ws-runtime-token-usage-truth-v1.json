@@ -1,0 +1,45 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/TEXT_CONVERSATION_RUNTIME.md",
+    "src/sora_sandbox/conversation_runtime/journal.py",
+    "tests/test_conversation_runtime.py"
+  ],
+  "completed_at_utc": "2026-09-07T12:30:43Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-04T15:33:06Z",
+      "summary": "Preserve missing provider token usage as unknown rather than fabricated zero, migrate legacy runtime journals safely, and verify the diagnostic projection."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-07T12:30:43Z",
+      "summary": "Nullable runtime token usage and atomic v2 migration implemented with interruption rollback and reopen coverage."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-07T12:30:43Z",
+      "summary": "Nullable runtime token usage and atomic v2 migration implemented with interruption rollback and reopen coverage."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/TEXT_CONVERSATION_RUNTIME.md",
+    "docs/context/workstreams/ws-runtime-token-usage-truth-v1.json",
+    "src/sora_sandbox/conversation_runtime/journal.py",
+    "tests/test_conversation_runtime.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-04T15:33:06Z",
+  "status": "completed",
+  "summary": "Nullable runtime token usage and atomic v2 migration implemented with interruption rollback and reopen coverage.",
+  "title": "Runtime token usage truth preservation",
+  "updated_at_utc": "2026-09-07T12:30:43Z",
+  "verification": [
+    "30 runtime tests passed; 431 full Python tests passed; migration interruption, idempotence, nonzero and alias regression covered"
+  ],
+  "workstream_id": "ws-runtime-token-usage-truth-v1"
+}

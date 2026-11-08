@@ -1,0 +1,44 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/prototype.css",
+    "outputs/admin-console-20261011"
+  ],
+  "completed_at_utc": "2026-10-11T03:44:21Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-10T18:12:26Z",
+      "summary": "Update integration assertions for unknown-before-session history, verify existing three-pane console layout in light/dark/compact and fix only affected readability."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-11T03:44:21Z",
+      "summary": "Console integration tests, exact browser fixture layouts and actual installed UI command/real-provider Memory timeline/restart evidence delivered; unsupported gates remain explicit."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-11T03:44:21Z",
+      "summary": "Console integration tests, exact browser fixture layouts and actual installed UI command/real-provider Memory timeline/restart evidence delivered; unsupported gates remain explicit."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/prototype.css",
+    "outputs/admin-console-20261011"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-10T18:12:26Z",
+  "status": "completed",
+  "summary": "Console integration tests, exact browser fixture layouts and actual installed UI command/real-provider Memory timeline/restart evidence delivered; unsupported gates remain explicit.",
+  "title": "Admin console integration and visual verification",
+  "updated_at_utc": "2026-10-11T03:44:21Z",
+  "verification": [
+    "52 frontend and 7 Host tests pass; exact light/dark/compact/uncertain fixture report, original native screenshots and installed-native-assertions.json pass; actual package installed with preserved isolated history."
+  ],
+  "workstream_id": "ws-admin-console-ui-verification-20261011"
+}

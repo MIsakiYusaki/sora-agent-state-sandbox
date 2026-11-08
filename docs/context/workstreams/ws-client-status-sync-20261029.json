@@ -1,0 +1,63 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "README.md",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/artifacts.json",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "docs/context/decisions/adr-desktop-spaces-native-settings-boundaries-v1.json",
+    "outputs/client-status-sync-20261029",
+    "outputs/context-frames-20261011/DELIVERY.md",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "outputs/desktop-native-settings-20261028/VERIFICATION.md",
+    "outputs/installed-e2e-20260917/ACCEPTANCE.md"
+  ],
+  "completed_at_utc": "2026-10-29T11:05:02Z",
+  "decision_ids": [
+    "adr-desktop-spaces-native-settings-boundaries-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-29T10:53:06Z",
+      "summary": "User-authorized documentation-only sync; reviewed overlap with same-thread installed-e2e and functional-repair workstreams. Keep all unfinished implementation streams active; reconcile source, bounded test and installed evidence before main-engineering notification."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T11:05:02Z",
+      "summary": "Completed local summaries/catalogs/context20/ledger14/dataflow1.4, native-settings verification, F01-F30 and historical install-delivery status pointers; main engineering message sent successfully. Cloud publication explicitly pending in separate blocked ws-feishu-client-summary-sync-20261029; implementation streams remain active, no client-complete/release claim."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-29T11:05:02Z",
+      "summary": "Completed local summaries/catalogs/context20/ledger14/dataflow1.4, native-settings verification, F01-F30 and historical install-delivery status pointers; main engineering message sent successfully. Cloud publication explicitly pending in separate blocked ws-feishu-client-summary-sync-20261029; implementation streams remain active, no client-complete/release claim."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "README.md",
+    "docs",
+    "outputs/client-status-sync-20261029",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "outputs/desktop-native-settings-20261028"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-29T10:53:06Z",
+  "status": "completed",
+  "summary": "Completed local summaries/catalogs/context20/ledger14/dataflow1.4, native-settings verification, F01-F30 and historical install-delivery status pointers; main engineering message sent successfully. Cloud publication explicitly pending in separate blocked ws-feishu-client-summary-sync-20261029; implementation streams remain active, no client-complete/release claim.",
+  "title": "Client status and main engineering handoff",
+  "updated_at_utc": "2026-10-29T11:05:02Z",
+  "verification": [
+    "validate_summary.py passed: all30 items, context/catalog/link/revision parity, six pending cloud targets, XML draft, main-thread send receipt",
+    "project_context.py validate and scoped git diff --check passed; reviewed same-thread overlaps, old response-basis stale warning retained",
+    "Fresh frontend107, Host13/1diagnostic ignored, focused Python6 pass; full Python585 is prior Oct28 baseline. No daily data changes/model calls/new installer; evidence outputs/client-status-sync-20261029/verification.json"
+  ],
+  "workstream_id": "ws-client-status-sync-20261029"
+}

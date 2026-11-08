@@ -1,0 +1,40 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "tests/test_memory_background.py"
+  ],
+  "completed_at_utc": "2026-11-08T07:52:44Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T07:13:41Z",
+      "summary": "Update existing crash-after-Gate test to inject at the real outer SQLite post-commit boundary after nested owner transactions are introduced. Preserve its no-duplicate revision assertion and add separate before-commit death regression in consistency tests. No lowered assertions."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T07:52:44Z",
+      "summary": "Moved existing crash-after-Gate injection to actual outer after_commit boundary after introducing nested transactions; retained no-duplicate revision assertion. Separate before-commit process death covered in new consistency suite. No lowered assertions."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T07:52:44Z",
+      "summary": "Moved existing crash-after-Gate injection to actual outer after_commit boundary after introducing nested transactions; retained no-duplicate revision assertion. Separate before-commit process death covered in new consistency suite. No lowered assertions."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "tests/test_memory_background.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T07:13:41Z",
+  "status": "completed",
+  "summary": "Moved existing crash-after-Gate injection to actual outer after_commit boundary after introducing nested transactions; retained no-duplicate revision assertion. Separate before-commit process death covered in new consistency suite. No lowered assertions.",
+  "title": "Keep post-commit recovery regression at actual commit boundary",
+  "updated_at_utc": "2026-11-08T07:52:44Z",
+  "verification": [
+    "outputs/memory-governance-20261108/compat.xml125; python-full-sealed.xml635; expanded-final.xml16; VERIFICATION.md"
+  ],
+  "workstream_id": "ws-memory-governance-recovery-test-20261108"
+}

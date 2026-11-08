@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "Keep F23-F25 partial, require rebuilt matching sidecar, Rust1.89, notification AUMID installation verification and native isolated deletion/export acceptance; historical installer evidence cannot certify this source batch."
+  ],
+  "context": "F23-F25 implementation now spans Host space catalog, WinRT notification preferences and a backend-only offline erasure helper; documentation had not captured implementation versus installed boundaries.",
+  "decided_at_utc": "2026-10-29T11:02:03Z",
+  "decision": "Trusted Host owns identity-derived paths, CAS/atomic catalog and confirmed graceful space restart; managed spaces cannot silently import legacy secrets. Notification preferences remain scoped, default off and content-free; OS acceptance is not delivery. Offline erasure requires stopped identity, exact confirmation and owner-scoped vault/registry operations; it remains unavailable as a client flow until Host/UI/receipt/export integration and isolated acceptance complete.",
+  "decision_id": "adr-desktop-spaces-native-settings-boundaries-v1",
+  "references": [
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "outputs/desktop-native-settings-20261028/VERIFICATION.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Host-owned desktop spaces and bounded native privacy settings",
+  "workstream_id": "ws-client-status-sync-20261029"
+}

@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "No change to five-minute threshold, ten-second polling, provider budgets or delivery model. A retained candidate is advisory; concurrent refresh wins over recovery. Terminal event repair remains idempotent."
+  ],
+  "context": "Periodic recovery selects stale rows before marking them failed. Deterministic cross-connection tests reproduce a heartbeat renewal or turn update between these operations; ordinary transition wrongly fails resumed work.",
+  "decided_at_utc": "2026-10-10T12:17:15Z",
+  "decision": "Recheck nonterminal status, stale timestamp and matching live lease inside the same SQLite write that marks a turn failed. Acquisition validates conversation and nonterminal turn identity; renewal excludes terminal turns so recovered executions lose lease on their next heartbeat.",
+  "decision_id": "adr-stale-recovery-atomic-fence-v1",
+  "references": [
+    "docs/context/decisions/adr-midturn-gateway-recovery-v1.json",
+    "outputs/installed-e2e-20260917/recovery-race-before-20261010.xml"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Atomic stale-turn recovery and lease terminal fence",
+  "workstream_id": "ws-stale-recovery-atomic-20261010"
+}

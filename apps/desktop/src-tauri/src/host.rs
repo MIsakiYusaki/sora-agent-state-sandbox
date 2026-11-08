@@ -2,12 +2,13 @@ use std::{
     env,
     ffi::OsString,
     fs::File,
-    io::{self, BufRead, BufReader, Read},
+    io::{self, BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::mpsc,
+    sync::atomic::{AtomicBool, Ordering},
     thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use futures_util::StreamExt;
@@ -15,7 +16,7 @@ use reqwest::{Method, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use thiserror::Error;
 use tokio::sync::Mutex;
 use url::Url;
@@ -23,6 +24,136 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 pub type HostResult<T> = Result<T, HostError>;
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MemoryMaintenanceRequest { pub paused: bool, pub expected_revision: String, pub confirmed: bool }
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompanionActionRequest { pub action: String, pub payload: Value }
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NarrativeActionRequest {
+    pub request_id: String, pub instance_id: String, pub expected_revision: u64,
+    pub bundle_id: String, pub canon_version: String, pub action: String, pub choice_id: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompanionGovernanceRequest {
+    pub domain: String, pub action: String, pub target_id: String, pub expected_revision: String, pub confirmed: bool,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpaceSwitchRequest { pub space_id: String, pub expected_revision: String, pub confirmed: bool }
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NotificationSaveRequest { pub preferences: crate::profile_store::NotificationPreferences, pub expected_revision: String }
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrivacyExportRequest {
+    pub kind: crate::privacy::ExportKind,
+    pub expected_profile_id: String,
+    pub confirmed: bool,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrivacyEraseRequest {
+    pub expected_profile_id: String,
+    pub expected_revision: String,
+    pub confirmation: String,
+    pub confirmed: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebugFrameRequest {
+    pub conversation_id: String,
+    pub turn_id: String,
+    pub frame_id: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FrameObservationRequest { pub enabled: bool }
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderRouteTarget { pub provider_profile_id: String, pub model_id: String }
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderBindingRequest {
+    pub workload: String,
+    pub primary: ProviderRouteTarget,
+    #[serde(default)] pub fallbacks: Vec<ProviderRouteTarget>,
+    #[serde(default)] pub requirements: Vec<String>,
+    #[serde(default)] pub cross_provider_fallback: bool,
+    pub expected_revision: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewResolutionRequest {
+    pub review_id: String,
+    pub action: String,
+    pub expected_revision: String,
+    pub confirmed: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct QuarantineDismissalRequest {
+    pub quarantine_id: String,
+    pub expected_revision: String,
+    pub confirmed: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QualityKind { Runs, Baselines, Events }
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct QualityInspectRequest {
+    pub kind: QualityKind,
+    pub record_id: Option<String>,
+    pub baseline_id: Option<String>,
+    pub case_offset: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QualityResolution { Investigated, Superseded, FalsePositive }
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct QualityResolutionRequest {
+    pub event_id: String,
+    pub expected_revision: String,
+    pub resolution: QualityResolution,
+    pub confirmed: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DefaultControlsRequest {
+    pub action: String,
+    pub confirmed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")] pub reply_depth: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub follow_up: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub topic_shift: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub memory_mode: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MemoryCorrectionRequest { pub summary: String, pub expected_revision: String, pub confirmed: bool }
 
 const PROTOCOL_VERSION: &str = "1.0";
 const HOST_ORIGIN: &str = "sora-desktop://host";
@@ -45,6 +176,8 @@ pub enum HostError {
     GatewayUnavailable,
     #[error("Project Sora Gateway is restarting")]
     GatewayRestarting,
+    #[error("调试会话已关闭或过期，请重新开启；命令不会自动重发。")]
+    DebugSessionExpired,
     #[error("The conversation was updated elsewhere: {message}")]
     ConversationVersionConflict {
         message: String,
@@ -98,12 +231,14 @@ impl From<HostError> for ShellError {
                 ("CREDENTIAL_REJECTED", false, "open_provider_settings")
             }
             HostError::GatewayRejected(_) => ("INVALID_REQUEST", false, "none"),
+            HostError::DebugSessionExpired => ("INVALID_REQUEST", false, "none"),
             HostError::InvalidBootstrap | HostError::InvalidResponse => {
                 ("INTERNAL_ERROR", true, "restart_gateway")
             }
         };
         let safe_details = match &error {
             HostError::ConversationVersionConflict { safe_details, .. } => safe_details.clone(),
+            HostError::DebugSessionExpired => json!({"reason":"debug_session_expired"}),
             _ => json!({}),
         };
         Self {
@@ -296,17 +431,69 @@ impl GatewayProcessGroup {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebugSessionInfo {
+    schema_version: String,
+    session_id: String,
+    window_label: String,
+    expires_at_ms: u64,
+    scopes: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DebugSessionReply {
+    session: DebugSessionInfo,
+    capability_token: String,
+    capability_id: String,
+}
+
+struct NativeDebugSession {
+    info: DebugSessionInfo,
+    token: Zeroizing<String>,
+    parent_capability_id: String,
+    base_url: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdminPreviewRequest {
+    schema_version: String,
+    command_id: String,
+    params: Value,
+    idempotency_key: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdminExecuteRequest {
+    schema_version: String,
+    action_id: String,
+    idempotency_key: String,
+    expected_revision: String,
+    confirmed: bool,
+}
+
 pub struct HostState {
     gateway: Mutex<Option<GatewayRuntime>>,
+    debug_session: Mutex<Option<NativeDebugSession>>,
     http: reqwest::Client,
     profile_id: String,
     subject_id: String,
     agent_id: String,
     client_instance_id: String,
+    profile_store: crate::profile_store::ProfileStore,
+    transitioning: AtomicBool,
 }
 
 impl HostState {
     pub fn new() -> HostResult<Self> {
+        let subject_id = env::var("SORA_SUBJECT_ID").unwrap_or_else(|_| "local-user".into());
+        let agent_id = env::var("SORA_AGENT_ID").unwrap_or_else(|_| "sora".into());
+        let initial = env::var("SORA_PROFILE_ID").unwrap_or_else(|_| "local".into());
+        let profile_store = crate::profile_store::ProfileStore::from_environment(&subject_id, &agent_id, &initial).map_err(HostError::GatewayRejected)?;
+        let profile_id = profile_store.active().map_err(HostError::GatewayRejected)?;
         let http = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(3))
             .timeout(Duration::from_secs(90))
@@ -315,16 +502,20 @@ impl HostState {
             .map_err(|_| HostError::GatewayUnavailable)?;
         Ok(Self {
             gateway: Mutex::new(None),
+            debug_session: Mutex::new(None),
             http,
-            profile_id: env::var("SORA_PROFILE_ID").unwrap_or_else(|_| "local".into()),
-            subject_id: env::var("SORA_SUBJECT_ID").unwrap_or_else(|_| "local-user".into()),
-            agent_id: env::var("SORA_AGENT_ID").unwrap_or_else(|_| "sora".into()),
+            profile_id, subject_id, agent_id, profile_store, transitioning: AtomicBool::new(false),
             client_instance_id: format!("desktop_{}", Uuid::new_v4().simple()),
         })
     }
 
     async fn bootstrap(&self) -> HostResult<GatewayBootstrap> {
+        if self.transitioning.load(Ordering::SeqCst) { return Err(HostError::GatewayRejected("正在切换独立空间，请等待客户端重新启动。".into())); }
         let mut guard = self.gateway.lock().await;
+        if self.profile_store.pending_erasure().map_err(HostError::GatewayRejected)?.is_some() {
+            return Err(HostError::GatewayRejected("空间删除尚未完成，请到设置中的数据与隐私继续恢复。".into()));
+        }
+        if self.transitioning.load(Ordering::SeqCst) { return Err(HostError::GatewayRejected("正在切换独立空间。".into())); }
         let restart = match guard.as_mut() {
             Some(runtime) => runtime
                 .child
@@ -371,6 +562,7 @@ impl HostState {
                 HOST_ORIGIN,
                 "--log-level",
                 "warning",
+                "--no-legacy-migration",
             ])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -439,7 +631,84 @@ impl HostState {
         })
     }
 
+    fn main_window(window: &str) -> HostResult<()> {
+        if window != "main" { return Err(HostError::GatewayRejected("此窗口不能管理独立空间。".into())); }
+        Ok(())
+    }
+
+    pub fn spaces_list(&self, window: &str) -> HostResult<crate::profile_store::SpacePage> {
+        Self::main_window(window)?;
+        self.profile_store.list().map_err(HostError::GatewayRejected)
+    }
+
+    pub fn spaces_create(&self, window: &str, name: &str, expected: &str) -> HostResult<crate::profile_store::SpacePage> {
+        Self::main_window(window)?;
+        if self.transitioning.load(Ordering::SeqCst) { return Err(HostError::GatewayRejected("空间正在切换。".into())); }
+        self.profile_store.create(name, expected).map_err(HostError::GatewayRejected)
+    }
+
+    pub fn spaces_open_location(&self, window: &str) -> HostResult<()> {
+        Self::main_window(window)?;
+        let path = self.profile_store.identity_directory(&self.profile_id).map_err(HostError::GatewayRejected)?;
+        if !path.is_dir() { return Err(HostError::GatewayRejected("当前空间尚无运行数据，请先连接客户端。".into())); }
+        #[cfg(target_os = "windows")]
+        { Command::new("explorer.exe").arg(path).spawn().map_err(|_| HostError::GatewayRejected("无法打开数据位置。".into()))?; }
+        #[cfg(not(target_os = "windows"))]
+        { return Err(HostError::GatewayRejected("当前平台不支持打开Windows数据位置。".into())); }
+        Ok(())
+    }
+
+    pub async fn spaces_switch(&self, window: &str, request: SpaceSwitchRequest) -> HostResult<()> {
+        Self::main_window(window)?;
+        if !request.confirmed { return Err(HostError::GatewayRejected("请确认切换并重启客户端。".into())); }
+        if request.space_id == self.profile_id { return Err(HostError::GatewayRejected("已经在当前空间。".into())); }
+        self.profile_store.validate_selection(&request.space_id, &request.expected_revision).map_err(HostError::GatewayRejected)?;
+        let bootstrap = self.bootstrap().await?;
+        if self.transitioning.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() { return Err(HostError::GatewayRejected("空间正在切换。".into())); }
+        let result = self.finish_space_switch(bootstrap, &request).await;
+        if result.is_err() { self.transitioning.store(false, Ordering::SeqCst); }
+        result
+    }
+
+    async fn finish_space_switch(&self, bootstrap: GatewayBootstrap, request: &SpaceSwitchRequest) -> HostResult<()> {
+        self.drain_gateway(&bootstrap).await?;
+        self.profile_store.select(&request.space_id, &request.expected_revision).map_err(HostError::GatewayRejected)
+    }
+
+    async fn drain_gateway(&self, bootstrap: &GatewayBootstrap) -> HostResult<()> {
+        // Drain atomically fences new turns in Gateway. Existing work may finish;
+        // only after the old process exits may the new identity be persisted.
+        let base = validated_loopback_url(&bootstrap.base_url)?;
+        let response = self.http.post(join_loopback_url(&base, "/v1/admin/shutdown")?)
+            .header("Authorization", format!("Bearer {}", bootstrap.capability_token))
+            .header("X-Sora-Client-Instance", &bootstrap.client_instance_id)
+            .header("X-Sora-Protocol-Version", PROTOCOL_VERSION).header("Origin", HOST_ORIGIN)
+            .timeout(Duration::from_secs(5)).send().await.map_err(|_| HostError::GatewayUnavailable)?;
+        if !response.status().is_success() { return Err(HostError::GatewayUnavailable); }
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(35);
+        let mut guard = self.gateway.lock().await;
+        if let Some(runtime) = guard.as_mut() {
+            loop {
+                if runtime.child.try_wait().map_err(|_| HostError::GatewayUnavailable)?.is_some() { break; }
+                if tokio::time::Instant::now() >= deadline { return Err(HostError::GatewayRejected("旧空间仍在安全停止，尚未切换。请稍后重新读取并重试。".into())); }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+        if let Some(mut runtime) = guard.take() { stop_gateway_runtime(&mut runtime); }
+        drop(guard);
+        *self.debug_session.lock().await = None;
+        Ok(())
+    }
+
     pub async fn status(&self) -> HostResult<DesktopStatus> {
+        if self.profile_store.pending_erasure().map_err(HostError::GatewayRejected)?.is_some() {
+            return Ok(DesktopStatus {
+                schema_version: "DesktopStatus.v1", phase: "degraded", profile_id: self.profile_id.clone(),
+                client_instance_id: self.client_instance_id.clone(), protocol_version: PROTOCOL_VERSION,
+                gateway_ready: false, provider_ready: false, recoverable: true,
+                status_message: Some("空间删除尚未完成。请打开设置中的数据与隐私，继续恢复删除。".into()),
+            });
+        }
         let bootstrap = self.bootstrap().await?;
         let health: Value = self
             .request(Method::GET, "/v1/model-providers/health", None)
@@ -465,6 +734,96 @@ impl HostState {
         })
     }
 
+    pub fn notifications_settings(&self, window: &str) -> HostResult<Value> {
+        Self::main_window(window)?;
+        let settings = self.profile_store.notification_settings(&self.profile_id).map_err(HostError::GatewayRejected)?;
+        Ok(json!({"preferences":settings.preferences,"revision":settings.revision,"os_permission":crate::notifications::permission()}))
+    }
+
+    pub async fn privacy_export(&self, window: &str, native_owner: usize, request: PrivacyExportRequest) -> HostResult<Value> {
+        Self::main_window(window)?;
+        if !request.confirmed || request.expected_profile_id != self.profile_id {
+            return Err(HostError::GatewayRejected("请在当前空间重新发起导出。".into()));
+        }
+        if self.transitioning.load(Ordering::SeqCst) || self.profile_store.pending_erasure().map_err(HostError::GatewayRejected)?.is_some() {
+            return Err(HostError::GatewayRejected("请先完成当前空间操作后再导出。".into()));
+        }
+        let kind = request.kind;
+        let destination = tauri::async_runtime::spawn_blocking(move || crate::privacy::choose_destination(kind, native_owner))
+            .await.map_err(|_| HostError::InvalidResponse)??;
+        let Some(destination) = destination else {
+            return Ok(json!({"schema_version":"DesktopPrivacyExportReceipt.v1", "kind":kind, "status":"cancelled"}));
+        };
+        let payload: Value = self.request(Method::POST, "/v1/privacy/export", Some(json!({"kind":kind,"confirmed":true}))).await?;
+        if payload.get("schema_version").and_then(Value::as_str) != Some("DesktopPrivacyExport.v1")
+            || payload.get("kind").and_then(Value::as_str) != Some(kind.identifier()) {
+            return Err(HostError::InvalidResponse);
+        }
+        let bytes = serde_json::to_vec_pretty(&payload).map_err(|_| HostError::InvalidResponse)?;
+        if bytes.len() > 4 * 1024 * 1024 { return Err(HostError::InvalidResponse); }
+        let byte_count = bytes.len();
+        tauri::async_runtime::spawn_blocking(move || crate::privacy::save_export(&destination, &bytes))
+            .await.map_err(|_| HostError::InvalidResponse)??;
+        Ok(json!({"schema_version":"DesktopPrivacyExportReceipt.v1", "kind":kind,"status":"saved","bytes":byte_count}))
+    }
+
+    pub fn privacy_state(&self, window: &str) -> HostResult<crate::profile_store::PrivacyState> {
+        Self::main_window(window)?;
+        self.profile_store.privacy_state(&self.profile_id).map_err(HostError::GatewayRejected)
+    }
+
+    pub async fn privacy_erase(&self, window: &str, request: PrivacyEraseRequest) -> HostResult<()> {
+        Self::main_window(window)?;
+        if !request.confirmed || request.expected_profile_id != self.profile_id || request.confirmation != "删除当前空间" {
+            return Err(HostError::GatewayRejected("请在当前空间输入完整确认文字后再删除。".into()));
+        }
+        if self.transitioning.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+            return Err(HostError::GatewayRejected("空间操作正在进行，请等待结果。".into()));
+        }
+        let result = self.finish_privacy_erase(&request).await;
+        if result.is_err() { self.transitioning.store(false, Ordering::SeqCst); }
+        result
+    }
+
+    async fn finish_privacy_erase(&self, request: &PrivacyEraseRequest) -> HostResult<()> {
+        // Persist intent before any irreversible step. On restart this record
+        // blocks bootstrap and exposes recovery without opening the old data.
+        let pending = self.profile_store.begin_erasure(&self.profile_id, &request.expected_revision).map_err(HostError::GatewayRejected)?;
+        let bootstrap = {
+            let mut guard = self.gateway.lock().await;
+            let running = if let Some(runtime) = guard.as_mut() {
+                runtime.child.try_wait().map_err(|_| HostError::GatewayUnavailable)?.is_none()
+            } else { false };
+            if running {
+                guard.as_ref().map(|runtime| runtime.bootstrap.clone())
+            } else {
+                if let Some(mut runtime) = guard.take() { stop_gateway_runtime(&mut runtime); }
+                None
+            }
+        };
+        if let Some(bootstrap) = bootstrap { self.drain_gateway(&bootstrap).await?; }
+        *self.debug_session.lock().await = None;
+        let profile = self.profile_id.clone();
+        let subject = self.subject_id.clone();
+        let agent = self.agent_id.clone();
+        tauri::async_runtime::spawn_blocking(move || erase_with_gateway_helper(&profile, &subject, &agent))
+            .await.map_err(|_| HostError::InvalidResponse)??;
+        self.profile_store.complete_erasure(&pending.operation_id).map_err(HostError::GatewayRejected)
+    }
+    pub fn notifications_save(&self, window: &str, request: NotificationSaveRequest) -> HostResult<Value> {
+        Self::main_window(window)?;
+        self.profile_store.save_notifications(&self.profile_id,request.preferences,&request.expected_revision).map_err(HostError::GatewayRejected)?;
+        self.notifications_settings(window)
+    }
+    pub fn notifications_test(&self, window: &str) -> HostResult<Value> {
+        Self::main_window(window)?;
+        let settings = self.profile_store.notification_settings(&self.profile_id).map_err(HostError::GatewayRejected)?;
+        if !settings.preferences.enabled { return Ok(json!({"status":"disabled"})); }
+        if !settings.preferences.allows(crate::notifications::minute_of_day()) { return Ok(json!({"status":"quiet"})); }
+        crate::notifications::show().map_err(|_| HostError::GatewayRejected("Windows未接收通知，请检查系统通知设置。".into()))?;
+        Ok(json!({"status":"submitted_to_windows"}))
+    }
+
     pub async fn history(&self, request: DesktopHistoryRequest) -> HostResult<Value> {
         let mut path = format!(
             "/v1/conversations/{}/history?limit={}",
@@ -477,13 +836,27 @@ impl HostState {
         self.request(Method::GET, &path, None).await
     }
 
-    pub async fn conversations(&self) -> HostResult<Value> {
-        self.request(Method::GET, "/v1/conversations?limit=100", None)
+    pub async fn conversations(&self, offset: u32, query: &str) -> HostResult<Value> {
+        if offset > 1_000_000 || query.chars().count() > 200 { return Err(HostError::InvalidResponse); }
+        self.request(Method::GET, &format!("/v1/conversations?limit=100&offset={offset}&query={}", encode_path(query)), None)
             .await
     }
 
     pub async fn memories(&self) -> HostResult<Value> {
         self.request(Method::GET, "/v1/memories", None).await
+    }
+
+    pub async fn memory_detail(&self, memory_id: &str) -> HostResult<Value> {
+        self.request(Method::GET, &format!("/v1/memories/{}/details", encode_path(memory_id)), None).await
+    }
+
+    pub async fn memory_correct(&self, memory_id: &str, request: MemoryCorrectionRequest) -> HostResult<Value> {
+        if !request.confirmed { return Err(HostError::InvalidResponse); }
+        self.request(Method::POST, &format!("/v1/memories/{}/correct", encode_path(memory_id)), Some(json!(request))).await
+    }
+
+    pub async fn response_basis(&self, conversation_id: &str, turn_id: &str) -> HostResult<Value> {
+        self.request(Method::GET, &format!("/v1/conversations/{}/responses/{}/basis", encode_path(conversation_id), encode_path(turn_id)), None).await
     }
 
     pub async fn set_memory_visibility(&self, memory_id: &str, visible: bool) -> HostResult<Value> {
@@ -544,6 +917,40 @@ impl HostState {
         .await
     }
 
+    pub async fn conversation_control_defaults(&self, conversation_id: &str, request: DefaultControlsRequest) -> HostResult<Value> {
+        if !request.confirmed { return Err(HostError::InvalidResponse); }
+        self.request(Method::POST, &format!("/v1/conversations/{}/control-defaults", encode_path(conversation_id)), Some(json!(request))).await
+    }
+
+    pub async fn debug_snapshot(&self, conversation_id: &str) -> HostResult<Value> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/v1/debug/snapshot?conversation_id={}",
+                encode_path(conversation_id)
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn debug_frame(&self, window_label: &str, request: DebugFrameRequest) -> HostResult<Value> {
+        if window_label != "main" {
+            return Err(HostError::DebugSessionExpired);
+        }
+        self.request(Method::POST, "/v1/debug/frame", Some(json!(request))).await
+    }
+
+    pub async fn debug_frame_observation(&self, window_label: &str, request: FrameObservationRequest) -> HostResult<Value> {
+        if window_label != "main" { return Err(HostError::DebugSessionExpired); }
+        self.request(Method::POST, "/v1/debug/frame-observation", Some(json!(request))).await
+    }
+
+    pub async fn debug_frame_observation_status(&self, window_label: &str) -> HostResult<Value> {
+        if window_label != "main" { return Err(HostError::InvalidResponse); }
+        self.request(Method::GET, "/v1/debug/frame-observation", None).await
+    }
+
     pub async fn submit(
         &self,
         app: AppHandle,
@@ -573,9 +980,11 @@ impl HostState {
         let bootstrap = self.bootstrap().await?;
         let http = self.http.clone();
         let accepted_for_stream = accepted.clone();
+        let notification_store = self.profile_store.clone();
+        let notification_profile = self.profile_id.clone();
         tokio::spawn(async move {
             if let Err(error) =
-                stream_events(http, bootstrap, app.clone(), &accepted_for_stream).await
+                stream_events(http, bootstrap, app.clone(), &accepted_for_stream, notification_store, notification_profile).await
             {
                 let payload =
                     serde_json::to_value(ShellError::from(error)).unwrap_or_else(|_| json!({}));
@@ -633,6 +1042,15 @@ impl HostState {
     pub async fn provider_create(&self, request: Value) -> HostResult<Value> {
         self.request(Method::POST, "/v1/model-providers", Some(request))
             .await
+    }
+
+    pub async fn provider_bind_workload(&self, request: ProviderBindingRequest) -> HostResult<Value> {
+        self.request(Method::PUT, &format!("/v1/model-provider-bindings/{}", encode_path(&request.workload)), Some(json!(request))).await
+    }
+
+    pub async fn provider_delete(&self, profile_id: &str, confirmation: &str) -> HostResult<Value> {
+        if confirmation != format!("delete:{profile_id}") { return Err(HostError::GatewayRejected("删除模型配置需要明确确认。".into())); }
+        self.request(Method::DELETE, &format!("/v1/model-providers/{}", encode_path(profile_id)), Some(json!({"confirmation":confirmation}))).await
     }
 
     pub async fn provider_verify(&self, profile_id: &str, request: Value) -> HostResult<Value> {
@@ -762,6 +1180,209 @@ impl HostState {
             .ok_or(HostError::InvalidResponse)
     }
 
+    pub async fn debug_session_open(&self, window_label: &str) -> HostResult<DebugSessionInfo> {
+        self.open_debug_session_at(window_label, "/v1/debug/sessions/open").await
+    }
+
+    pub async fn debug_review_session_open(&self, window_label: &str) -> HostResult<DebugSessionInfo> {
+        self.open_debug_session_at(window_label, "/v1/debug/reviews/session").await
+    }
+
+    pub async fn debug_quality_session_open(&self, window_label: &str) -> HostResult<DebugSessionInfo> {
+        self.open_debug_session_at(window_label, "/v1/debug/quality/session").await
+    }
+
+    pub async fn debug_quality_inspect(&self, window_label: &str, request: QualityInspectRequest) -> HostResult<Value> {
+        let kind = match request.kind { QualityKind::Runs => "runs", QualityKind::Baselines => "baselines", QualityKind::Events => "events" };
+        let offset = request.case_offset.unwrap_or(0);
+        if offset > 1_000_000 { return Err(HostError::InvalidResponse); }
+        let mut path = format!("/v1/debug/quality?kind={kind}&case_offset={offset}");
+        for (key, value) in [("record_id", request.record_id), ("baseline_id", request.baseline_id)] {
+            if let Some(value) = value {
+                if value.is_empty() || value.len() > 128 { return Err(HostError::InvalidResponse); }
+                path.push_str(&format!("&{key}={}", encode_path(&value)));
+            }
+        }
+        self.debug_request(window_label, Method::GET, &path, None).await
+    }
+
+    pub async fn debug_quality_resolve(&self, window_label: &str, request: QualityResolutionRequest) -> HostResult<Value> {
+        if !request.confirmed || request.expected_revision.len() != 64
+            || !request.expected_revision.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
+            return Err(HostError::GatewayRejected("请重新核对质量事件并明确确认结案。".into()));
+        }
+        self.debug_request(window_label, Method::POST, "/v1/debug/quality/resolve", Some(json!(request))).await
+    }
+
+    async fn open_debug_session_at(&self, window_label: &str, path: &str) -> HostResult<DebugSessionInfo> {
+        if window_label != "main" {
+            return Err(HostError::GatewayRejected("此窗口不能开启调试执行会话。".into()));
+        }
+        let mut guard = self.debug_session.lock().await;
+        let bootstrap = self.bootstrap().await?;
+        let reply: DebugSessionReply = self.request(Method::POST, path,
+            Some(json!({"schema_version":"DesktopDebugSessionOpenRequest.v1", "window_label":window_label}))).await?;
+        if reply.session.schema_version != "DesktopDebugSession.v1"
+            || reply.session.window_label != window_label
+            || !reply.session.session_id.starts_with("debug_")
+            || reply.capability_token.len() < 32 || reply.capability_id.is_empty() {
+            return Err(HostError::InvalidResponse);
+        }
+        let info = reply.session.clone();
+        *guard = Some(NativeDebugSession {
+            info: reply.session, token: Zeroizing::new(reply.capability_token),
+            parent_capability_id: bootstrap.capability_id, base_url: bootstrap.base_url,
+        });
+        Ok(info)
+    }
+
+    pub async fn debug_session_close(&self, window_label: &str, session_id: &str) -> HostResult<Value> {
+        let mut guard = self.debug_session.lock().await;
+        if guard.as_ref().is_some_and(|session| session.info.window_label != window_label) {
+            return Err(HostError::GatewayRejected("调试会话不属于此窗口。".into()));
+        }
+        if guard.as_ref().is_some_and(|session| session.info.session_id != session_id) {
+            return Ok(json!({"closed":false}));
+        }
+        if let Some(session) = guard.take() {
+            let base = validated_loopback_url(&session.base_url)?;
+            let path = format!("/v1/debug/sessions/{}", encode_path(&session.info.session_id));
+            // Closing a panel must not start a sidecar or retain credentials on
+            // network failure. Revocation is best-effort; expiry still applies.
+            let _ = self.http.delete(join_loopback_url(&base, &path)?)
+                .header("Authorization", format!("Bearer {}", &*session.token))
+                .header("X-Sora-Client-Instance", &self.client_instance_id)
+                .header("X-Sora-Protocol-Version", PROTOCOL_VERSION).header("Origin", HOST_ORIGIN)
+                .timeout(Duration::from_secs(2)).send().await;
+        }
+        Ok(json!({"closed":true}))
+    }
+
+    pub async fn debug_commands(&self, window_label: &str) -> HostResult<Value> {
+        self.debug_request(window_label, Method::GET, "/v1/debug/commands", None).await
+    }
+
+    pub async fn companion_read(&self, window_label: &str) -> HostResult<Value> {
+        if window_label != "main" { return Err(HostError::InvalidResponse); }
+        self.request(Method::GET, "/v1/companion", None).await
+    }
+
+    pub async fn narrative_read(&self, window_label: &str) -> HostResult<Value> {
+        if window_label != "main" { return Err(HostError::InvalidResponse); }
+        self.request(Method::GET, "/v1/narrative", None).await
+    }
+
+    pub async fn memory_maintenance_read(&self, window_label: &str) -> HostResult<Value> {
+        if window_label != "main" { return Err(HostError::InvalidResponse); }
+        self.request(Method::GET, "/v1/memory/maintenance", None).await
+    }
+
+    pub async fn memory_maintenance_control(&self, window_label: &str, request: MemoryMaintenanceRequest) -> HostResult<Value> {
+        if window_label != "main" || !request.confirmed || request.expected_revision.len() != 64 || !request.expected_revision.bytes().all(|c| c.is_ascii_hexdigit()) {
+            return Err(HostError::InvalidResponse);
+        }
+        self.request(Method::POST, "/v1/memory/maintenance", Some(json!(request))).await
+    }
+
+    pub async fn narrative_action(&self, window_label: &str, request: NarrativeActionRequest) -> HostResult<Value> {
+        if window_label != "main" || !["invite", "choice"].contains(&request.action.as_str()) || request.request_id.len() > 64 {
+            return Err(HostError::InvalidResponse);
+        }
+        self.request(Method::POST, "/v1/narrative/actions", Some(json!(request))).await
+    }
+
+    pub async fn companion_action(&self, window_label: &str, request: CompanionActionRequest) -> HostResult<Value> {
+        if window_label != "main" || !["controls", "agreements/propose", "agreements/confirm", "agreements/revoke", "repair"].contains(&request.action.as_str())
+            || !request.payload.is_object() || request.payload.to_string().len() > 4096 {
+            return Err(HostError::InvalidResponse);
+        }
+        self.request(Method::POST, &format!("/v1/companion/{}", request.action), Some(request.payload)).await
+    }
+
+    pub async fn companion_governance(&self, window_label: &str, domain: &str) -> HostResult<Value> {
+        if window_label != "main" || !["persona", "relationship"].contains(&domain) { return Err(HostError::InvalidResponse); }
+        self.request(Method::GET, &format!("/v1/debug/companion?domain={domain}"), None).await
+    }
+
+    pub async fn companion_session_open(&self, window_label: &str) -> HostResult<DebugSessionInfo> {
+        self.open_debug_session_at(window_label, "/v1/debug/companion/session").await
+    }
+
+    pub async fn companion_governance_resolve(&self, window_label: &str, request: CompanionGovernanceRequest) -> HostResult<Value> {
+        if !request.confirmed || !["persona", "relationship"].contains(&request.domain.as_str())
+            || !["reject_candidate", "rollback_contribution"].contains(&request.action.as_str())
+            || request.expected_revision.len() != 64
+            || !request.expected_revision.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
+            return Err(HostError::InvalidResponse);
+        }
+        self.debug_request(window_label, Method::POST, "/v1/debug/companion/resolve", Some(json!(request))).await
+    }
+
+    pub async fn debug_memory_governance(&self, window_label: &str, kind: &str, offset: u32) -> HostResult<Value> {
+        if !["reviews", "candidates", "quarantines"].contains(&kind) || offset > 1_000_000 { return Err(HostError::InvalidResponse); }
+        self.debug_request(window_label, Method::GET, &format!("/v1/debug/memory-governance?kind={kind}&offset={offset}"), None).await
+    }
+
+    pub async fn debug_memory_queue(&self, window_label: &str, kind: &str, status: &str) -> HostResult<Value> {
+        if window_label != "main" || !["index", "projection"].contains(&kind) || !["all", "pending", "failed", "dead_letter"].contains(&status) { return Err(HostError::InvalidResponse); }
+        self.request(Method::GET, &format!("/v1/debug/memory-queue?kind={kind}&status={status}"), None).await
+    }
+
+    pub async fn debug_review_resolve(&self, window_label: &str, request: ReviewResolutionRequest) -> HostResult<Value> {
+        if !request.confirmed { return Err(HostError::GatewayRejected("请先核对审核目标并确认。".into())); }
+        self.debug_request(window_label, Method::POST, "/v1/debug/memory-governance/resolve", Some(json!(request))).await
+    }
+
+    pub async fn debug_quarantine_dismiss(&self, window_label: &str, request: QuarantineDismissalRequest) -> HostResult<Value> {
+        if !request.confirmed || request.expected_revision.len() != 64
+            || !request.expected_revision.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
+            return Err(HostError::GatewayRejected("请核对隔离记录并明确确认拒绝候选。".into()));
+        }
+        self.debug_request(window_label, Method::POST, "/v1/debug/memory-governance/quarantines/dismiss", Some(json!(request))).await
+    }
+
+    pub async fn debug_command_preview(&self, window_label: &str, request: AdminPreviewRequest) -> HostResult<Value> {
+        self.debug_request(window_label, Method::POST, "/v1/debug/commands/preview", Some(json!(request))).await
+    }
+
+    pub async fn debug_command_execute(&self, window_label: &str, request: AdminExecuteRequest) -> HostResult<Value> {
+        if !request.confirmed {
+            return Err(HostError::GatewayRejected("请先确认预览影响。".into()));
+        }
+        self.debug_request(window_label, Method::POST, "/v1/debug/commands/execute", Some(json!(request))).await
+    }
+
+    pub async fn debug_command_action(&self, window_label: &str, action_id: &str) -> HostResult<Value> {
+        self.debug_request(window_label, Method::GET,
+            &format!("/v1/debug/commands/actions/{}", encode_path(action_id)), None).await
+    }
+
+    async fn debug_request(&self, window_label: &str, method: Method, path: &str, body: Option<Value>) -> HostResult<Value> {
+        let bootstrap = self.bootstrap().await?;
+        let mut guard = self.debug_session.lock().await;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+        let valid = guard.as_ref().is_some_and(|session|
+            session.info.window_label == window_label && session.info.expires_at_ms > now
+            && session.parent_capability_id == bootstrap.capability_id);
+        if !valid {
+            *guard = None;
+            return Err(HostError::DebugSessionExpired);
+        }
+        let session = guard.as_ref().ok_or(HostError::InvalidResponse)?;
+        let base = validated_loopback_url(&session.base_url)?;
+        let mut request = self.http.request(method, join_loopback_url(&base, path)?)
+            .header("Authorization", format!("Bearer {}", &*session.token))
+            .header("X-Sora-Client-Instance", &self.client_instance_id)
+            .header("X-Sora-Protocol-Version", PROTOCOL_VERSION).header("Origin", HOST_ORIGIN);
+        if let Some(value) = body { request = request.json(&value); }
+        let response = request.send().await.map_err(|_| HostError::GatewayUnavailable)?;
+        let status = response.status();
+        let bytes = response.bytes().await.map_err(|_| HostError::GatewayUnavailable)?;
+        if status == StatusCode::UNAUTHORIZED { *guard = None; return Err(HostError::DebugSessionExpired); }
+        if !status.is_success() { return Err(parse_gateway_error(status, &bytes)); }
+        serde_json::from_slice(&bytes).map_err(|_| HostError::InvalidResponse)
+    }
+
     async fn request<T: DeserializeOwned>(
         &self,
         method: Method,
@@ -815,6 +1436,8 @@ async fn stream_events(
     bootstrap: GatewayBootstrap,
     app: AppHandle,
     accepted: &TurnAccepted,
+    notification_store: crate::profile_store::ProfileStore,
+    notification_profile: String,
 ) -> HostResult<()> {
     let base = validated_loopback_url(&bootstrap.base_url)?;
     let url = join_loopback_url(&base, &accepted.events_url)?;
@@ -857,6 +1480,14 @@ async fn stream_events(
                     },
                 )
                 .map_err(|_| HostError::GatewayUnavailable)?;
+                if event.event_type == "turn.committed" {
+                    let focused = app.get_webview_window("main").is_none_or(|w| w.is_focused().unwrap_or(true));
+                    if !focused {
+                        if let Ok(settings) = notification_store.notification_settings(&notification_profile) {
+                            if settings.preferences.allows(crate::notifications::minute_of_day()) { let _ = crate::notifications::show(); }
+                        }
+                    }
+                }
                 if matches!(
                     event.event_type.as_str(),
                     "turn.committed" | "turn.cancelled" | "turn.failed"
@@ -866,7 +1497,7 @@ async fn stream_events(
             }
         }
     }
-    Ok(())
+    Err(HostError::GatewayUnavailable)
 }
 
 #[cfg(debug_assertions)]
@@ -930,6 +1561,45 @@ fn resolve_gateway_launch() -> HostResult<GatewayLaunch> {
             verify_integrity: true,
         })
     }
+}
+
+fn erase_with_gateway_helper(profile: &str, subject: &str, agent: &str) -> HostResult<()> {
+    let launch = resolve_gateway_launch()?;
+    if launch.verify_integrity { verify_gateway_integrity(&launch.executable)?; }
+    let mut command = Command::new(&launch.executable);
+    command.args(&launch.prefix_args);
+    if let Some(directory) = &launch.current_dir { command.current_dir(directory); }
+    for (name, value) in &launch.environment { command.env(name, value); }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    let mut child = command.args([
+        "--erase-stopped-profile", "--profile-id", profile, "--subject-id", subject, "--agent-id", agent,
+    ]).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().map_err(|_| HostError::GatewayStart)?;
+    let _group = match GatewayProcessGroup::attach(&child) {
+        Ok(group) => group,
+        Err(error) => { let _ = child.kill(); let _ = child.wait(); return Err(error); }
+    };
+    let input = serde_json::to_vec(&json!({"confirmed":true,"profile_id":profile,"confirmation":format!("erase:{profile}")}))
+        .map_err(|_| HostError::InvalidResponse)?;
+    let write_result = child.stdin.take().ok_or(HostError::InvalidResponse)?.write_all(&[input, vec![b'\n']].concat());
+    if write_result.is_err() {
+        let _ = child.kill(); let _ = child.wait();
+        return Err(HostError::GatewayUnavailable);
+    }
+    let output = child.wait_with_output().map_err(|_| HostError::GatewayUnavailable)?;
+    if !output.status.success() || output.stdout.len() > 8192 {
+        return Err(HostError::GatewayRejected("删除尚未确认完成。空间保持关闭，请重新读取后继续恢复。".into()));
+    }
+    let receipt: Value = serde_json::from_slice(&output.stdout).map_err(|_| HostError::InvalidResponse)?;
+    if receipt.get("schema_version").and_then(Value::as_str) != Some("ProfileErasure.v1")
+        || receipt.get("status").and_then(Value::as_str) != Some("erased")
+        || receipt.get("profile_id").and_then(Value::as_str) != Some(profile) {
+        return Err(HostError::InvalidResponse);
+    }
+    Ok(())
 }
 
 #[cfg(not(debug_assertions))]
@@ -1152,6 +1822,142 @@ mod tests {
             parse_gateway_error(StatusCode::UPGRADE_REQUIRED, body),
             HostError::ProtocolMismatch
         ));
+    }
+
+    #[test]
+    fn public_debug_session_has_no_native_credentials() {
+        let reply: DebugSessionReply = serde_json::from_value(json!({
+            "session": {"schema_version":"DesktopDebugSession.v1", "session_id":"debug_fixture",
+                "window_label":"main", "expires_at_ms":300000, "scopes":["commands.maintenance"]},
+            "capability_token":"native-only-secret-sentinel", "capability_id":"cap_fixture"
+        })).unwrap();
+        let public = serde_json::to_string(&reply.session).unwrap();
+        assert!(!public.contains("capability_token"));
+        assert!(!public.contains("native-only-secret-sentinel"));
+        assert!(!public.contains("cap_fixture"));
+    }
+
+    #[test]
+    fn space_switch_rejects_foreign_windows_and_implicit_restart_before_starting_runtime() {
+        tauri::async_runtime::block_on(async {
+            let state = HostState::new().unwrap();
+            assert!(state.spaces_switch("foreign", SpaceSwitchRequest {space_id:"space_test".into(), expected_revision:"test".into(), confirmed:true}).await.is_err());
+            assert!(state.spaces_switch("main", SpaceSwitchRequest {space_id:"space_test".into(), expected_revision:"test".into(), confirmed:false}).await.is_err());
+            assert!(state.gateway.lock().await.is_none());
+        });
+    }
+
+    #[test]
+    fn erasure_requires_exact_current_identity_phrase_and_boolean_before_any_side_effect() {
+        assert!(serde_json::from_value::<PrivacyEraseRequest>(json!({"expected_profile_id":"fixture","expected_revision":"a".repeat(64),"confirmation":"删除当前空间","confirmed":1})).is_err());
+        assert!(serde_json::from_value::<PrivacyEraseRequest>(json!({"expected_profile_id":"fixture","expected_revision":"a".repeat(64),"confirmation":"删除当前空间","confirmed":true,"path":"C:/"})).is_err());
+        tauri::async_runtime::block_on(async {
+            let state = HostState::new().unwrap();
+            let request = || PrivacyEraseRequest { expected_profile_id: state.profile_id.clone(), expected_revision: "a".repeat(64), confirmation: "删除当前空间".into(), confirmed: true };
+            assert!(state.privacy_erase("foreign", request()).await.is_err());
+            let mut implicit = request(); implicit.confirmed = false;
+            assert!(state.privacy_erase("main", implicit).await.is_err());
+            let mut wrong = request(); wrong.confirmation = "erase".into();
+            assert!(state.privacy_erase("main", wrong).await.is_err());
+            assert!(state.gateway.lock().await.is_none());
+            assert!(!state.transitioning.load(Ordering::SeqCst));
+        });
+    }
+
+    #[test]
+    #[ignore = "Requires explicit isolated acceptance roots and the local Python Gateway"]
+    fn isolated_host_gateway_erasure_and_restart_acceptance() {
+        let root = PathBuf::from(env::var_os("SORA_ERASURE_ACCEPTANCE_ROOT").expect("explicit acceptance root"));
+        assert!(root.is_absolute());
+        let allowed = repository_root().unwrap().join("outputs").canonicalize().unwrap();
+        assert!(root.canonicalize().unwrap().starts_with(allowed));
+        assert_eq!(PathBuf::from(env::var_os("SORA_SANDBOX_CONFIG_DIR").unwrap()), root.join("config"));
+        assert_eq!(PathBuf::from(env::var_os("SORA_GATEWAY_STATE_ROOT").unwrap()), root.join("runtime"));
+        assert!(env::var("SORA_PROFILE_ID").unwrap().starts_with("qa-erasure-"));
+        assert_eq!(env::var("SORA_SUBJECT_ID").unwrap(), "qa-erasure-user");
+        tauri::async_runtime::block_on(async {
+            let state = HostState::new().unwrap();
+            let status = state.status().await.unwrap();
+            assert_eq!(status.phase, "provider_setup_required");
+            let exported: Value = state.request(Method::POST, "/v1/privacy/export", Some(json!({"kind":"memory_summary","confirmed":true}))).await.unwrap();
+            assert_eq!(exported["content"]["exported_count"], 0);
+            let page = state.spaces_list("main").unwrap();
+            let page = state.spaces_create("main", "保留的隔离空间", &page.revision).unwrap();
+            let neighbour = page.spaces[1].id.clone();
+            let own_directory = state.profile_store.identity_directory(&state.profile_id).unwrap();
+            let neighbour_directory = state.profile_store.identity_directory(&neighbour).unwrap();
+            std::fs::create_dir_all(&neighbour_directory).unwrap();
+            std::fs::write(neighbour_directory.join("retained-fixture.txt"), b"isolated-neighbour").unwrap();
+            assert!(own_directory.join("memory.db").is_file());
+            let privacy = state.privacy_state("main").unwrap();
+            let old_profile = state.profile_id.clone();
+            state.privacy_erase("main", PrivacyEraseRequest {
+                expected_profile_id: old_profile.clone(), expected_revision: privacy.revision,
+                confirmation: "删除当前空间".into(), confirmed: true,
+            }).await.unwrap();
+            assert!(!own_directory.exists());
+            assert!(neighbour_directory.join("retained-fixture.txt").is_file());
+            assert!(state.gateway.lock().await.is_none());
+            assert!(state.bootstrap().await.is_err());
+            let reopened = HostState::new().unwrap();
+            assert_ne!(reopened.profile_id, old_profile);
+            let privacy = reopened.privacy_state("main").unwrap();
+            assert!(privacy.pending_operation.is_none());
+            assert!(privacy.last_completed_operation.is_some());
+            let status = reopened.status().await.unwrap();
+            assert_eq!(status.phase, "provider_setup_required");
+            let exported: Value = reopened.request(Method::POST, "/v1/privacy/export", Some(json!({"kind":"memory_summary","confirmed":true}))).await.unwrap();
+            assert_eq!(exported["content"]["exported_count"], 0);
+            let bootstrap = reopened.gateway.lock().await.as_ref().unwrap().bootstrap.clone();
+            reopened.drain_gateway(&bootstrap).await.unwrap();
+            std::fs::write(root.join("acceptance.json"), serde_json::to_vec_pretty(&json!({
+                "scope":"isolated native Host and real Python Gateway, no model or UI erasure",
+                "erasure":"confirmed", "old_directory_removed":true, "neighbour_preserved":true,
+                "replacement_empty":true, "receipt_persisted":true,
+            })).unwrap()).unwrap();
+        });
+    }
+
+    #[test]
+    fn quality_commands_reject_unknown_schemas_and_implicit_confirmation() {
+        assert!(serde_json::from_value::<QualityInspectRequest>(json!({"kind":"arbitrary_url"})).is_err());
+        assert!(serde_json::from_value::<QualityInspectRequest>(json!({"kind":"runs","url":"https://example.com"})).is_err());
+        assert!(serde_json::from_value::<QualityResolutionRequest>(json!({"event_id":"event_fixture","resolution":"force","expected_revision":"a".repeat(64),"confirmed":true})).is_err());
+        assert!(serde_json::from_value::<QualityResolutionRequest>(json!({"event_id":"event_fixture","resolution":"investigated","expected_revision":"a".repeat(64),"confirmed":"true"})).is_err());
+        tauri::async_runtime::block_on(async {
+            let state = HostState::new().unwrap();
+            // Must reject before attempting to start a Gateway or touching a profile.
+            assert!(state.debug_quality_resolve("main", QualityResolutionRequest {event_id:"event_fixture".into(), resolution:QualityResolution::Investigated, expected_revision:"a".repeat(64), confirmed:false}).await.is_err());
+            assert!(state.debug_quality_resolve("main", QualityResolutionRequest {event_id:"event_fixture".into(), resolution:QualityResolution::Investigated, expected_revision:"not-a-revision".into(), confirmed:true}).await.is_err());
+        });
+    }
+
+    #[test]
+    fn quarantine_disposition_requires_a_typed_confirmed_revision() {
+        assert!(serde_json::from_value::<QuarantineDismissalRequest>(json!({"quarantine_id":"quarantine_fixture","expected_revision":"a".repeat(64),"confirmed":1})).is_err());
+        assert!(serde_json::from_value::<QuarantineDismissalRequest>(json!({"quarantine_id":"quarantine_fixture","expected_revision":"a".repeat(64),"confirmed":true,"release":true})).is_err());
+        tauri::async_runtime::block_on(async {
+            let state = HostState::new().unwrap();
+            assert!(state.debug_quarantine_dismiss("main", QuarantineDismissalRequest {quarantine_id:"quarantine_fixture".into(), expected_revision:"a".repeat(64), confirmed:false}).await.is_err());
+            assert!(state.debug_quarantine_dismiss("main", QuarantineDismissalRequest {quarantine_id:"quarantine_fixture".into(), expected_revision:"bad".into(), confirmed:true}).await.is_err());
+        });
+    }
+
+    #[test]
+    fn stale_panel_close_cannot_revoke_replacement_session() {
+        tauri::async_runtime::block_on(async {
+        let state = HostState::new().unwrap();
+        *state.debug_session.lock().await = Some(NativeDebugSession {
+            info: DebugSessionInfo {schema_version:"DesktopDebugSession.v1".into(), session_id:"debug_new".into(),
+                window_label:"main".into(), expires_at_ms:u64::MAX, scopes:vec![]},
+            token: Zeroizing::new("fixture-secret".into()), parent_capability_id:"cap_parent".into(),
+            base_url:"http://127.0.0.1:1".into(),
+        });
+        assert_eq!(state.debug_session_close("main", "debug_old").await.unwrap()["closed"], false);
+        assert!(state.debug_session.lock().await.is_some());
+        assert!(state.debug_session_close("foreign-window", "debug_new").await.is_err());
+        assert!(state.debug_session.lock().await.is_some());
+        });
     }
 
     #[test]

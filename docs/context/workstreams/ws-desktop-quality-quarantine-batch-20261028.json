@@ -1,0 +1,65 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "README.md",
+    "apps/desktop/src",
+    "apps/desktop/src-tauri/src",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py",
+    "src/sora_sandbox/conversation_gateway/desktop_governance.py",
+    "src/sora_sandbox/conversation_gateway/desktop_quality.py",
+    "tests/test_desktop_functional_repairs.py"
+  ],
+  "completed_at_utc": "2026-10-28T11:52:00Z",
+  "decision_ids": [
+    "adr-desktop-quality-event-resolution-v1",
+    "adr-memory-quarantine-disposition-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-28T11:51:16Z",
+      "summary": "Seal the verified Oct28 source batch under existing same-task repair, memory-owner and documentation claims; overlap explicitly reviewed, unrelated dirty changes preserved. Scope quality/quarantine operations, frame/history races, Provider truth/confirmation and context sync. This batch is not all F01-F30 or installed acceptance."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-28T11:52:00Z",
+      "summary": "Delivered verified source UI/Transport/Host/Gateway quality and quarantine operations, Provider truth/confirmation, Frame/history/governance late-response fixes and synchronized finite audit progress. Main F01-F30 task remains active for explicitly listed gaps; no installed-delivery claim."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-28T11:52:00Z",
+      "summary": "Delivered verified source UI/Transport/Host/Gateway quality and quarantine operations, Provider truth/confirmation, Frame/history/governance late-response fixes and synchronized finite audit progress. Main F01-F30 task remains active for explicitly listed gaps; no installed-delivery claim."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "README.md",
+    "apps/desktop/src",
+    "apps/desktop/src-tauri/src",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md",
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py",
+    "src/sora_sandbox/conversation_gateway/desktop_governance.py",
+    "src/sora_sandbox/conversation_gateway/desktop_quality.py",
+    "tests/test_desktop_functional_repairs.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-28T11:51:16Z",
+  "status": "completed",
+  "summary": "Delivered verified source UI/Transport/Host/Gateway quality and quarantine operations, Provider truth/confirmation, Frame/history/governance late-response fixes and synchronized finite audit progress. Main F01-F30 task remains active for explicitly listed gaps; no installed-delivery claim.",
+  "title": "Quality and quarantine desktop operations with truth-state repairs",
+  "updated_at_utc": "2026-10-28T11:52:00Z",
+  "verification": [
+    "Python full585, final strict DTO functional27; frontend95; Host9; TypeScript/Vite; context validate; diff check with CRLF recognized all pass. CUA standalone source quality/quarantine1440x900 light/dark420x560/error plus provider compact error pass; no local screenshot artifact or native installed test. See Oct28 VERIFICATION.md."
+  ],
+  "workstream_id": "ws-desktop-quality-quarantine-batch-20261028"
+}

@@ -350,6 +350,18 @@ class ModelProviderSystem:
             self.secret_store.delete(profile.credential_ref, profile_id)
         self.registry.delete_profile(profile_id, actor="user")
 
+    def erase_owner_data(self) -> dict[str, int]:
+        """Called after the owner's runtime has stopped, never during model work."""
+        with self._configuration_lock:
+            profiles = self.registry.list_profiles(self.owner, include_deleted=True)
+            for profile in profiles:
+                if profile.credential_ref:
+                    erase = getattr(self.secret_store, "delete_if_present", None)
+                    if not callable(erase):
+                        raise ValueError("credential backend does not support resumable erasure")
+                    erase(profile.credential_ref, profile.profile_id)
+            return self.registry.purge_owner(self.owner)
+
     def bootstrap_legacy_deepseek(
         self,
         *,

@@ -121,7 +121,7 @@ class MemoryCanonicalStore:
         reason: str = "manual_link_evidence",
         actor: str = "manual_repl",
     ) -> JsonDict:
-        with self._lock:
+        with self._lock, self._conn:
             before = self._get_memory(memory_id)
             self._assert_evidence_link_allowed(before)
             evidence = self._get_evidence_unlocked(evidence_id)
@@ -152,7 +152,7 @@ class MemoryCanonicalStore:
         actor: str = "manual_repl",
         disable_if_empty: bool = True,
     ) -> JsonDict:
-        with self._lock:
+        with self._lock, self._conn:
             before = self._get_memory(memory_id)
             self._get_evidence_unlocked(evidence_id)
             self._conn.execute(
@@ -189,7 +189,7 @@ class MemoryCanonicalStore:
         reason: str = "manual_evidence_delete",
         actor: str = "manual_repl",
     ) -> JsonDict:
-        with self._lock:
+        with self._lock, self._conn:
             evidence = self._get_evidence_unlocked(evidence_id)
             if evidence.get("deleted_at"):
                 return {

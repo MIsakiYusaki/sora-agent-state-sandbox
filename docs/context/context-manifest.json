@@ -17,7 +17,7 @@
     "docs/PROJECT_CONTEXT.md",
     "docs/context/decisions"
   ],
-  "context_revision": 3,
+  "context_revision": 35,
   "ledger": "docs/context/PROJECT_LEDGER.md",
   "context_update_paths": [
     "AGENTS.md",

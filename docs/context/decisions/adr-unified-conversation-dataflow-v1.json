@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "Default extractor/lifecycle scheduling and source identity are explicit integration gaps; WorldOps/Affect and Relationship design/audit URLs are corrected."
+  ],
+  "context": "Feishu navigation and repository catalogs mixed historical audits, planned diagrams, current working-tree code and release claims.",
+  "decided_at_utc": "2026-09-09T11:51:46Z",
+  "decision": "Maintain docs/architecture/CONVERSATION_DATAFLOW.md as the current cross-system wiring source; mirror to Feishu and link summaries; separate implementation, default scheduling, UI wiring, verification and release status.",
+  "decision_id": "adr-unified-conversation-dataflow-v1",
+  "references": [
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/START_HERE.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Single current wiring source and evidence-separated status",
+  "workstream_id": "ws-unified-dataflow-20260907"
+}

@@ -1,0 +1,58 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/components/MessageList.tsx",
+    "apps/desktop/src/conversation/state.test.ts",
+    "apps/desktop/src/conversation/state.ts"
+  ],
+  "completed_at_utc": "2026-09-28T12:07:16Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-22T11:33:12Z",
+      "summary": "Installed turn.failed before response.delta is silent. Restore contextual alert, failed user marker and recoverable draft using existing components; no redesign or automatic retries."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-22T11:38:22Z",
+      "summary": "Mapped active turn.failed to safe Chinese alert, failed message marker and draft restore without overwriting newer edits; ignore unrelated or repeated failure terminals. Existing design/components preserved. Installed verification pending."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-24T12:20:22Z",
+      "summary": "Installed Sept23 alert, incomplete user marker and draft restore captured together. Cancelled marker unit-tested but installed cancellation still unverified."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-28T12:07:16Z",
+      "summary": "Installed incomplete-response Chinese alert, failed user marker and non-destructive draft restore verified Sept23. Sept28 installed no-output cancelled user marker and next-turn continuity also verified. Existing design preserved; no auto retry; full accessibility and release approval remain separate."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-28T12:07:16Z",
+      "summary": "Installed incomplete-response Chinese alert, failed user marker and non-destructive draft restore verified Sept23. Sept28 installed no-output cancelled user marker and next-turn continuity also verified. Existing design preserved; no auto retry; full accessibility and release approval remain separate."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/components/MessageList.tsx",
+    "apps/desktop/src/conversation/state.test.ts",
+    "apps/desktop/src/conversation/state.ts"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-22T11:33:12Z",
+  "status": "completed",
+  "summary": "Installed incomplete-response Chinese alert, failed user marker and non-destructive draft restore verified Sept23. Sept28 installed no-output cancelled user marker and next-turn continuity also verified. Existing design preserved; no auto retry; full accessibility and release approval remain separate.",
+  "title": "Show failed runtime turns before first response",
+  "updated_at_utc": "2026-09-28T12:07:16Z",
+  "verification": [
+    "desktop-failure-before.xml: 4 failed assertions; desktop-failure-after.xml: 33 passed, 0 errors/failures; TypeScript and Vite build passed.",
+    "41 frontend tests pass; 41-incomplete-alert-draft-20260923 screenshot and accessibility tree; no new history/outbox/Memory jobs for failed turns.",
+    "41-incomplete-alert-draft-20260923 and 46-visible-stopped-20260928 show real installed feedback; fresh desktop-cancel-20260928.xml 41 passed; 28 cancel/completion Python tests pass."
+  ],
+  "workstream_id": "ws-desktop-turn-failure-20260922"
+}

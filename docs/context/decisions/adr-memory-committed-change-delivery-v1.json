@@ -1,0 +1,19 @@
+{
+  "consequences": [
+    "No global cross-database atomicity or exactly-once claim; canonical state can commit while derived delivery remains visibly pending and at-least-once replay requires idempotent owners.",
+    "Schema changes are additive; previously closed reviews without exact revision audit remain readable but cannot be replayed as newly verified requests."
+  ],
+  "context": "Failure injection reproduced reviewer final-write failures leaving nested committed state and listeners observing source rows before commit. Existing cross-database projections/listeners cannot be rolled back with Memory SQLite.",
+  "decided_at_utc": "2026-11-08T07:11:37Z",
+  "decision": "Memory owner contexts defer nested helper commits under BEGIN IMMEDIATE and roll back the entire unit on failure. Checked review outcome, exact request revision, actor and audit persist atomically. Canonical mutations commit index/projection/listener intents before any external delivery; durable listener intents contain source identifiers and revision fingerprints, retry with bounded backoff, and reject superseded source state. Existing domain adapters retain their own idempotency and privacy policy. Composition recovers only after actual owners register and a managed worker stops before dependent stores close.",
+  "decision_id": "adr-memory-committed-change-delivery-v1",
+  "references": [
+    "tests/test_memory_governance_consistency.py",
+    "outputs/memory-governance-20261108",
+    "docs/architecture/CONVERSATION_DATAFLOW.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Atomic review and post-commit recoverable Memory delivery",
+  "workstream_id": "ws-memory-governance-consistency-20261108"
+}

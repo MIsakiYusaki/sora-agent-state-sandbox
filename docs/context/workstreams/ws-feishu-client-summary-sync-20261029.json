@@ -1,0 +1,54 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/client-status-sync-20261029/cloud-status-draft.xml",
+    "outputs/client-status-sync-20261029/cloud-sync-plan.json"
+  ],
+  "completed_at_utc": "2026-10-29T11:33:36Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-29T11:05:01Z",
+      "summary": "Split pending cloud publication from completed local summary/main-thread handoff. User-authorized six overview updates; reviewed overlap with same-thread local documentation stream. Fresh desktop-user auth verification proves expired refresh token; no remote write or bot fallback."
+    },
+    {
+      "action": "blocked",
+      "at_utc": "2026-10-29T11:05:01Z",
+      "summary": "Await renewed Feishu user authorization: refresh token expired Oct18, verified in desktop context Oct29. Six targets and complete status draft prepared; remote writes0. After authorization fresh-fetch affected sections, minimal revision-aware edits, readback each; do not alter historical designs/resources or mark unverified release complete."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T11:18:54Z",
+      "summary": "User confirmed renewed authorization and native device-flow completion succeeded. Resume fresh six-document reads, scoped status patches and readbacks; local reconciliation owned by ws-cloud-summary-readback-20261029."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T11:33:36Z",
+      "summary": "Renewed user authorization completed. Six cloud overview/status docs updated with26reviewed revision-bound exact block writes and read back: progress81/architecture180/navigation277/dataflow38/DesktopPRD136/Memory151. Original diagrams/requirements retained; all exact published texts and reviewed references/headings verified. No client/release-complete claim."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-29T11:33:36Z",
+      "summary": "Renewed user authorization completed. Six cloud overview/status docs updated with26reviewed revision-bound exact block writes and read back: progress81/architecture180/navigation277/dataflow38/DesktopPRD136/Memory151. Original diagrams/requirements retained; all exact published texts and reviewed references/headings verified. No client/release-complete claim."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/client-status-sync-20261029/cloud-status-draft.xml",
+    "outputs/client-status-sync-20261029/cloud-sync-plan.json"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-29T11:05:01Z",
+  "status": "completed",
+  "summary": "Renewed user authorization completed. Six cloud overview/status docs updated with26reviewed revision-bound exact block writes and read back: progress81/architecture180/navigation277/dataflow38/DesktopPRD136/Memory151. Original diagrams/requirements retained; all exact published texts and reviewed references/headings verified. No client/release-complete claim.",
+  "title": "Publish client progress to six Feishu overviews",
+  "updated_at_utc": "2026-10-29T11:33:36Z",
+  "verification": [
+    "lark-cli auth status --verify --json: user unavailable, refresh token expired; metadata only, no tokens persisted",
+    "verify_cloud.py passed for six docs/26 operations; outputs/client-status-sync-20261029/cloud-readback-verification.json and CLOUD_SYNC.md",
+    "Native device-flow user login succeeded; no bot fallback, no tokens persisted; prior auth-expiry blocker resolved"
+  ],
+  "workstream_id": "ws-feishu-client-summary-sync-20261029"
+}

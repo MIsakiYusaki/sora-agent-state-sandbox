@@ -233,6 +233,118 @@
       "title": "CreateProfileRequest",
       "type": "object"
     },
+    "DebugFrameProjection": {
+      "additionalProperties": false,
+      "properties": {
+        "captured_at_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Captured At Ms"
+        },
+        "field_count": {
+          "minimum": 0,
+          "title": "Field Count",
+          "type": "integer"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/FrameFieldView"
+          },
+          "maxItems": 96,
+          "title": "Fields",
+          "type": "array"
+        },
+        "frame_id": {
+          "enum": [
+            "turn_frame",
+            "turn_interpretation",
+            "context_use_policy",
+            "interruptibility_frame",
+            "dialogue_control_frame",
+            "recollection_frame",
+            "persona_frame",
+            "affect_frame",
+            "relationship_frame",
+            "worldops_frame",
+            "origin_frame",
+            "session_frame",
+            "arbitration_result"
+          ],
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "frame_schema_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Frame Schema Version"
+        },
+        "owner": {
+          "enum": [
+            "conversation",
+            "interruptibility",
+            "memory",
+            "persona",
+            "affect",
+            "relationship",
+            "worldops"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "projection_revision": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Projection Revision",
+          "type": "string"
+        },
+        "protected_field_count": {
+          "minimum": 0,
+          "title": "Protected Field Count",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "DebugFrameProjection.v1",
+          "default": "DebugFrameProjection.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "generation_sealed",
+            "delivery_snapshot",
+            "control_snapshot",
+            "unobserved"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "frame_id",
+        "owner",
+        "source",
+        "captured_at_ms",
+        "frame_schema_version",
+        "field_count",
+        "protected_field_count",
+        "projection_revision",
+        "fields"
+      ],
+      "title": "DebugFrameProjection",
+      "type": "object"
+    },
     "DeleteProfileRequest": {
       "additionalProperties": false,
       "properties": {
@@ -245,6 +357,358 @@
         "confirmation"
       ],
       "title": "DeleteProfileRequest",
+      "type": "object"
+    },
+    "DesktopAdminActionView": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "title": "Action Id",
+          "type": "string"
+        },
+        "active_turns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Active Turns"
+        },
+        "audit_event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Audit Event Id"
+        },
+        "command_id": {
+          "title": "Command Id",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "dry_run": {
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "executed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Executed At"
+        },
+        "execution_status": {
+          "enum": [
+            "previewed",
+            "executing",
+            "executed",
+            "execution_unknown",
+            "expired",
+            "dry_run_blocked"
+          ],
+          "title": "Execution Status",
+          "type": "string"
+        },
+        "expected_revision": {
+          "title": "Expected Revision",
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Expires At"
+        },
+        "idempotency_key": {
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "impact_summary": {
+          "additionalProperties": true,
+          "title": "Impact Summary",
+          "type": "object"
+        },
+        "owned_by_current_client": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owned By Current Client"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        },
+        "result_summary": {
+          "additionalProperties": true,
+          "title": "Result Summary",
+          "type": "object"
+        },
+        "risk_level": {
+          "title": "Risk Level",
+          "type": "string"
+        },
+        "rollback_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rollback Type"
+        },
+        "schema_version": {
+          "const": "DesktopAdminActionView.v1",
+          "default": "DesktopAdminActionView.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "command_id",
+        "params",
+        "idempotency_key",
+        "expected_revision",
+        "execution_status",
+        "risk_level",
+        "active_turns",
+        "impact_summary",
+        "rollback_type",
+        "result_summary",
+        "audit_event_id",
+        "created_at",
+        "expires_at",
+        "executed_at",
+        "dry_run"
+      ],
+      "title": "DesktopAdminActionView",
+      "type": "object"
+    },
+    "DesktopAdminCommandSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "action_name": {
+          "title": "Action Name",
+          "type": "string"
+        },
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "client_wait_timeout_ms": {
+          "default": 90000,
+          "title": "Client Wait Timeout Ms",
+          "type": "integer"
+        },
+        "command_id": {
+          "title": "Command Id",
+          "type": "string"
+        },
+        "default_params": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Default Params"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Level"
+        },
+        "parameter_schema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parameter Schema"
+        },
+        "risk_level": {
+          "title": "Risk Level",
+          "type": "string"
+        },
+        "supports_dry_run": {
+          "title": "Supports Dry Run",
+          "type": "boolean"
+        },
+        "unavailable_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unavailable Reason"
+        }
+      },
+      "required": [
+        "command_id",
+        "action_name",
+        "description",
+        "risk_level",
+        "level",
+        "available",
+        "parameter_schema",
+        "default_params",
+        "supports_dry_run"
+      ],
+      "title": "DesktopAdminCommandSpec",
+      "type": "object"
+    },
+    "DesktopAdminExecuteRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "title": "Action Id",
+          "type": "string"
+        },
+        "confirmed": {
+          "const": true,
+          "title": "Confirmed",
+          "type": "boolean"
+        },
+        "expected_revision": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Expected Revision",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "DesktopAdminExecuteRequest.v1",
+          "default": "DesktopAdminExecuteRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "idempotency_key",
+        "expected_revision",
+        "confirmed"
+      ],
+      "title": "DesktopAdminExecuteRequest",
+      "type": "object"
+    },
+    "DesktopAdminPreviewRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "title": "Command Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "DesktopAdminPreviewRequest.v1",
+          "default": "DesktopAdminPreviewRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command_id",
+        "idempotency_key"
+      ],
+      "title": "DesktopAdminPreviewRequest",
+      "type": "object"
+    },
+    "DesktopAdminRegistry": {
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "items": {
+            "$ref": "#/$defs/DesktopAdminCommandSpec"
+          },
+          "title": "Commands",
+          "type": "array"
+        },
+        "history": {
+          "items": {
+            "$ref": "#/$defs/DesktopAdminActionView"
+          },
+          "title": "History",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "DesktopAdminRegistry.v1",
+          "default": "DesktopAdminRegistry.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "commands"
+      ],
+      "title": "DesktopAdminRegistry",
       "type": "object"
     },
     "DesktopCancelTurnRequest": {
@@ -277,6 +741,341 @@
         "turn_id"
       ],
       "title": "DesktopCancelTurnRequest",
+      "type": "object"
+    },
+    "DesktopDebugBridge": {
+      "additionalProperties": false,
+      "properties": {
+        "bridge_id": {
+          "title": "Bridge Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "DesktopDebugBridge.v1",
+          "default": "DesktopDebugBridge.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "partial",
+            "pending"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bridge_id",
+        "label",
+        "status",
+        "summary"
+      ],
+      "title": "DesktopDebugBridge",
+      "type": "object"
+    },
+    "DesktopDebugFrameDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Budget",
+          "type": "object"
+        },
+        "collected_at_ms": {
+          "minimum": 0,
+          "title": "Collected At Ms",
+          "type": "integer"
+        },
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "correlation_id": {
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "observation": {
+          "$ref": "#/$defs/DesktopFrameObservation"
+        },
+        "profile_id_hash": {
+          "pattern": "^[0-9a-f]{16}$",
+          "title": "Profile Id Hash",
+          "type": "string"
+        },
+        "projection": {
+          "$ref": "#/$defs/DebugFrameProjection"
+        },
+        "schema_version": {
+          "const": "DesktopDebugFrameDetail.v1",
+          "default": "DesktopDebugFrameDetail.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "turn_id": {
+          "title": "Turn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id_hash",
+        "conversation_id",
+        "turn_id",
+        "correlation_id",
+        "collected_at_ms",
+        "projection",
+        "observation"
+      ],
+      "title": "DesktopDebugFrameDetail",
+      "type": "object"
+    },
+    "DesktopDebugFrameRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "frame_id": {
+          "enum": [
+            "turn_frame",
+            "turn_interpretation",
+            "context_use_policy",
+            "interruptibility_frame",
+            "dialogue_control_frame",
+            "recollection_frame",
+            "persona_frame",
+            "affect_frame",
+            "relationship_frame",
+            "worldops_frame",
+            "origin_frame",
+            "session_frame",
+            "arbitration_result"
+          ],
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "turn_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Turn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversation_id",
+        "turn_id",
+        "frame_id"
+      ],
+      "title": "DesktopDebugFrameRequest",
+      "type": "object"
+    },
+    "DesktopDebugSession": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at_ms": {
+          "title": "Expires At Ms",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "DesktopDebugSession.v1",
+          "default": "DesktopDebugSession.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scopes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Scopes",
+          "type": "array"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "window_label": {
+          "const": "main",
+          "title": "Window Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "window_label",
+        "expires_at_ms",
+        "scopes"
+      ],
+      "title": "DesktopDebugSession",
+      "type": "object"
+    },
+    "DesktopDebugSessionOpenRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "DesktopDebugSessionOpenRequest.v1",
+          "default": "DesktopDebugSessionOpenRequest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "window_label": {
+          "const": "main",
+          "title": "Window Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "window_label"
+      ],
+      "title": "DesktopDebugSessionOpenRequest",
+      "type": "object"
+    },
+    "DesktopDebugSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "async_work": {
+          "additionalProperties": true,
+          "title": "Async Work",
+          "type": "object"
+        },
+        "bridges": {
+          "items": {
+            "$ref": "#/$defs/DesktopDebugBridge"
+          },
+          "title": "Bridges",
+          "type": "array"
+        },
+        "collected_at_ms": {
+          "minimum": 0,
+          "title": "Collected At Ms",
+          "type": "integer"
+        },
+        "conversation_id": {
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "gateway": {
+          "additionalProperties": true,
+          "title": "Gateway",
+          "type": "object"
+        },
+        "memory": {
+          "additionalProperties": true,
+          "title": "Memory",
+          "type": "object"
+        },
+        "profile_id_hash": {
+          "maxLength": 64,
+          "minLength": 8,
+          "title": "Profile Id Hash",
+          "type": "string"
+        },
+        "quality": {
+          "additionalProperties": true,
+          "title": "Quality",
+          "type": "object"
+        },
+        "routes": {
+          "additionalProperties": true,
+          "title": "Routes",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "DesktopDebugSnapshot.v1",
+          "default": "DesktopDebugSnapshot.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "systems": {
+          "items": {
+            "$ref": "#/$defs/DesktopDebugSubsystem"
+          },
+          "title": "Systems",
+          "type": "array"
+        },
+        "timeline": {
+          "additionalProperties": true,
+          "title": "Timeline",
+          "type": "object"
+        }
+      },
+      "required": [
+        "collected_at_ms",
+        "profile_id_hash",
+        "conversation_id",
+        "gateway",
+        "timeline",
+        "routes",
+        "systems",
+        "memory",
+        "async_work",
+        "quality",
+        "bridges"
+      ],
+      "title": "DesktopDebugSnapshot",
+      "type": "object"
+    },
+    "DesktopDebugSubsystem": {
+      "additionalProperties": false,
+      "properties": {
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "DesktopDebugSubsystem.v1",
+          "default": "DesktopDebugSubsystem.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "degraded",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "subsystem_id": {
+          "title": "Subsystem Id",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subsystem_id",
+        "label",
+        "status",
+        "summary"
+      ],
+      "title": "DesktopDebugSubsystem",
       "type": "object"
     },
     "DesktopEventEnvelope": {
@@ -332,6 +1131,47 @@
         "payload"
       ],
       "title": "DesktopEventEnvelope",
+      "type": "object"
+    },
+    "DesktopFrameObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "title": "Active",
+          "type": "boolean"
+        },
+        "expires_at_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Expires At Ms"
+        }
+      },
+      "required": [
+        "active",
+        "expires_at_ms"
+      ],
+      "title": "DesktopFrameObservation",
+      "type": "object"
+    },
+    "DesktopFrameObservationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "DesktopFrameObservationRequest",
       "type": "object"
     },
     "DesktopHistoryRequest": {
@@ -571,6 +1411,63 @@
       ],
       "title": "EndpointMode",
       "type": "string"
+    },
+    "FrameFieldView": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "scalar",
+            "count",
+            "reference_hash"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 96,
+          "title": "Path",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "observed",
+            "missing",
+            "protected",
+            "invalid"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "path",
+        "state",
+        "kind",
+        "value"
+      ],
+      "title": "FrameFieldView",
+      "type": "object"
     },
     "GatewayBootstrap": {
       "additionalProperties": false,
@@ -1887,11 +2784,47 @@
     "connection_ready": {
       "$ref": "#/$defs/ConnectionReady"
     },
+    "desktop_admin_action_view": {
+      "$ref": "#/$defs/DesktopAdminActionView"
+    },
+    "desktop_admin_command_spec": {
+      "$ref": "#/$defs/DesktopAdminCommandSpec"
+    },
+    "desktop_admin_execute_request": {
+      "$ref": "#/$defs/DesktopAdminExecuteRequest"
+    },
+    "desktop_admin_preview_request": {
+      "$ref": "#/$defs/DesktopAdminPreviewRequest"
+    },
+    "desktop_admin_registry": {
+      "$ref": "#/$defs/DesktopAdminRegistry"
+    },
     "desktop_cancel_turn_request": {
       "$ref": "#/$defs/DesktopCancelTurnRequest"
     },
+    "desktop_debug_frame_detail": {
+      "$ref": "#/$defs/DesktopDebugFrameDetail"
+    },
+    "desktop_debug_frame_request": {
+      "$ref": "#/$defs/DesktopDebugFrameRequest"
+    },
+    "desktop_debug_session": {
+      "$ref": "#/$defs/DesktopDebugSession"
+    },
+    "desktop_debug_session_open_request": {
+      "$ref": "#/$defs/DesktopDebugSessionOpenRequest"
+    },
+    "desktop_debug_snapshot": {
+      "$ref": "#/$defs/DesktopDebugSnapshot"
+    },
     "desktop_event_envelope": {
       "$ref": "#/$defs/DesktopEventEnvelope"
+    },
+    "desktop_frame_observation": {
+      "$ref": "#/$defs/DesktopFrameObservation"
+    },
+    "desktop_frame_observation_request": {
+      "$ref": "#/$defs/DesktopFrameObservationRequest"
     },
     "desktop_history_request": {
       "$ref": "#/$defs/DesktopHistoryRequest"
@@ -1990,6 +2923,18 @@
     "desktop_provider_rotate_prompt_request",
     "desktop_provider_setup_outcome",
     "desktop_event_envelope",
+    "desktop_debug_snapshot",
+    "desktop_debug_frame_request",
+    "desktop_debug_frame_detail",
+    "desktop_frame_observation",
+    "desktop_frame_observation_request",
+    "desktop_debug_session_open_request",
+    "desktop_debug_session",
+    "desktop_admin_preview_request",
+    "desktop_admin_execute_request",
+    "desktop_admin_command_spec",
+    "desktop_admin_registry",
+    "desktop_admin_action_view",
     "shell_error",
     "gateway_bootstrap",
     "gateway_error",

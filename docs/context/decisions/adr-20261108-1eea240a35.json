@@ -1,0 +1,18 @@
+{
+  "consequences": [
+    "No plaintext history index or model call is introduced. Search scans owned conversations in bounded batches and exposes continuation; no snapshot-isolation promise is made while new commits reorder mutable offset pages. Broader data-volume and provider compatibility certification remain separate."
+  ],
+  "context": "History had real body search and pagination but preview lacked a bounded reading viewport, earlier-message failures could fail a newer send, ABA requests could be accepted, and recency was sorted only inside creation-time pages.",
+  "decided_at_utc": "2026-11-08T14:21:59Z",
+  "decision": "Reuse existing Host/Gateway contracts. Preserve actual visible-message anchors in preview and conversation views, separate history errors from turn state, gate pagination responses by request epoch/scope and monotonic cursor, and provide search retry. Sort scoped binding metadata by actual journal activity before pagination; decrypt only first/last text for unfiltered summaries and keep full search on canonical encrypted history. Probe older rows for exact terminal cursors.",
+  "decision_id": "adr-20261108-1eea240a35",
+  "references": [
+    "tests/test_history_core.py",
+    "apps/desktop/src/components/HistoryScrollViewport.tsx",
+    "outputs/history-core-20261108/visual-report-final.json"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "History reading continuity and encrypted metadata summaries v1",
+  "workstream_id": "ws-history-core-20261108"
+}

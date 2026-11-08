@@ -1,0 +1,61 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/App.tsx",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/ConversationView.tsx",
+    "apps/desktop/src/views/SettingsView.tsx",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/workstreams/ws-desktop-visual-validation-v1.json"
+  ],
+  "completed_at_utc": "2026-09-03T11:12:03Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-03T11:05:51Z",
+      "summary": "Validate the current production desktop client after the Windows ACL repair, correct narrow visual/content regressions, record evidence, and rebuild the unsigned NSIS candidate."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-03T11:12:03Z",
+      "summary": "Completed the ACL-unblocked production desktop visual pass, corrected four narrow UI/content regressions, refreshed repository context, and rebuilt a verified unsigned NSIS candidate."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-03T11:12:03Z",
+      "summary": "Completed the ACL-unblocked production desktop visual pass, corrected four narrow UI/content regressions, refreshed repository context, and rebuilt a verified unsigned NSIS candidate."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/workstreams/ws-desktop-visual-validation-v1.json"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-03T11:05:51Z",
+  "status": "completed",
+  "summary": "Completed the ACL-unblocked production desktop visual pass, corrected four narrow UI/content regressions, refreshed repository context, and rebuilt a verified unsigned NSIS candidate.",
+  "title": "Desktop visual validation and release refresh",
+  "updated_at_utc": "2026-09-03T11:12:03Z",
+  "verification": [
+    "Browser visual review: 1440x900 light Conversation/History/Memory/Developer, 1440x900 dark Conversation, and 420x560 affected compact surfaces; no horizontal overflow",
+    "Dark Conversation identity contrast measured 14.2:1; compact Memory empty state appears once; Advanced Settings copy reflects real debug snapshot",
+    "Real message delivery surfaced seven Gateway events; typed context frames and controlled commands remained explicitly pending",
+    "Final duplicate browser reload and console-log fetch were blocked by Codex browser-use quota; keyboard, screen-reader, reduced-motion and target-hardware accessibility remain open",
+    "Frontend Vitest: 18 passed; TypeScript and Vite production build passed",
+    "Full Python regression suite: 426 passed in 68.22 seconds",
+    "Rust trusted Host: 5 passed",
+    "Generated desktop contracts are in sync; git diff check passed",
+    "NSIS release verification passed: 28,588,718-byte installer; bundled 24,610,940-byte Gateway sidecar matched its manifest",
+    "NSIS SHA256: 607db7f3014a38eee7ba472f8f07c6390ee9dc9a078739f9e1ca510e5743fc3b; Authenticode status: NotSigned"
+  ],
+  "workstream_id": "ws-desktop-visual-validation-v1"
+}

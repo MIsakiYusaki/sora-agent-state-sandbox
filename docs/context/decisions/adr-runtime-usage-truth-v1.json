@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "Ambiguous legacy runtime zero counts become unknown; interruption rolls back and reopening retries. Historical Provider traces are not rewritten."
+  ],
+  "context": "Missing provider usage was collapsed to zero and executescript could commit the surrounding migration transaction.",
+  "decided_at_utc": "2026-09-07T12:30:43Z",
+  "decision": "Preserve nullable token counts and explicit zero, accept input/output aliases, and execute journal migration DDL in one transaction.",
+  "decision_id": "adr-runtime-usage-truth-v1",
+  "references": [
+    "docs/TEXT_CONVERSATION_RUNTIME.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Unknown usage and atomic diagnostic journal migration",
+  "workstream_id": "ws-runtime-token-usage-truth-v1"
+}

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .memory_runtime import MemoryRuntime
+from .memory_extraction_scheduler import MemoryExtractionScheduler
+from .memory_lifecycle_scheduler import MemoryLifecycleScheduler
 from .memory_schema import JsonDict
 from .model_provider import ModelProviderSystem
 
@@ -18,6 +20,24 @@ class MemorySystem:
     """
 
     runtime: MemoryRuntime
+    extraction_scheduler: MemoryExtractionScheduler = field(init=False)
+    lifecycle_scheduler: MemoryLifecycleScheduler = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.extraction_scheduler = MemoryExtractionScheduler(self.runtime)
+        self.lifecycle_scheduler = MemoryLifecycleScheduler(self.runtime)
+        self.runtime.register_quality_export_section("memory_extraction_scheduler", self.extraction_scheduler.snapshot)
+        self.runtime.register_quality_export_section("memory_lifecycle_scheduler", self.lifecycle_scheduler.snapshot)
+
+    def start(self) -> None:
+        self.runtime.change_delivery.start()
+        self.extraction_scheduler.start()
+        self.lifecycle_scheduler.start()
+
+    def stop(self, *, timeout: float = 30.0) -> None:
+        self.lifecycle_scheduler.stop(timeout=timeout)
+        self.extraction_scheduler.stop(timeout=timeout)
+        self.runtime.change_delivery.stop(timeout=timeout)
 
     @classmethod
     def default(
@@ -36,10 +56,22 @@ class MemorySystem:
         )
 
     def close(self) -> None:
+        self.stop()
         self.runtime.close()
 
     def reset(self) -> None:
-        self.runtime.reset()
+        running = self.extraction_scheduler.snapshot()["running"]
+        self.stop()
+        try:
+            self.runtime.reset()
+        finally:
+            if running:
+                self.start()
+
+    def observe_committed_turn(self, event: JsonDict) -> JsonDict:
+        result = self.runtime.observe_committed_turn(event)
+        self.extraction_scheduler.wake()
+        return result
 
     def recall(
         self,

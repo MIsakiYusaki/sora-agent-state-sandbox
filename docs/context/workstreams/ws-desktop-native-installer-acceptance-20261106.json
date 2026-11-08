@@ -1,0 +1,53 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "outputs/desktop-install-20261106"
+  ],
+  "completed_at_utc": "2026-11-07T04:51:49Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T15:23:27Z",
+      "summary": "Continue original user-authorized installed end-to-end acceptance. Same-thread earlier desktop/installed overlaps reviewed. First rebuild matching617/118source sidecar/Host/NSIS and verify manifest, then scoped native/installation checks with recoverable program/registry backup and isolated identities only. No daily data deletion or unapproved provider calls."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-11-06T15:41:36Z",
+      "summary": "Installed Host matches built executable byte-for-byte after exact three-byte Tauri UNK-to-NSS patch; Gateway manifest matches. Isolated installed UI launch fails because frozen SSL policy resource is missing. Packaging fix and automated no-model startup gate in separate narrow workstream. AUMID notification Setting still fails0x80070490 in normal user context."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-07T04:51:49Z",
+      "summary": "r4 unsigned matching NSIS installed exit0; Host matches exact Tauri NSIS patch and Gateway manifest. Bounded installed UI save/cancel/space switch, Windows notification submission, persisted delete failure/upgrade recovery and app.restart verified in isolated QA identities. Preserve all other F01-F30 and release/model/vault gaps in report; no full production completion claim."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-07T04:51:49Z",
+      "summary": "r4 unsigned matching NSIS installed exit0; Host matches exact Tauri NSIS patch and Gateway manifest. Bounded installed UI save/cancel/space switch, Windows notification submission, persisted delete failure/upgrade recovery and app.restart verified in isolated QA identities. Preserve all other F01-F30 and release/model/vault gaps in report; no full production completion claim."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src-tauri",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/context",
+    "outputs/desktop-install-20261106",
+    "outputs/desktop-privacy-20261106"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T15:23:27Z",
+  "status": "completed",
+  "summary": "r4 unsigned matching NSIS installed exit0; Host matches exact Tauri NSIS patch and Gateway manifest. Bounded installed UI save/cancel/space switch, Windows notification submission, persisted delete failure/upgrade recovery and app.restart verified in isolated QA identities. Preserve all other F01-F30 and release/model/vault gaps in report; no full production completion claim.",
+  "title": "Rebuild matching installer and verify native paths",
+  "updated_at_utc": "2026-11-07T04:51:49Z",
+  "verification": [
+    "outputs/desktop-install-20261106/installed-integrity.json",
+    "outputs/desktop-install-20261106/sidecar-diagnosis/stderr.log; sidecar-before-fix.json",
+    "outputs/desktop-install-20261106/VERIFICATION.md; candidate-r4.json; installed-integrity-r4.json; installed-sidecar-r4.json; native/erasure-after.json"
+  ],
+  "workstream_id": "ws-desktop-native-installer-acceptance-20261106"
+}

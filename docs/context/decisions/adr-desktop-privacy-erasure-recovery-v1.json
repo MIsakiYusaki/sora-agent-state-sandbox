@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "Stored intent authorizes only its same identity operation. Lost receipts are re-read and retried idempotently with explicit UI confirmation. User exports/backups are outside whole-space deletion. Installed UI, real vault and full fault matrix remain separate gates."
+  ],
+  "context": "File-save and whole-space data rights require trusted Host ownership and truthful completion. Partial credential removal, process loss or lost receipts must not reopen partially erased data.",
+  "decided_at_utc": "2026-11-06T14:41:50Z",
+  "decision": "Export allowlisted owner-scoped summaries and diagnostics through native Save File with confirmed atomic save receipts. Persist catalog erasure intent before drain, invoke scoped offline helper under exclusive identity lock, persist a sibling erasure fence, then reconcile catalog/preferences into a fresh identity before restart. Pending identity is blocked by Host and Gateway startup, with a dedicated recovery UI.",
+  "decision_id": "adr-desktop-privacy-erasure-recovery-v1",
+  "references": [
+    "outputs/desktop-privacy-20261106/VERIFICATION.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Durable current-space erasure intent and recovery",
+  "workstream_id": "ws-desktop-erasure-recovery-20261106"
+}

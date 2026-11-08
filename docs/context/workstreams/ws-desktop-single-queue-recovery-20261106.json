@@ -1,0 +1,52 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src",
+    "outputs/desktop-queue-20261106",
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py",
+    "src/sora_sandbox/conversation_gateway/desktop_queues.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "tests/test_desktop_queue_recovery.py"
+  ],
+  "completed_at_utc": "2026-11-06T15:16:19Z",
+  "decision_ids": [
+    "adr-memory-single-event-recovery-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T14:52:23Z",
+      "summary": "Continue authorized F17 through canonical Memory queue owner and existing maintenance preview/confirm/audit. Requeue one failed/dead-letter event with full revision and scope checks, preserve payload/idempotency/cumulative attempts, do not claim consumer success from requeue. Same-thread earlier queue/desktop overlap reviewed."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-06T15:16:19Z",
+      "summary": "F17 selected-event requeue wired through owner/full revision and native maintenance preview/confirm/audit. Scheduling and audit are atomic and idempotent, payload/event identity/cumulative attempts retained with3additional attempts; UI distinguishes consumer outcomes and requeue receipts. No installed acceptance claim."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-06T15:16:19Z",
+      "summary": "F17 selected-event requeue wired through owner/full revision and native maintenance preview/confirm/audit. Scheduling and audit are atomic and idempotent, payload/event identity/cumulative attempts retained with3additional attempts; UI distinguishes consumer outcomes and requeue receipts. No installed acceptance claim."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src",
+    "outputs/desktop-queue-20261106",
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py",
+    "src/sora_sandbox/conversation_gateway/desktop_queues.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "tests/test_desktop_queue_recovery.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T14:52:23Z",
+  "status": "completed",
+  "summary": "F17 selected-event requeue wired through owner/full revision and native maintenance preview/confirm/audit. Scheduling and audit are atomic and idempotent, payload/event identity/cumulative attempts retained with3additional attempts; UI distinguishes consumer outcomes and requeue receipts. No installed acceptance claim.",
+  "title": "Audited single-event queue recovery",
+  "updated_at_utc": "2026-11-06T15:16:19Z",
+  "verification": [
+    "Python617/full99.82s;7newqueue cases included;frontend118;production frontend build;5explicit queue layout/error/policy scenes with visible keyboard focus/reduced motion and no browser errors/overflow. outputs/desktop-queue-20261106/VERIFICATION.md"
+  ],
+  "workstream_id": "ws-desktop-single-queue-recovery-20261106"
+}

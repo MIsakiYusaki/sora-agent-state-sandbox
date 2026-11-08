@@ -22,6 +22,7 @@ from .memory_trace import (
     record_surface_policy_trace,
 )
 from .memory_vector_index import VectorIndex
+from .turn_observability import observe_call
 
 
 @dataclass
@@ -48,7 +49,7 @@ class MemoryRetrievalService:
         token_budget: int | None = None,
     ) -> JsonDict:
         started = time.perf_counter()
-        plan = self.planner.plan(
+        plan = observe_call("recall.plan", self.planner.plan,
             query_text,
             turn_frame=turn_frame,
             context_use_policy=context_use_policy,
@@ -66,16 +67,16 @@ class MemoryRetrievalService:
             )
 
         with self.lock:
-            groups, retrieval_errors = self._candidate_groups(plan)
-            fused = self._fuse(groups, plan)
-            reranked, rerank_metadata = self._rerank(fused, plan)
-            contextual, contextual_metadata = self.contextual_policy.apply(
+            groups, retrieval_errors = observe_call("recall.retrieve", self._candidate_groups, plan)
+            fused = observe_call("recall.fuse", self._fuse, groups, plan)
+            reranked, rerank_metadata = observe_call("recall.rerank", self._rerank, fused, plan)
+            contextual, contextual_metadata = observe_call("recall.contextual_policy", self.contextual_policy.apply,
                 reranked,
                 context_features=context_features,
                 top_k=top_k,
             )
             rerank_metadata = dict(rerank_metadata) | {"contextual_policy": contextual_metadata}
-            governed, filtered = self._govern(contextual, plan, context_use_policy=context_use_policy)
+            governed, filtered = observe_call("recall.govern", self._govern, contextual, plan, context_use_policy=context_use_policy)
             packed_candidates = [
                 PackedMemory(
                     score=hit.score,
@@ -86,7 +87,7 @@ class MemoryRetrievalService:
                 for hit in governed[: max(top_k * 3, top_k)]
             ]
 
-        surface_decision = self.surface_policy.decide(
+        surface_decision = observe_call("recall.surface", self.surface_policy.decide,
             plan,
             packed_candidates,
             token_budget=budget,
@@ -94,7 +95,7 @@ class MemoryRetrievalService:
             turn_frame=turn_frame,
             limit=max(top_k * 3, top_k),
         )
-        packed = self.packer.pack(
+        packed = observe_call("recall.pack", self.packer.pack,
             surface_decision.selected_candidates,
             token_budget=budget,
             explicit_recall=plan.explicit_recall,
@@ -110,7 +111,7 @@ class MemoryRetrievalService:
         reason = surface_decision.decision_reason
         trace_items = self._trace_items(groups, fused, contextual, governed, filtered)
         degraded = bool(retrieval_errors) or bool(rerank_metadata.get("degraded"))
-        trace_id = self._record_trace(
+        trace_id = observe_call("recall.persist_trace", self._record_trace,
             query_text,
             plan=plan,
             surface_action=surface_decision.legacy_action,
@@ -129,7 +130,7 @@ class MemoryRetrievalService:
             surface_decision=surface_decision,
             surface_provider_usage=packed.get("provider_usage", []),
         )
-        self._record_access(
+        observe_call("recall.access", self._record_access,
             items,
             trace_id=trace_id,
             surface_action=surface_decision.legacy_action,
@@ -238,7 +239,7 @@ class MemoryRetrievalService:
         if "fts" in plan.backends and plan.tokens:
             try:
                 groups.append(
-                    fts_search(
+                    observe_call("recall.fts", fts_search,
                         self.conn,
                         self.owner_user_id,
                         self.agent_id,
@@ -251,7 +252,7 @@ class MemoryRetrievalService:
         if _plan_uses_vector(plan):
             try:
                 groups.append(
-                    self.vector_index.search(
+                    observe_call("recall.vector", self.vector_index.search,
                         plan.query_text,
                         owner_user_id=self.owner_user_id,
                         agent_id=self.agent_id,
@@ -268,7 +269,7 @@ class MemoryRetrievalService:
         if "temporal" in plan.backends:
             try:
                 groups.append(
-                    temporal_search(
+                    observe_call("recall.temporal", temporal_search,
                         self.conn,
                         self.owner_user_id,
                         self.agent_id,
@@ -281,7 +282,7 @@ class MemoryRetrievalService:
         if "graph" in plan.backends or "graph_lite" in plan.backends:
             try:
                 groups.append(
-                    graph_search(
+                    observe_call("recall.graph", graph_search,
                         self.conn,
                         owner_user_id=self.owner_user_id,
                         agent_id=self.agent_id,

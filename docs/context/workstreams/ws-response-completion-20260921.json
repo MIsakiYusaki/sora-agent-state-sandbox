@@ -1,0 +1,52 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/TEXT_CONVERSATION_RUNTIME.md",
+    "src/sora_sandbox/conversation_runtime/routing.py",
+    "src/sora_sandbox/model_provider/adapters.py",
+    "tests/test_response_completion.py"
+  ],
+  "completed_at_utc": "2026-09-24T12:20:22Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-21T12:38:05Z",
+      "summary": "Close installed truncation finding: normalize stream terminal reasons, reject incomplete or unterminated generation before history/outbox, preserve usage and cancellation. No budget/routing/retry changes."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-22T11:21:57Z",
+      "summary": "Implemented normal-terminal validation for buffered foreground streams; incomplete/unknown/unterminated/conflicting streams fail before history/outbox. Usage retained, EOF cancellation checked, Responses incomplete event forwarded. NSIS rebuild resumed after approval quota reset; installed retest pending."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-24T12:20:22Z",
+      "summary": "Stream terminal validation implemented and installed DeepSeek failures reject deltas/history/outbox while preserving reported usage. No budget or retry changes; full release remains open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-24T12:20:22Z",
+      "summary": "Stream terminal validation implemented and installed DeepSeek failures reject deltas/history/outbox while preserving reported usage. No budget or retry changes; full release remains open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/TEXT_CONVERSATION_RUNTIME.md",
+    "src/sora_sandbox/conversation_runtime/routing.py",
+    "src/sora_sandbox/model_provider/adapters.py",
+    "tests/test_response_completion.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-21T12:38:05Z",
+  "status": "completed",
+  "summary": "Stream terminal validation implemented and installed DeepSeek failures reject deltas/history/outbox while preserving reported usage. No budget or retry changes; full release remains open.",
+  "title": "Reject incomplete provider responses before conversation commit",
+  "updated_at_utc": "2026-09-24T12:20:22Z",
+  "verification": [
+    "completion-before.xml: 19 new assertions fail on prior behavior; completion-after.xml: 106 passed. pytest-full-20260921.xml: 519 passed, 0 failures/errors/skips, 77.839 seconds.",
+    "completion-after.xml 106 passed; pytest-full-20260921.xml 519 passed; installed-metadata-1790163932145.json five incomplete failures with no corresponding history/outbox."
+  ],
+  "workstream_id": "ws-response-completion-20260921"
+}

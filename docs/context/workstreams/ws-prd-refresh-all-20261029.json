@@ -1,0 +1,52 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/PRD_INDEX.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/artifacts.json",
+    "docs/context/context-manifest.json",
+    "outputs/prd-refresh-all-20261029"
+  ],
+  "completed_at_utc": "2026-10-29T12:58:21Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-29T12:38:37Z",
+      "summary": "User authorized all28 PRD refreshes. Reviewed documentation-only overlap with installed-e2e snapshot paths; preserve active code/acceptance facts. Guarded cloud writes, old-state corrections, history labelling and per-document readback; no runtime edits."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-29T12:58:21Z",
+      "summary": "Refreshed all28 indexed Feishu PRDs/overviews against current working tree:110 guarded body corrections and per-document readback; preserved target requirements, references and architecture resources; synced navigation293/brief134 link labels and context23/ledger17. Documentation only; active implementation/release gaps retained."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-29T12:58:21Z",
+      "summary": "Refreshed all28 indexed Feishu PRDs/overviews against current working tree:110 guarded body corrections and per-document readback; preserved target requirements, references and architecture resources; synced navigation293/brief134 link labels and context23/ledger17. Documentation only; active implementation/release gaps retained."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "docs/PRD_INDEX.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/artifacts.json",
+    "docs/context/context-manifest.json",
+    "outputs/prd-refresh-all-20261029"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-29T12:38:37Z",
+  "status": "completed",
+  "summary": "Refreshed all28 indexed Feishu PRDs/overviews against current working tree:110 guarded body corrections and per-document readback; preserved target requirements, references and architecture resources; synced navigation293/brief134 link labels and context23/ledger17. Documentation only; active implementation/release gaps retained.",
+  "title": "Refresh all28 PRDs to current practice",
+  "updated_at_utc": "2026-10-29T12:58:21Z",
+  "verification": [
+    "All28 changed-text/resource/link readbacks pass; verification.json and COMPLETION.md record final revisions.",
+    "verify.py independent local consistency pass:28 unique PRDs,110 body updates,original resources/links preserved,catalog/index/context versions match.",
+    "Scoped git diff --check passed; context validate passed with pre-existing active-task overlap/stale warnings. No product tests rerun for documentation-only change; no model request,install,commit or push."
+  ],
+  "workstream_id": "ws-prd-refresh-all-20261029"
+}

@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "Client participation works on trusted packs without an LLM. Production content service, editorial review and server signing deployment remain a separate explicit gate. No new production private signing key was introduced by this change."
+  ],
+  "context": "WorldOps owns signed authored transitions. The desktop lacked an actual choice/task/timeline bridge and the default composition remains local_split_development.",
+  "decided_at_utc": "2026-11-08T10:03:28Z",
+  "decision": "Use typed main-window Gateway actions with identity checks, current signature and event CAS, deterministic authored choices and atomic receipt/task/outbox transaction. Show real memory candidate results. Label local content previews; authored lantern source is reviewable and not an official published release.",
+  "decision_id": "adr-20261108-15045fae46",
+  "references": [
+    "src/sora_sandbox/conversation_gateway/desktop_narrative.py",
+    "outputs/narrative-client-20261108/backend-expanded.xml"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Desktop authored narrative participation v1",
+  "workstream_id": "ws-narrative-client-loop-20261108"
+}

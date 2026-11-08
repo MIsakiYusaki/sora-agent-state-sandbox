@@ -1,0 +1,40 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/prototype.css"
+  ],
+  "completed_at_utc": "2026-11-08T09:16:00Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T08:26:34Z",
+      "summary": "Reviewed same-chat overlap with existing functional-repair/native-settings UI claims. Add only scoped readable companion control/governance rules using existing tokens, 44px controls, responsive wrapping and unchanged Quiet Companion Desk. Browser fixture screenshots required, separate from installed evidence."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T09:16:00Z",
+      "summary": "Scoped readable companion settings/governance styles preserve Quiet Companion Desk.44px targets, visible focus, token contrast and long identifier wrapping reviewed; unchanged global layouts."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T09:16:00Z",
+      "summary": "Scoped readable companion settings/governance styles preserve Quiet Companion Desk.44px targets, visible focus, token contrast and long identifier wrapping reviewed; unchanged global layouts."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/prototype.css"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T08:26:34Z",
+  "status": "completed",
+  "summary": "Scoped readable companion settings/governance styles preserve Quiet Companion Desk.44px targets, visible focus, token contrast and long identifier wrapping reviewed; unchanged global layouts.",
+  "title": "Companion controls readable visual states",
+  "updated_at_utc": "2026-11-08T09:16:00Z",
+  "verification": [
+    "outputs/companion-controls-20261108/visual-report-final.json8scenes passed0errors; screenshot light/dark1440x900,compact420x560,confirm/error/developer; native installed settings/governance screenshots"
+  ],
+  "workstream_id": "ws-companion-visual-20261108"
+}

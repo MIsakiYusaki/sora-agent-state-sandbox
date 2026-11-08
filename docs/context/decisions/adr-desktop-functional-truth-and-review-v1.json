@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "Same-process owner serialization is not cross-process transactional CAS; protected disclosure, crash consistency and installed UI acceptance stay open. Keep a per-item progress ledger; no completion claim from visible controls or fixture tests."
+  ],
+  "context": "F01-F30 audit found decorative controls, misleading success states and missing owner bridges in the installed desktop baseline.",
+  "decided_at_utc": "2026-10-15T12:46:51Z",
+  "decision": "Fix truth semantics with regression tests; expose Memory low-sensitivity review through a five-minute native-held capability and explicit per-record revision-checked decisions using the existing owner services. Displayed candidate and revision share one owner lock. Never auto-approve user records or expose protected evidence. Add identity-scoped history pagination and encrypted-history scan without a new plaintext search index.",
+  "decision_id": "adr-desktop-functional-truth-and-review-v1",
+  "references": [
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Desktop functional repairs and scoped Memory review",
+  "workstream_id": "ws-desktop-functional-repair-20261015"
+}

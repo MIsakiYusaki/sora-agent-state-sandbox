@@ -1,0 +1,58 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "README.md",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "completed_at_utc": "2026-11-07T05:38:15Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-07T05:27:44Z",
+      "summary": "Reviewed same-chat overlap with ws-installed-e2e-20260917 and ws-desktop-functional-repair-20261015; only update current delivery evidence, F17 acceptance and r5 UI status increment. Preserve historical evidence and remaining release gaps. No cloud writes."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-07T05:38:15Z",
+      "summary": "Updated10local context/delivery records to context28/ledger22: installed selected-index recovery chain, frontend131/ten visual scenes, matching unsigned r5 installed and QA metadata preserved. Preserve r4 privacy evidence and unchanged Python619/Host18 boundary; all remaining F01-F30 and release gates retained. No Feishu/cloud write."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-07T05:38:15Z",
+      "summary": "Updated10local context/delivery records to context28/ledger22: installed selected-index recovery chain, frontend131/ten visual scenes, matching unsigned r5 installed and QA metadata preserved. Preserve r4 privacy evidence and unchanged Python619/Host18 boundary; all remaining F01-F30 and release gates retained. No Feishu/cloud write."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "README.md",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-07T05:27:44Z",
+  "status": "completed",
+  "summary": "Updated10local context/delivery records to context28/ledger22: installed selected-index recovery chain, frontend131/ten visual scenes, matching unsigned r5 installed and QA metadata preserved. Preserve r4 privacy evidence and unchanged Python619/Host18 boundary; all remaining F01-F30 and release gates retained. No Feishu/cloud write.",
+  "title": "Record installed queue recovery and matching status fix candidate",
+  "updated_at_utc": "2026-11-07T05:38:15Z",
+  "verification": [
+    "project_context status --check passes context28; source/delivery diff --check passes; package/install/frontend/visual/upgrade evidence in desktop-memory-status-20261107 and native F17 report"
+  ],
+  "workstream_id": "ws-desktop-queue-status-context-20261107"
+}

@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "Edited/restored records and real or ambiguous provenance remain intact. Core Memory mechanisms contain no development-specific seed policy. Installation and cross-database crash consistency still require separate validation."
+  ],
+  "context": "Native privacy export exposed bundled developer principles and an assumed user preference in a new identity. Runtime/default/reset and compatibility state both imported these examples.",
+  "decided_at_utc": "2026-11-06T14:41:50Z",
+  "decision": "Product defaults start with no user memories. Explicit fixtures may opt in. Product composition retires only exact untouched example imports with proven seed evidence and initial revision, through reversible audited canonical disable after projection adapters register.",
+  "decision_id": "adr-product-example-memory-isolation-v1",
+  "references": [
+    "outputs/desktop-privacy-20261106/VERIFICATION.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Product spaces start without developer example memories",
+  "workstream_id": "ws-production-memory-example-isolation-20261106"
+}

@@ -1,0 +1,83 @@
+{
+  "schema_version": "ConversationDataflowEvidence.v1",
+  "verified_at": "2026-09-09",
+  "head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "remote_verified_live": false,
+  "scope": "Current dirty working tree; active ws-turn-observability-v2 not accepted as complete; documentation-only audit.",
+  "source_sha256": {
+    "src/sora_sandbox/runtime_stack.py": "fdedb2e60ba769a22694d356f091fe812cc7b1e405eddbad347821cabd944054",
+    "src/sora_sandbox/agent.py": "1fbd4f9736cfedfa173b225f56355368669448714f16caab8e1a856391509d64",
+    "src/sora_sandbox/conversation_gateway/service.py": "73a6309d9bcf796493d7a5ec021be0185f9f92eb21681c5f8aa3b3fc19c92b8a",
+    "src/sora_sandbox/conversation_gateway/cli.py": "531f2e90d3fa9a86541f859fb6b7a124f9d5c6e60f1d987ab1170b4b314152a0",
+    "src/sora_sandbox/conversation_runtime/runtime.py": "6459d960f1a295a7d497b6827b713b12f2ba9306468cd2929b1bdeee657a6c71",
+    "src/sora_sandbox/conversation_runtime/post_turn.py": "25b42a30e78cbbd763b25610a69f826207fda353e72a32229a3e0617c436e093",
+    "src/sora_sandbox/conversation_runtime/context.py": "0c3e55cacd46d2e4699250a978132c6e9d17812ca5f90f44cb0e2b3e9c7438f9",
+    "src/sora_sandbox/conversation_runtime/routing.py": "4418544f87e720bc0d3606a9835349850f5f76e8e48dca4c3e416eaa9b41a328",
+    "src/sora_sandbox/memory_runtime.py": "e298138d3ef6bdf806518d46c16b55741e1b727a03909a7242bd6b2dbf995839",
+    "src/sora_sandbox/memory_extractor_worker.py": "b8e21d2af603739a7f13fd1511379706331dd7f94c4a318f8c090b77acfd4100",
+    "src/sora_sandbox/memory_extractor_schema.py": "2f1fa6358e35649073d087200104957781bff16a1f1571686057571d62d4f35d",
+    "apps/desktop/src-tauri/src/host.rs": "14c417eefc6206b99cb16af16a5afd578e76acfb4470c5d4510765c17806fadb",
+    "apps/desktop/src/transport/TauriDesktopTransport.ts": "92af128ba32278086e61976c358935bc844f33017bd86a5dbbfddb88aa8ee07f"
+  },
+  "feishu": {
+    "nav": {
+      "document_id": "E9U5dJnQBo3nevxd27ecU2EJnoe",
+      "revision_id": 261,
+      "original_links_preserved": 33
+    },
+    "arch": {
+      "document_id": "Ax9FdxrV5oNHqlxW7O4cEebln3e",
+      "revision_id": 158,
+      "original_links_preserved": 13
+    },
+    "flow": {
+      "document_id": "Wl2cdE1y7oP4zaxIVAycQV2pnKe",
+      "revision_id": 16,
+      "diagrams": 3,
+      "sections": 13
+    },
+    "AFMOwQKPaijrkJkFVBNcmm7Dn7B": {
+      "document_id": "SuyNdxzvioAG3UxDj0acVy1Yn3f",
+      "revision_id": 31,
+      "change": "reference_only_not_full_audit"
+    },
+    "J5Sid3laJo8PRAxOrmncyflqnPc": {
+      "document_id": "J5Sid3laJo8PRAxOrmncyflqnPc",
+      "revision_id": 74,
+      "change": "reference_only_not_full_audit"
+    },
+    "O8uDdAggsofRM2xrB5TcuoOhnUu": {
+      "document_id": "O8uDdAggsofRM2xrB5TcuoOhnUu",
+      "revision_id": 147,
+      "change": "reference_only_not_full_audit"
+    },
+    "QgHydreJHoktmxxO7VWceLd9nue": {
+      "document_id": "QgHydreJHoktmxxO7VWceLd9nue",
+      "revision_id": 77,
+      "change": "reference_only_not_full_audit"
+    },
+    "RrFkwF6p9iqtIJkaa9fcELABnld": {
+      "document_id": "N7FTdUAe5oSLzWxQvzncrDl5ncg",
+      "revision_id": 134,
+      "change": "reference_only_not_full_audit"
+    }
+  },
+  "checks": [
+    "nav: original links retained and canonical flow linked",
+    "arch: original links retained and canonical flow linked",
+    "six original boards preserved after historical heading",
+    "flow: thirteen sections, three boards and critical implementation qualifications",
+    "five secondary documents read back with canonical reference; old links retained",
+    "repository-qualified code evidence paths exist"
+  ],
+  "verification": [
+    "project_context.py validate: passed",
+    "tests/test_project_context.py: 9 passed; cache ACL warning only",
+    "All three Feishu preview images exported and visually inspected"
+  ],
+  "not_verified": [
+    "Full product test suite was not rerun",
+    "Installed-app real-provider E2E and signed release remain open",
+    "Other module PRDs were not all re-audited"
+  ]
+}

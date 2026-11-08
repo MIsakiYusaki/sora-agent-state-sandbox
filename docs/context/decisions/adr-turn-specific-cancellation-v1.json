@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "A receipt or changed token is not a cancelled terminal; committing races may still commit.",
+    "Internal shutdown may retain conversation-wide cancellation. Pre-start tombstones, Host/WebView timings and desktop receipt presentation remain open."
+  ],
+  "context": "Installed Esc attempts lack a verified cancelled terminal. Code inspection found Gateway drops the authenticated turn ID and cancels only by conversation, allowing stale requests to affect a newer execution.",
+  "decided_at_utc": "2026-09-24T12:27:41Z",
+  "decision": "Forward the exact turn identity for public cancellation and stream timeouts; coordinator matches conversation and turn under its lock. Store encrypted content-free runtime cancellation receipts separately from canonical client terminal events.",
+  "decision_id": "adr-turn-specific-cancellation-v1",
+  "references": [
+    "docs/CONVERSATION_GATEWAY.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Bind cancellation to the requested turn and retain bounded receipts",
+  "workstream_id": "ws-cancel-receipt-20260924"
+}

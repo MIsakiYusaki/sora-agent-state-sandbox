@@ -1,0 +1,61 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/conversation_gateway/cli.py",
+    "src/sora_sandbox/conversation_gateway/privacy_cli.py",
+    "src/sora_sandbox/conversation_gateway/profile_lock.py",
+    "src/sora_sandbox/model_provider/registry.py",
+    "src/sora_sandbox/model_provider/system.py",
+    "tests/test_desktop_privacy.py"
+  ],
+  "completed_at_utc": "2026-11-07T04:51:49Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-28T12:35:06Z",
+      "summary": "Continue F25: private-summary and diagnostic exports, owner-scoped provider erasure, offline identity-directory deletion after native graceful drain; exact confirmation and no daily-data deletion in tests. Existing same-task Gateway overlap reviewed."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-29T11:02:51Z",
+      "summary": "Offline identity-derived erasure/runtime lock and owner-scoped Provider purge implemented;4temporary/in-memory tests pass Oct29. Earlier approval-quota block resolved for retest. Host/UI/receipt/restart/export/native save and full failure/path review pending; no daily erasure."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-11-07T04:32:15Z",
+      "summary": "Resume user-authorized native installed erasure. r3 UI persists deletion intent and fence but offline packaged helper returns exit3. No false success or restart. Source Provider initialization confirms zero owner profiles. Add content-free exception category to helper failure receipt to locate packaged-only failure; same concrete test space remains authorized."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-07T04:51:49Z",
+      "summary": "Safe export/erasure Host/UI/recovery implemented and bounded installed acceptance completed. r3 native delete exposed MAX_PATH failure; reuse existing extended-path helper for link preflight and rmtree. Safe exception category/location receipt excludes data. User-confirmed same QA operation recovers across r4 upgrade and actual app.restart, preserves nine neighbour files and exports. Real vault/full fault coverage remain open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-07T04:51:49Z",
+      "summary": "Safe export/erasure Host/UI/recovery implemented and bounded installed acceptance completed. r3 native delete exposed MAX_PATH failure; reuse existing extended-path helper for link preflight and rmtree. Safe exception category/location receipt excludes data. User-confirmed same QA operation recovers across r4 upgrade and actual app.restart, preserves nine neighbour files and exports. Real vault/full fault coverage remain open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_gateway",
+    "src/sora_sandbox/model_provider/registry.py",
+    "src/sora_sandbox/model_provider/system.py",
+    "tests/test_desktop_privacy.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-28T12:35:06Z",
+  "status": "completed",
+  "summary": "Safe export/erasure Host/UI/recovery implemented and bounded installed acceptance completed. r3 native delete exposed MAX_PATH failure; reuse existing extended-path helper for link preflight and rmtree. Safe exception category/location receipt excludes data. User-confirmed same QA operation recovers across r4 upgrade and actual app.restart, preserves nine neighbour files and exports. Real vault/full fault coverage remain open.",
+  "title": "Implement owner-safe export and full-space deletion",
+  "updated_at_utc": "2026-11-07T04:51:49Z",
+  "verification": [
+    "Oct29 focused Python6 passed incl4 privacy tests; backend-only, no actual vault deletion acceptance",
+    "outputs/desktop-install-20261106/native/erasure-before.json; installed pending catalog and erasure fence observed",
+    "Current full Python619 pass103.37s; extended-length cleanup regression and safe error receipt regression included",
+    "outputs/desktop-install-20261106/native/erasure-after.json and erasure-restarted-space.jpg/txt pass exact operation reuse and neighbour preservation"
+  ],
+  "workstream_id": "ws-desktop-privacy-operations-20261028"
+}

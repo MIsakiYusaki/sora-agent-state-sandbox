@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "Developer timeline shows real waiting and phases. Process loss becomes end_unobserved. This additive plaintext metadata table is not an encrypted conversation artifact or a global worker/provider tracing solution; inactive stores are physically pruned on the next observation write."
+  ],
+  "context": "Consumer delivery is not extraction completion; previous samples lacked per-job waiting and attempt evidence.",
+  "decided_at_utc": "2026-09-14T11:16:59Z",
+  "decision": "Store bounded L0 execution attempts in the owning Memory database, scoped by owner agent conversation turn and correlation. Retain 7 days, prune on writes, filter on reads. Keep payloads and raw errors out; diagnostics fail open without changing canonical lease checkpoint Gate or retry semantics.",
+  "decision_id": "adr-memory-job-observation-v1",
+  "references": [
+    "src/sora_sandbox/memory_job_observability.py",
+    "outputs/turn-observability/VERIFICATION.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Scoped content-free Memory extraction attempts",
+  "workstream_id": "ws-memory-job-observation-v1"
+}

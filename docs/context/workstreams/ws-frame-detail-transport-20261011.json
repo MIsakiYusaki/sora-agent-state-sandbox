@@ -1,0 +1,52 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/transport",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/conversation_gateway/runtime_port.py",
+    "tests/test_frame_detail_gateway.py"
+  ],
+  "completed_at_utc": "2026-10-15T11:43:32Z",
+  "decision_ids": [
+    "adr-typed-context-frame-projection-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-11T03:56:30Z",
+      "summary": "Route bounded L0 single-frame read through current owner/conversation/turn, existing native-held debug capability and typed query; no new raw evidence or arbitrary file access."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-15T11:43:32Z",
+      "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-15T11:43:32Z",
+      "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src-tauri/src/host.rs",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/transport",
+    "src/sora_sandbox/conversation_gateway/host.py",
+    "src/sora_sandbox/conversation_gateway/runtime_port.py",
+    "tests/test_frame_detail_gateway.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-11T03:56:30Z",
+  "status": "completed",
+  "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion.",
+  "title": "Scoped on-demand frame detail API and native IPC",
+  "updated_at_utc": "2026-10-15T11:43:32Z",
+  "verification": [
+    "outputs/context-frames-20261011/DELIVERY.md: existing Python557/frontend56 reports; fresh Host7; package and installed no-model smoke; reviewed frame layout fixtures; upgrade metadata preserved. Native frame sampling/real-model/restart and full release gates remain explicitly open."
+  ],
+  "workstream_id": "ws-frame-detail-transport-20261011"
+}

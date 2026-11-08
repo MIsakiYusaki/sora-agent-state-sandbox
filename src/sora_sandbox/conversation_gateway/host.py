@@ -12,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, ValidationError
+from ..conversation_runtime.debug_frames import DesktopDebugFrameRequest, DesktopDebugFrameDetail, DesktopFrameObservationRequest, DesktopFrameObservation
 
 from ..model_provider.admin import (
     BindWorkloadRequest,
@@ -69,6 +70,7 @@ def create_gateway_app(
     model_provider_admin: ModelProviderAdminService | None = None,
     memory_runtime: Any | None = None,
     interruptibility_service: Any | None = None,
+    runtime_stack: Any | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -93,6 +95,7 @@ def create_gateway_app(
     app.state.model_provider_admin = model_provider_admin
     app.state.memory_runtime = memory_runtime
     app.state.interruptibility_service = interruptibility_service
+    app.state.runtime_stack = runtime_stack
     trusted_hosts = tuple(host.lower() for host in allowed_hosts)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(trusted_hosts))
 
@@ -388,15 +391,115 @@ def create_gateway_app(
         )
 
     @app.get("/v1/conversations")
-    async def list_conversations(
+    def list_conversations(
         request: Request,
         limit: int = Query(default=100, ge=1, le=200),
+        offset: int = Query(default=0, ge=0, le=1_000_000),
+        query: str = Query(default="", max_length=200),
     ):
         _require_protocol(request)
         identity = _authenticate(request, capability_provider, permission="history.read")
-        return service.conversations(identity, limit=limit)
+        return service.conversations(identity, limit=limit, offset=offset, query=query)
+
+    if runtime_stack is not None:
+        from .desktop_maintenance import install_maintenance_routes
+        install_maintenance_routes(
+            app, stack=runtime_stack, service=service, capabilities=capability_provider,
+            authenticate=_authenticate, require_protocol=_require_protocol, require_owner=_require_memory_owner,
+        )
+        from .desktop_narrative import install_narrative_routes
+        install_narrative_routes(
+            app, stack=runtime_stack, service=service, capabilities=capability_provider,
+            authenticate=_authenticate, require_protocol=_require_protocol, require_owner=_require_memory_owner,
+        )
+        from .desktop_companion import install_companion_routes
+        install_companion_routes(
+            app, stack=runtime_stack, service=service, capabilities=capability_provider,
+            authenticate=_authenticate, require_protocol=_require_protocol, require_owner=_require_memory_owner,
+        )
+        from .desktop_commands import install_desktop_command_routes
+
+        install_desktop_command_routes(
+            app, capabilities=capability_provider, stack=runtime_stack, service=service,
+            authenticate=_authenticate, require_protocol=_require_protocol, require_owner=_require_memory_owner,
+        )
+
+        @app.get("/v1/debug/snapshot")
+        async def desktop_debug_snapshot(
+            request: Request,
+            conversation_id: str = Query(min_length=1, max_length=128),
+        ):
+            _require_protocol(request)
+            identity = _authenticate(
+                request, capability_provider, permission="debug.read"
+            )
+            _require_path_identifier(conversation_id, field="conversation_id")
+            # Keep the core Gateway contract importable without loading the
+            # Desktop aggregate contract (which itself references Gateway types).
+            from .debug_snapshot import build_desktop_debug_snapshot
+
+            return build_desktop_debug_snapshot(
+                stack=runtime_stack,
+                service=service,
+                identity=identity,
+                conversation_id=conversation_id,
+            )
+
+        @app.post("/v1/debug/frame", response_model=DesktopDebugFrameDetail)
+        async def desktop_debug_frame(request: Request, payload: DesktopDebugFrameRequest):
+            import hashlib
+            _require_protocol(request)
+            identity = _authenticate(request, capability_provider, permission="debug.read")
+            service._require_identity_scope(identity)
+            binding = service.registry.conversation_for_identity(
+                profile_id=identity.profile_id, subject_id=identity.subject_id, agent_id=identity.agent_id,
+                external_conversation_id=payload.conversation_id,
+            )
+            if binding is None:
+                raise GatewayServiceError(GatewayErrorCode.TURN_NOT_FOUND, "Frame not found", status_code=404)
+            read = getattr(service.runtime, "diagnostic_frame", None)
+            if not callable(read):
+                raise GatewayServiceError(GatewayErrorCode.INTERNAL_ERROR, "Frame details unavailable", status_code=503)
+            try:
+                detail = read(binding.runtime_conversation_id, payload.turn_id, payload.frame_id)
+            except (KeyError, ValueError):
+                raise GatewayServiceError(GatewayErrorCode.TURN_NOT_FOUND, "Frame not found", status_code=404) from None
+            return DesktopDebugFrameDetail(
+                profile_id_hash=hashlib.sha256(identity.profile_id.encode()).hexdigest()[:16],
+                conversation_id=payload.conversation_id, turn_id=payload.turn_id,
+                correlation_id=detail["correlation_id"], collected_at_ms=int(time.time() * 1000),
+                projection=detail["projection"], budget=detail["budget"],
+                observation=detail["observation"],
+            )
+
+        @app.post("/v1/debug/frame-observation", response_model=DesktopFrameObservation)
+        async def desktop_frame_observation(request: Request, payload: DesktopFrameObservationRequest):
+            _require_protocol(request)
+            identity = _authenticate(request, capability_provider, permission="debug.observe")
+            service._require_identity_scope(identity)
+            control = getattr(service.runtime, "set_frame_observation", None)
+            if not callable(control):
+                raise GatewayServiceError(GatewayErrorCode.INTERNAL_ERROR, "Frame observation unavailable", status_code=503)
+            return DesktopFrameObservation.model_validate(control(payload.enabled), strict=True)
+
+        @app.get("/v1/debug/frame-observation", response_model=DesktopFrameObservation)
+        def read_frame_observation(request: Request):
+            _require_protocol(request)
+            identity = _authenticate(request, capability_provider, permission="debug.read")
+            service._require_identity_scope(identity)
+            control = getattr(service.runtime, "frame_observation", None)
+            if not callable(control):
+                raise GatewayServiceError(GatewayErrorCode.INTERNAL_ERROR, "Frame observation unavailable", status_code=503)
+            return DesktopFrameObservation.model_validate(control(), strict=True)
 
     if memory_runtime is not None:
+        from .desktop_privacy import install_privacy_routes
+        install_privacy_routes(app, memory=memory_runtime, service=service, capabilities=capability_provider,
+            authenticate=_authenticate, require_protocol=_require_protocol, require_owner=_require_memory_owner)
+        from .desktop_memory import install_user_memory_routes
+        install_user_memory_routes(app, memory=memory_runtime, service=service, capabilities=capability_provider,
+            authenticate=_authenticate, require_protocol=_require_protocol, require_owner=_require_memory_owner, memory_view=_user_memory)
+
         @app.get("/v1/memories")
         async def list_memories(
             request: Request,
@@ -478,6 +581,10 @@ def create_gateway_app(
             }
 
     if interruptibility_service is not None:
+        from .desktop_controls import install_default_control_routes
+        install_default_control_routes(app, service=service, capabilities=capability_provider,
+            interruptibility=interruptibility_service, authenticate=_authenticate, require_protocol=_require_protocol)
+
         @app.get("/v1/conversations/{conversation_id}/controls")
         async def get_conversation_controls(request: Request, conversation_id: str):
             _require_protocol(request)

@@ -1,0 +1,98 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/DeveloperView.test.tsx",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "apps/desktop/src/views/TurnEvidence.tsx",
+    "outputs/turn-observability",
+    "src/sora_sandbox/agent.py",
+    "src/sora_sandbox/conversation_runtime",
+    "src/sora_sandbox/conversation_runtime/context.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "src/sora_sandbox/memory_hybrid_retrieval.py",
+    "src/sora_sandbox/subsystems.py",
+    "src/sora_sandbox/turn_observability.py",
+    "tests/test_conversation_runtime.py",
+    "tests/test_turn_observability.py"
+  ],
+  "completed_at_utc": "2026-09-14T11:20:57Z",
+  "decision_ids": [
+    "adr-generation-projection-observation-v1",
+    "adr-turn-execution-evidence-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-07T13:43:28Z",
+      "summary": "Recover legacy evidence and instrument runtime/recall/async spans. Docs owned by ws-unified-dataflow-20260907; coordinated via owning thread; walkthrough staged under outputs pending integration."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-07T13:43:48Z",
+      "summary": "Docs owned by ws-unified-dataflow-20260907. Cross-thread coordination message was rejected by permission review, NOT delivered. Avoid docs edits; walkthrough staged under outputs. Runtime/client paths do not overlap."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-10T13:59:34Z",
+      "summary": "Dataflow v1.1 rev31 reconciled; final unclosed spans fixed; 39 Python and 24 frontend tests plus build pass. Real model run rejected by permission review; no retry. Walkthrough and visual verification in progress."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-11T14:22:17Z",
+      "summary": "Current-code walkthrough delivered locally; real spans, final unclosed-state handling, rule-backed decisions and UI verified. 465 Python / 26 frontend tests and build pass. Remaining: real-provider permission, downstream worker/provider correlation, full accessibility and installed-app release; no new installer."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-13T13:14:28Z",
+      "summary": "2026-09-13 user-authorized isolated DeepSeek two-turn verification completed. Fixed duplicate interpretation control-budget failure and pre-generation L0 signal evidence loss; real walkthrough appendix saved. Foreground committed and all four consumer receipts delivered, but Memory queue remains completed=1 pending=1 at 45s. Remaining worker/provider-attempt correlation, installed E2E and packaging; no new installer."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-13T13:14:59Z",
+      "summary": ""
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-14T11:20:57Z",
+      "summary": "Delivered trace-backed walkthrough, measured per-turn and consumer spans, pre-generation signal evidence, generation interpretation dedup, Memory job UI and unsigned 20260914 installer candidate. Remaining physical-provider/other-worker/Host-WebView tracing and installed E2E are explicit follow-up gaps, not production-complete claims."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-14T11:20:57Z",
+      "summary": "Delivered trace-backed walkthrough, measured per-turn and consumer spans, pre-generation signal evidence, generation interpretation dedup, Memory job UI and unsigned 20260914 installer candidate. Remaining physical-provider/other-worker/Host-WebView tracing and installed E2E are explicit follow-up gaps, not production-complete claims."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/DeveloperView.test.tsx",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "apps/desktop/src/views/TurnEvidence.tsx",
+    "outputs/turn-observability",
+    "src/sora_sandbox/agent.py",
+    "src/sora_sandbox/conversation_runtime",
+    "src/sora_sandbox/memory_hybrid_retrieval.py",
+    "src/sora_sandbox/subsystems.py",
+    "src/sora_sandbox/turn_observability.py",
+    "tests/test_conversation_runtime.py",
+    "tests/test_turn_observability.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-07T13:43:28Z",
+  "status": "completed",
+  "summary": "Delivered trace-backed walkthrough, measured per-turn and consumer spans, pre-generation signal evidence, generation interpretation dedup, Memory job UI and unsigned 20260914 installer candidate. Remaining physical-provider/other-worker/Host-WebView tracing and installed E2E are explicit follow-up gaps, not production-complete claims.",
+  "title": "Trace-backed conversation walkthrough and turn monitoring",
+  "updated_at_utc": "2026-09-14T11:20:57Z",
+  "verification": [
+    "39 focused Python tests pass; 24 Vitest tests pass; TypeScript/Vite build passes",
+    "2026-09-11: pytest 465 passed; unittest focused 40 passed; Vitest 26 passed; TypeScript/Vite build passed; browser layout, filtering, keyboard and error/loading checks in outputs/turn-observability/VERIFICATION.md",
+    "2026-09-13: 72 focused runtime/observability/gateway tests pass; full Python 470 pass in 73.86s. Final real model evidence live-evidence-1789305076577757700.json, 2 committed turns with nonempty signal evaluations and decisions; background completion false.",
+    "Context governance status --check and git diff --check passed on 2026-09-13; existing CRLF warnings only.",
+    "478 Python / 28 frontend / 5 Rust passed; TypeScript Vite NSIS passed",
+    "1440x900 light-dark and 420x560 real recorded timeline replay, error, keyboard focus and console reviewed",
+    "Unsigned candidate SHA256 7c0013fade85d7f22eabbbe0f2a4e7a0e991dc1fe65d15140499775c416a5638; isolated packaged sidecar smoke passed"
+  ],
+  "workstream_id": "ws-turn-observability-v2"
+}

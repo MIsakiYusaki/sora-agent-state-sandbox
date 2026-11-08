@@ -1,0 +1,46 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/DeveloperView.test.tsx",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "outputs/desktop-memory-status-20261107"
+  ],
+  "completed_at_utc": "2026-11-07T05:36:16Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-07T05:17:52Z",
+      "summary": "Reviewed overlap with this same chat's active ws-desktop-functional-repair-20261015 and ws-desktop-native-settings-20261028; preserve their dirty changes. Narrow correction for installed deadletter1/pending0 falsely green, aggregate health incorrectly attached to canonical store, and unreadable maintenance alert in dark mode. Follow frozen Quiet Companion Desk; no new runtime data or APIs."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-07T05:36:16Z",
+      "summary": "Correct six-counter derived queue failure/unknown state, distinguish canonical record reads from aggregate health, and restore readable maintenance alerts. Frontend131/ten explicit visual scenes pass; matching unsigned r5 built/installed/integrity checked. QA memory/queue/audit metadata preserved and actual installed event remains applied. No backend changes, model requests, daily data or complete release claim."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-07T05:36:16Z",
+      "summary": "Correct six-counter derived queue failure/unknown state, distinguish canonical record reads from aggregate health, and restore readable maintenance alerts. Frontend131/ten explicit visual scenes pass; matching unsigned r5 built/installed/integrity checked. QA memory/queue/audit metadata preserved and actual installed event remains applied. No backend changes, model requests, daily data or complete release claim."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/DeveloperView.test.tsx",
+    "apps/desktop/src/views/DeveloperView.tsx",
+    "outputs/desktop-memory-status-20261107"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-07T05:17:52Z",
+  "status": "completed",
+  "summary": "Correct six-counter derived queue failure/unknown state, distinguish canonical record reads from aggregate health, and restore readable maintenance alerts. Frontend131/ten explicit visual scenes pass; matching unsigned r5 built/installed/integrity checked. QA memory/queue/audit metadata preserved and actual installed event remains applied. No backend changes, model requests, daily data or complete release claim.",
+  "title": "Correct memory pipeline failure and unknown states",
+  "updated_at_utc": "2026-11-07T05:36:16Z",
+  "verification": [
+    "outputs/desktop-memory-status-20261107/VERIFICATION.md; frontend-final.xml131; visual-report-review.json10; release-check-r5.log; installed-integrity-r5.json; upgrade-after.json; installed-r5-preserved-event.txt/.jpg"
+  ],
+  "workstream_id": "ws-desktop-memory-status-truth-20261107"
+}

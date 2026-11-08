@@ -1,5 +1,27 @@
 # Sora Agent State Sandbox
 
+Project Sora 是 Windows-first、local-first 的文字陪伴产品。本仓库已包含正式 Tauri/React 桌面、可信 Host、Conversation Gateway/Runtime、Memory 十模块及独立 Persona/Affect/Relationship/WorldOps 系统，不再只是下方历史 REPL 原型。
+
+## 当前工程入口（2026-11-08）
+
+- [新任务接续](docs/START_HERE.md)：目录、Git基线、并发任务与工作协议。
+- [统一对话数据流与系统协作](docs/architecture/CONVERSATION_DATAFLOW.md)：从发送到显示、热/冷/控制通路、全部系统接线与真实缺口。跨系统流程的唯一维护源。
+- [当前上下文](docs/PROJECT_CONTEXT.md)、[详细工程台账](docs/context/PROJECT_LEDGER.md)、[待办目录](docs/context/catalog/open-items.json)。
+- [客户端当前交付状态](docs/DESKTOP_DELIVERY_STATUS.md)：源码、测试、原生debug、安装包和有限剩余范围，主工程接续先读此页。
+- 正式产品在 `apps/desktop/`；`apps/desktop-design-prototype/` 只是可执行体验规范。
+
+当前工作区含未提交改动与活动观测任务，远端/其他worktree不会自动包含这些文件。客户端已接真实接口；默认 Memory 后台抽取和真实对话来源身份已接通，并有崩溃恢复与真实模型冒烟证据，详见 [Memory 后台接线](docs/MEMORY_BACKGROUND_INGESTION.md)。r9已接默认Lifecycle周期维护，完整调试处置、正式叙事内容服务、深度语义巩固及正式发布门禁仍需补齐。历史通过数不是本轮复测，未签名安装包不是正式发布。
+
+11月8日r10已安装：B1历史核心补齐，正文搜索/多页续查、旧会话实际最近活动排序、准确分页末尾、预览与对话阅读锚点、独立历史读取错误、同请求去重和A→B→A迟到回包隔离。普通列表只解密标题/末条摘要，不创建明文正文索引。Python692及前端154项通过，7个亮暗/紧凑/错误与滚动夹具通过；实际构建/安装Gateway验证105段会话、400条加密消息八页与重启；实际安装窗口完成正文搜索→原会话预览→继续原会话→加载前文并保留位置。包28,962,452字节，SHA256 c492940c8e5090f080b95a1d3822c57beb59d0f5cad4fdbb874378f34e403994，未签名。Host仅有预期UNK→NSS三字节打包标记差异，其他字节一致，Gateway符合manifest。无外部模型请求或日常数据修改；未重测新的真实模型续聊回合。证据 outputs/history-core-20261108/VERIFICATION.md。下一批B5优先补用户可用的主动陪伴/后台回应及深度记忆整理，所需真实调试处置随能力补齐；B4正式内容服务与发布依赖仍单列。
+
+11月8日第一批P0记忆治理交付：审核批准/拒绝/延期与候选、正式记忆、投递意图和精确请求审计同事务提交；外部索引/领域投影/监听器在本地提交后投递，监听器持久化重试、过期来源阻断，真实领域注册后恢复。完整Python635项通过，新增16项故障/进程退出/重试一致性用例；实际r6安装窗口三种审核操作通过，待审核3→0且独立审计核对一致。另用合成凭据通过真实Windows凭据库的目标删除/邻居保留验收。r6未签名候选28,899,414字节，SHA256 `0cc8a44b021947817abaef54b4c74ecbd44443e731cb156dde769614789969f5`，已安装、manifest及程序完整性通过。无模型请求或日常数据操作。详见`outputs/memory-governance-20261108/VERIFICATION.md`。跨库为可恢复的至少一次投递，完整领域故障矩阵及其余F01–F30/发布门禁仍开放。
+
+11月7日队列恢复与状态真实性接续已完成：r4实际安装窗口完成单条死信的修订预览、确认、重新入队、审计及真实FTS消费，最终已应用、累计尝试2。随后修复死信1/pending0误标绿色、主存储误用整体健康及维护错误提示不可读，生成并安装r5未签名候选，28,891,896字节，SHA256 `a7114d84cebbf84e4a6a957162116d7cda202b5e22d0ad5b600f8b3c86de30eb`。当前前端131项及10个明确视觉夹具通过；后端未改，Python619/Host18沿用此前r4报告。打包Gateway检查通过，实际r5窗口可读原恢复事件，升级前后QA记忆/队列/审计元数据一致。无新模型请求或日常数据修改。F17本条索引事件安装恢复链通过，跨数据库一致性、其余F01–F30和发布门禁仍开放。详见`outputs/desktop-queue-native-20261107/VERIFICATION.md`及`outputs/desktop-memory-status-20261107/VERIFICATION.md`。 本批源码仍有未提交内容，云端汇总尚未同步本次增量。
+
+## 历史 REPL 概览与命令参考
+
+以下保留原型时期的命令和设计说明；当前执行顺序、调度与完成状态以以上统一数据流和上下文为准。
+
 Python 工程验证原型，用来验证：
 
 ```text

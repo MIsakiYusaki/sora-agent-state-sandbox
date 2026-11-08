@@ -4,6 +4,15 @@ from __future__ import annotations
 WORLDOPS_CLIENT_SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS worldops_desktop_action (
+    timeline_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(timeline_id, request_id)
+);
+
 CREATE TABLE IF NOT EXISTS worldops_identity (
     tenant_id TEXT NOT NULL,
     user_id TEXT NOT NULL,

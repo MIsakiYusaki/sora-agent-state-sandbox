@@ -1,0 +1,17 @@
+{
+  "consequences": [
+    "No provider binding leaves jobs pending without attempts; shutdown drains before domain stores close; identity conflicts fail closed; lifecycle periodic scheduling and globally atomic cross-domain delivery remain separate work."
+  ],
+  "context": "Default memory jobs were not scheduled and post-turn ingestion discarded conversation/turn/source identity, leaving crash-before-receipt replay gaps.",
+  "decided_at_utc": "2026-09-10T11:26:01Z",
+  "decision": "Composition owns scheduler lifetime; committed-turn receipt and source materialization are atomic; Gate admission is resumable; renewable fenced job leases and validated-result checkpoints separate network work from SQLite writes.",
+  "decision_id": "adr-memory-background-ingestion-v1",
+  "references": [
+    "docs/MEMORY_BACKGROUND_INGESTION.md",
+    "tests/test_memory_background.py"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Managed extraction and durable committed-turn identity",
+  "workstream_id": "ws-memory-background-ingestion-p0-20260910"
+}

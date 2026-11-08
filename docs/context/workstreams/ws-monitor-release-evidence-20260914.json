@@ -1,0 +1,49 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json"
+  ],
+  "completed_at_utc": "2026-09-14T11:21:41Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-14T11:13:17Z",
+      "summary": "Record current per-turn and Memory job implementation, verification and remaining release gaps without changing canonical domain ownership."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-14T11:21:41Z",
+      "summary": "Context revision 8 records current per-turn and Memory job monitoring plus verified unsigned NSIS candidate; remaining integration and release gaps are explicit. Feishu mirror not republished."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-14T11:21:41Z",
+      "summary": "Context revision 8 records current per-turn and Memory job monitoring plus verified unsigned NSIS candidate; remaining integration and release gaps are explicit. Feishu mirror not republished."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-14T11:13:17Z",
+  "status": "completed",
+  "summary": "Context revision 8 records current per-turn and Memory job monitoring plus verified unsigned NSIS candidate; remaining integration and release gaps are explicit. Feishu mirror not republished.",
+  "title": "Refresh monitoring verification and unsigned candidate context",
+  "updated_at_utc": "2026-09-14T11:21:41Z",
+  "verification": [
+    "478 Python, 28 frontend, 5 Rust and package build evidence verified against current files",
+    "Real two-turn report and isolated packaged sidecar smoke both verified; no installed E2E claim"
+  ],
+  "workstream_id": "ws-monitor-release-evidence-20260914"
+}

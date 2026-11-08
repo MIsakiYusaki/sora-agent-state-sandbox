@@ -1,0 +1,46 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri/src/notifications.rs",
+    "apps/desktop/src/views/NotificationSettings.test.tsx",
+    "apps/desktop/src/views/NotificationSettings.tsx",
+    "outputs/desktop-notifications-20261107"
+  ],
+  "completed_at_utc": "2026-11-07T04:51:49Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T16:02:15Z",
+      "summary": "Same-thread installer and older native-settings/frontend overlaps reviewed. AUMID/shortcut/services exist. Setting returns ERROR_NOT_FOUND until first real Show. Preserve explicit disabled result; allow only ERROR_NOT_FOUND through Show, retain other failures. Unknown UI permits explicit test only with saved enabled preference and quiet policy. No OS policy mutation."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-07T04:51:49Z",
+      "summary": "Fixed first-toast ERROR_NOT_FOUND query deadlock while preserving explicit disabled and other failure states. Unknown UI supports saved opt-in explicit testing. Actual installed UI saved scoped preferences and received Windows submission receipt; banner/background-turn/MSI remain separate gaps."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-07T04:51:49Z",
+      "summary": "Fixed first-toast ERROR_NOT_FOUND query deadlock while preserving explicit disabled and other failure states. Unknown UI supports saved opt-in explicit testing. Actual installed UI saved scoped preferences and received Windows submission receipt; banner/background-turn/MSI remain separate gaps."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src-tauri/src/notifications.rs",
+    "apps/desktop/src/views/NotificationSettings.test.tsx",
+    "apps/desktop/src/views/NotificationSettings.tsx",
+    "outputs/desktop-notifications-20261107"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T16:02:15Z",
+  "status": "completed",
+  "summary": "Fixed first-toast ERROR_NOT_FOUND query deadlock while preserving explicit disabled and other failure states. Unknown UI supports saved opt-in explicit testing. Actual installed UI saved scoped preferences and received Windows submission receipt; banner/background-turn/MSI remain separate gaps.",
+  "title": "Allow Windows first-toast registration through the real notification API",
+  "updated_at_utc": "2026-11-07T04:51:49Z",
+  "verification": [
+    "frontend119 Host18/2ignored, TypeScript/Vite/NSIS pass; six fixture scenes no errors/overflow; installed-notification-submitted.jpg/txt"
+  ],
+  "workstream_id": "ws-desktop-first-toast-20261107"
+}

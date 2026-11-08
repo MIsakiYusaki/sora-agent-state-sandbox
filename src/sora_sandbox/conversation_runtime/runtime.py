@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping
 
 from ..paths import workspace_state_dir
+from ..turn_observability import TurnEvidence, legacy_evidence, observe_call
 from .adapters import ConversationPlannerAdapter, RelationshipOutcomeBuilder
 from .context import (
     GENERATION_CONTEXT_MARKER,
@@ -95,12 +96,15 @@ class ConversationRuntime:
         self.metrics = metrics or RuntimeMetrics()
         self.post_turn.metrics = self.metrics
         self.context_packer = ConversationContextPacker(self.config.context_budget)
+        self._frame_observation_until_ms = 0
         self.coordinator = TurnCoordinator(
             journal,
             max_workers=self.config.max_workers,
             lease_ttl_ms=self.config.lease_ttl_ms,
         )
         self._state_lock = threading.RLock()
+        self._active_evidence: dict[str, TurnEvidence] = {}
+        self._evidence_lock = threading.RLock()
         if hasattr(runner, "defer_domain_observation"):
             runner.defer_domain_observation = True
         if hasattr(runner, "defer_post_turn_writes"):
@@ -110,7 +114,9 @@ class ConversationRuntime:
                 "conversation runner must expose context_pack_transformer so the "
                 "generation disclosure gate cannot be bypassed"
             )
-        runner.context_pack_transformer = self.context_packer.pack_for_generation
+        runner.context_pack_transformer = lambda pack: self.context_packer.pack_for_generation(
+            pack, capture_frame_views=now_ms() < self._frame_observation_until_ms
+        )
         if hasattr(runner, "response_max_tokens"):
             runner.response_max_tokens = self.config.context_budget.response_reserve
         routed_llm = getattr(runner, "llm", None)
@@ -351,26 +357,62 @@ class ConversationRuntime:
                 return str(payload.get("text") or "")
         return None
 
-    def cancel(self, conversation_id: str, *, reason: str = "user_cancelled") -> bool:
-        return self.coordinator.cancel(conversation_id, reason=reason)
+    def cancel(
+        self, conversation_id: str, *, reason: str = "user_cancelled",
+        turn_id: str | None = None,
+    ) -> bool:
+        if turn_id is None:
+            # Internal shutdown/preemption compatibility; public requests must
+            # supply the exact authenticated target turn through the Gateway.
+            return self.coordinator.cancel(conversation_id, reason=reason)
+        received_at_ms = now_ms()
+        started = time.perf_counter()
+        before = self.journal.get_turn(turn_id)
+        if before.conversation_id != conversation_id:
+            raise ValueError("cancellation target does not belong to the conversation")
+        terminal = {TurnStatus.COMMITTED, TurnStatus.CANCELLED, TurnStatus.FAILED}
+        changed = False
+        if before.status not in terminal:
+            changed = self.coordinator.cancel(conversation_id, turn_id=turn_id, reason=reason)
+        after = self.journal.get_turn(turn_id)
+        # A receipt is NOT a terminal event. In particular a committing turn
+        # may complete despite a changed token; the final journal status wins.
+        self.journal.put_artifact(
+            turn_id, "cancellation_receipt",
+            {
+                "received_at_ms": received_at_ms,
+                "returned_at_ms": now_ms(),
+                "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
+                "status_before": before.status.value,
+                "status_after": after.status.value,
+                "signal_changed": changed,
+            },
+            schema_version="TurnCancellationReceipt.v1",
+        )
+        return changed
 
     def recover(self, *, stale_after_ms: int = 300_000) -> JsonDict:
+        stale_before_ms = now_ms() - max(1_000, stale_after_ms)
         stale = self.journal.recover_incomplete(
-            stale_before_ms=now_ms() - max(1_000, stale_after_ms)
+            stale_before_ms=stale_before_ms
         )
         recovered = []
         for context in stale:
-            try:
-                self.journal.transition(
-                    context.turn_id,
-                    TurnStatus.FAILED,
-                    stage="startup_recovery",
-                    error_code="STALE_INCOMPLETE_TURN",
-                    error_detail="Turn was incomplete when the runtime recovered.",
-                )
-                recovered.append(context.turn_id)
-            except RuntimeError:
+            transitioned = self.journal.fail_stale_turn(
+                context.turn_id,
+                stale_before_ms=stale_before_ms,
+                stage="stale_recovery",
+                error_code="STALE_INCOMPLETE_TURN",
+                error_detail="Turn was incomplete when the runtime recovered.",
+            )
+            if transitioned is None:
                 continue
+            self.journal.ensure_client_event(
+                context.turn_id,
+                "turn.failed",
+                {"error_code": "STALE_INCOMPLETE_TURN", "recovered": True},
+            )
+            recovered.append(context.turn_id)
         return {"status": "ok", "recovered_turn_ids": recovered}
 
     def quality_eval(self) -> JsonDict:
@@ -430,6 +472,206 @@ class ConversationRuntime:
             "max_hot_path_llm_calls": self.model_routes.max_hot_path_calls,
         }
 
+    def diagnostic_turns(
+        self, conversation_id: str, *, limit: int = 20
+    ) -> list[JsonDict]:
+        """Build a content-free, per-turn diagnostic projection for trusted tooling."""
+
+        collected_at_ms = now_ms()
+        result: list[JsonDict] = []
+        for context in self.journal.turns_for_conversation(
+            conversation_id, limit=limit
+        ):
+            artifacts = self.journal.artifacts(context.turn_id)
+            with self._evidence_lock:
+                active_evidence = self._active_evidence.get(context.turn_id)
+                execution = active_evidence.snapshot() if active_evidence is not None else None
+            saved_evidence = [item for item in artifacts if item.get("artifact_type") == "execution_evidence"] if execution is None else []
+            if saved_evidence:
+                execution = saved_evidence[-1]["payload"]
+            captured_frames = (((execution or {}).get("pre_generation") or {}).get("frame_projection") or {}).get("frames") or []
+            if isinstance(execution, dict):
+                execution = dict(execution)
+                if isinstance(execution.get("pre_generation"), dict):
+                    pre = dict(execution["pre_generation"])
+                    # Full L0 views are fetched on demand. Keep absent
+                    # pre-generation observations absent, not an empty success.
+                    pre.pop("frame_projection", None)
+                    execution["pre_generation"] = pre
+            legacy = legacy_evidence(self.journal.read_result(context.turn_id))
+            pre_generation = (execution or {}).get("pre_generation")
+            if isinstance(pre_generation, dict):
+                # Prompt projection removes subsystem health and score details.
+                # Use their captured low-sensitivity observation, not an empty
+                # post-generation reconstruction. Failed/live turns have no
+                # committed result yet, but can still expose observed decisions.
+                if legacy["status"] == "unobserved":
+                    legacy["decisions"] = dict(pre_generation.get("decisions") or {})
+                legacy["signals"] = list(pre_generation.get("signals") or [])
+                legacy["signal_decisions"] = list(pre_generation.get("signal_decisions") or [])
+                legacy["status"] = "available"
+            events = self.journal.client_events(context.turn_id)
+            first_output = next(
+                (
+                    event.created_at_ms
+                    for event in events
+                    if event.event_type in {"response.start", "response.delta"}
+                ),
+                None,
+            )
+            terminal = context.status in {
+                TurnStatus.COMMITTED,
+                TurnStatus.CANCELLED,
+                TurnStatus.FAILED,
+            }
+            end_at_ms = (
+                context.committed_at_ms
+                if context.committed_at_ms is not None
+                else context.updated_at_ms if terminal else collected_at_ms
+            )
+            frame_sources: dict[str, Mapping[str, Any]] = {}
+            packed_contract: JsonDict = {}
+            for artifact in artifacts:
+                payload = artifact.get("payload")
+                if not isinstance(payload, Mapping):
+                    continue
+                if artifact.get("artifact_type") == "wave_a":
+                    for key, value in payload.items():
+                        if isinstance(value, Mapping):
+                            frame_sources[str(key)] = value
+                elif artifact.get("artifact_type") == "wave_b":
+                    packed_context = payload.get("context")
+                    if isinstance(packed_context, Mapping):
+                        for key, value in packed_context.items():
+                            if isinstance(value, Mapping):
+                                frame_sources[str(key)] = value
+                    packed_contract = {
+                        "schema_version": payload.get("schema_version"),
+                        "token_estimate": payload.get("token_estimate"),
+                        "reply_budget_tokens": payload.get("reply_budget_tokens"),
+                        "pools": dict(payload.get("pools") or {}),
+                        "dropped": [str(item) for item in payload.get("dropped") or []],
+                    }
+            frame_summaries = [
+                _diagnostic_frame(frame_id, frame)
+                for frame_id, frame in sorted(frame_sources.items())
+                if frame_id.endswith("_frame") or frame_id in {
+                    "turn_interpretation",
+                    "context_use_policy",
+                    "arbitration_result",
+                }
+            ]
+            for captured in captured_frames:
+                from .debug_frames import DebugFrameProjection
+                safe = DebugFrameProjection.model_validate(captured, strict=True)
+                values = {field.path: field.value for field in safe.fields if field.state == "observed"}
+                summary = {"frame_id": safe.frame_id, "schema_version": safe.frame_schema_version,
+                           "runtime_mode": values.get("runtime_mode"),
+                           "revision": next((values[key] for key in ("snapshot_version", "state_revision", "state_snapshot_version", "timeline_revision") if key in values), None),
+                           "field_count": safe.field_count, "item_count": values.get("items"),
+                           "fields": [field.path for field in safe.fields if field.state in {"observed", "invalid"}]}
+                frame_summaries = [item for item in frame_summaries if item["frame_id"] != safe.frame_id] + [summary]
+            result.append(
+                {
+                    "turn_id": context.turn_id,
+                    "correlation_id": context.correlation_id,
+                    "status": context.status.value,
+                    "stage": context.stage,
+                    "turn_kind": context.turn_kind.value,
+                    "created_at_ms": context.created_at_ms,
+                    "updated_at_ms": context.updated_at_ms,
+                    "committed_at_ms": context.committed_at_ms,
+                    "terminal": terminal,
+                    "duration_ms": max(0, int(end_at_ms) - context.created_at_ms),
+                    "first_output_latency_ms": (
+                        max(0, int(first_output) - context.created_at_ms)
+                        if first_output is not None
+                        else None
+                    ),
+                    "event_count": len(events),
+                    "events": [
+                        {
+                            "sequence": event.sequence,
+                            "event_type": event.event_type,
+                            "created_at_ms": event.created_at_ms,
+                            "payload_fields": sorted(str(key) for key in event.payload),
+                        }
+                        for event in events
+                    ],
+                    "model_calls": self.journal.model_calls(context.turn_id),
+                    "cancellation_receipts": [
+                        {key: item["payload"].get(key) for key in (
+                            "received_at_ms", "returned_at_ms", "elapsed_ms",
+                            "status_before", "status_after", "signal_changed",
+                        )}
+                        for item in artifacts
+                        if item.get("artifact_type") == "cancellation_receipt"
+                    ],
+                    "frames": frame_summaries,
+                    "context_contract": packed_contract,
+                    "execution": execution,
+                    "legacy_evidence": legacy,
+                    "post_turn": self.journal.diagnostic_outbox(context.turn_id),
+                    "async_executions": [item["payload"] for item in artifacts if item.get("artifact_type") == "post_turn_evidence"],
+                    "delivery_mode": "provider_buffered_then_validated_client_stream",
+                }
+            )
+        return result
+
+    def diagnostic_frame(self, conversation_id: str, turn_id: str, frame_id: str) -> JsonDict:
+        from .debug_frames import DebugFrameProjection, project_frame, RULES
+        context = self.journal.get_turn(turn_id)
+        if context.conversation_id != conversation_id or frame_id not in RULES:
+            raise ValueError("frame is outside conversation scope")
+        artifacts = self.journal.artifacts(turn_id)
+        with self._evidence_lock:
+            evidence = self._active_evidence.get(turn_id)
+            execution = evidence.snapshot() if evidence is not None else None
+        if execution is None:
+            saved = [item for item in artifacts if item.get("artifact_type") == "execution_evidence"]
+            execution = saved[-1]["payload"] if saved else {}
+        captured = ((execution or {}).get("pre_generation") or {}).get("frame_projection") or {}
+        for item in captured.get("frames") or []:
+            if item.get("frame_id") == frame_id:
+                projection = DebugFrameProjection.model_validate(item, strict=True)
+                return {"turn_id": turn_id, "correlation_id": context.correlation_id,
+                        "projection": projection.model_dump(), "budget": captured.get("budget") or {}, "observation": self.frame_observation()}
+        # For old turns do not label delivery-packer fields as generation input.
+        frame, source, budget = {}, "unobserved", {}
+        for artifact in artifacts:
+            payload = artifact.get("payload") or {}
+            if artifact.get("artifact_type") == "wave_a" and isinstance(payload.get(frame_id), Mapping):
+                frame, source = payload[frame_id], "control_snapshot"
+            elif artifact.get("artifact_type") == "wave_b":
+                packed = payload.get("context") or {}
+                if isinstance(packed.get(frame_id), Mapping):
+                    frame, source = packed[frame_id], "delivery_snapshot"
+                budget = {key: payload.get(key) if type(payload.get(key)) is int else None
+                          for key in ("token_estimate", "reply_budget_tokens")}
+        projection = project_frame(frame_id, frame, source=source)
+        return {"turn_id": turn_id, "correlation_id": context.correlation_id,
+                "projection": projection.model_dump(), "budget": budget, "observation": self.frame_observation()}
+
+    def frame_observation(self) -> JsonDict:
+        active = now_ms() < self._frame_observation_until_ms
+        return {"active": active, "expires_at_ms": self._frame_observation_until_ms if active else None}
+
+    def response_basis(self, conversation_id: str, turn_id: str) -> JsonDict | None:
+        context = self.journal.get_turn(turn_id)
+        if context.conversation_id != conversation_id or context.status != TurnStatus.COMMITTED:
+            raise ValueError("response basis is outside committed conversation scope")
+        with self._evidence_lock:
+            live = self._active_evidence.get(turn_id)
+            basis = live.response_basis() if live else None
+        if basis is not None:
+            return basis
+        saved = self.journal.artifacts(turn_id, "user_response_basis")
+        return saved[-1]["payload"] if saved else None
+
+    def set_frame_observation(self, enabled: bool) -> JsonDict:
+        self._frame_observation_until_ms = now_ms() + 300_000 if enabled else 0
+        return self.frame_observation()
+
     def _accept(
         self,
         state: JsonDict,
@@ -465,6 +707,34 @@ class ConversationRuntime:
         )
 
     def _execute(
+        self, state: JsonDict, turn_id: str, *, user_input: str,
+        proactive_trigger: JsonDict | None, cancellation: CancellationToken,
+        sink: Callable[[ClientEvent], None] | None,
+    ) -> JsonDict:
+        evidence = TurnEvidence()
+        with self._evidence_lock:
+            self._active_evidence[turn_id] = evidence
+        try:
+            with evidence.activate():
+                return observe_call(
+                    "runtime.execute", self._execute_observed, state, turn_id,
+                    user_input=user_input, proactive_trigger=proactive_trigger,
+                    cancellation=cancellation, sink=sink,
+                )
+        finally:
+            try:
+                self.journal.put_artifact(turn_id, "execution_evidence", evidence.snapshot(final=True), schema_version="TurnExecutionEvidence.v1")
+                basis = evidence.response_basis()
+                if basis is not None:
+                    self.journal.put_artifact(turn_id, "user_response_basis", basis, schema_version="UserResponseBasisReferences.v1")
+            except Exception:
+                # Diagnostics cannot change a committed outcome or mask the original failure.
+                self.metrics.increment("conversation_evidence_write_failed")
+            finally:
+                with self._evidence_lock:
+                    self._active_evidence.pop(turn_id, None)
+
+    def _execute_observed(
         self,
         state: JsonDict,
         turn_id: str,
@@ -487,7 +757,7 @@ class ConversationRuntime:
             )
             deadline_timer.daemon = True
             deadline_timer.start()
-        encrypted_history = self.journal.recent_turns(context.conversation_id, limit=40)
+        encrypted_history = observe_call("runtime.history_read", self.journal.recent_turns, context.conversation_id, limit=40)
         working_state.setdefault("session", {})["recent_turns"] = [
             {
                 "role": item["role"],
@@ -515,7 +785,7 @@ class ConversationRuntime:
                     correlation_id=context.correlation_id,
                 ) as model_budget:
                     if proactive_trigger is None:
-                        result = self.runner.run(
+                        result = observe_call("agent.run", self.runner.run,
                             working_state,
                             user_input,
                             correlation_id=context.correlation_id,
@@ -539,7 +809,7 @@ class ConversationRuntime:
                     "generation context changed after the disclosure gate was applied"
                 )
             result["context_pack"] = context_pack
-            packed = self.context_packer.pack(context_pack)
+            packed = observe_call("context.delivery_pack", self.context_packer.pack, context_pack)
             wave_a = {
                 "turn_frame": context_pack.get("turn_frame"),
                 "turn_interpretation": context_pack.get("turn_interpretation"),
@@ -598,7 +868,7 @@ class ConversationRuntime:
                 reply=reply,
             )
             self._scrub_legacy_plaintext_state(working_state, turn_id)
-            self.journal.commit_turn(
+            observe_call("runtime.atomic_commit", self.journal.commit_turn,
                 turn_id,
                 user_input=user_input,
                 reply=reply,
@@ -730,11 +1000,11 @@ class ConversationRuntime:
         sink: Callable[[ClientEvent], None] | None,
     ) -> ClientEvent:
         if event_type in {"response.completed", "turn.cancelled", "turn.failed"}:
-            event = self.journal.ensure_client_event(turn_id, event_type, payload)
+            event = observe_call("delivery.persist_event", self.journal.ensure_client_event, turn_id, event_type, payload)
         else:
-            event = self.journal.append_client_event(turn_id, event_type, payload)
+            event = observe_call("delivery.persist_event", self.journal.append_client_event, turn_id, event_type, payload)
         if sink is not None:
-            sink(event)
+            observe_call("delivery.runtime_sink", sink, event)
         return event
 
     def _repair_terminal_client_event(self, turn_id: str) -> ClientEvent | None:
@@ -784,8 +1054,8 @@ class ConversationRuntime:
         dialogue_state["active_topic"] = "encrypted_conversation_context"
         dialogue_state["user_goal"] = "continue_current_conversation"
 
-    @staticmethod
     def _outbox_payload(
+        self,
         result: JsonDict,
         *,
         context: Any,
@@ -794,13 +1064,16 @@ class ConversationRuntime:
         reply: str,
     ) -> JsonDict:
         pack = dict(result.get("context_pack") or {})
+        memory = getattr(self.runner, "memory_runtime", None)
         return {
             "schema_version": "TurnCommittedEvent.v1",
             "runtime_turn_id": context.turn_id,
             "turn_id": str(working_state.get("session", {}).get("turn_id") or context.turn_id),
             "conversation_id": context.conversation_id,
             "correlation_id": context.correlation_id,
-            "user_id": str(working_state.get("session", {}).get("user_id") or "default-user"),
+            "user_id": str(working_state.get("session", {}).get("user_id")
+                           or getattr(memory, "owner_user_id", None) or "default-user"),
+            "agent_id": getattr(memory, "agent_id", None),
             "user_input": user_input,
             "reply": reply,
             "turn_interpretation": pack.get("turn_interpretation") or {},
@@ -811,6 +1084,36 @@ class ConversationRuntime:
             "worldops_frame": pack.get("worldops_frame") or {},
             "response_plan": result.get("response_plan") or {},
         }
+
+
+def _diagnostic_frame(frame_id: str, frame: Mapping[str, Any]) -> JsonDict:
+    """Project frame contract metadata without exposing prompt content or evidence."""
+
+    revision_keys = (
+        "snapshot_version",
+        "state_snapshot_version",
+        "state_revision",
+        "timeline_revision",
+        "revision",
+    )
+    revision = next(
+        (frame.get(key) for key in revision_keys if frame.get(key) is not None),
+        None,
+    )
+    item_count = 0
+    for key in ("items", "memory_summaries", "retrieved_ids", "signals"):
+        value = frame.get(key)
+        if isinstance(value, (list, tuple)):
+            item_count = max(item_count, len(value))
+    return {
+        "frame_id": frame_id,
+        "schema_version": frame.get("schema_version"),
+        "runtime_mode": frame.get("runtime_mode"),
+        "revision": revision,
+        "field_count": len(frame),
+        "item_count": item_count,
+        "fields": sorted(str(key) for key in frame),
+    }
 
 
 def _chunks(text: str, max_chars: int) -> Iterator[str]:

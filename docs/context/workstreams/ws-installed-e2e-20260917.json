@@ -1,0 +1,117 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/context-frames-20261011/DELIVERY.md",
+    "outputs/installed-e2e-20260917",
+    "outputs/installed-e2e-20260917/ACCEPTANCE.md"
+  ],
+  "decision_ids": [
+    "adr-stale-recovery-atomic-fence-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-17T12:07:28Z",
+      "summary": "Verify actual NSIS installation and isolated production WebView/Host/Gateway/Provider conversation, cancellation, monitoring and restart paths. Preserve everyday data and report failures honestly."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-19T09:03:32Z",
+      "summary": "Sept16 installer installed and isolated WebView/Host/Provider two-turn chain observed; read-only metadata confirms four history rows and both Memory jobs completed. Default/long profile paths failed; focused fix now passes 33 tests and rebuild is underway. Cancellation, inspector and recovery still pending."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-21T12:33:41Z",
+      "summary": "Sept20 candidate installed; actual long-root WebView/Host/DeepSeek six-turn history and Memory timeline, restart, idle Gateway recovery/auth verified. Complete acceptance NOT passed: no valid cancelled sample; last long reply ends mid-sentence while committed with 1200 completion tokens. Diagnose finish reason and validation next; no arbitrary budget increase. Developer execution and release/accessibility gates remain open."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-21T12:35:51Z",
+      "summary": "Installed core chain/recovery evidence recorded; full acceptance still open. Truncated committed response reproduced. Static inspection identifies RoutedLLMClient._invoke discarding adapter finish_reason; normalization/validation fix and repack remain next. Cancellation still lacks valid cancelled sample. Both earlier fixes sealed with installed evidence."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-24T12:40:07Z",
+      "summary": "Sept24 candidate installed with turn-specific cancellation/receipts and normal DeepSeek history/Memory path verified. Full acceptance remains open: measured UI observation interval23.54s missed a5.15s turn; timely user Esc requested, no valid cancellation receipt yet. All exact hashes, tests and limits in ACCEPTANCE.md."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-28T11:58:53Z",
+      "summary": "Sept28 autonomous installed Esc cancellation observed: turn_b7ccf024a62542d1bb574c1ee72acbf3 cancelled; real receipt generating to cancel_requested with signal_changed true. No user action requested. Verifying no-history/outbox/Memory effects and actual developer timeline before sealing bounded cancellation evidence."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-28T12:07:34Z",
+      "summary": "Sept28 autonomous installed generation-phase Esc cancellation accepted with receipt/terminal/no canonical effects; following real conversation and normal restart pass exact metadata comparison. Same Sept24 candidate. Main installed acceptance remains active for mid-turn crash/soak, remaining diagnostic/command/accessibility and release gates; no user keypress handoff."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-10T12:06:53Z",
+      "summary": "Oct10 resumed installed acceptance; verified Sept29 installer and installed binary hashes unchanged, sealed crash recovery/Host/ADR workstreams, continuing actual Developer Mode and accessibility checks."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-10T12:30:45Z",
+      "summary": "Oct10 final atomic recovery candidate installed;533 full tests and installed no-model recovery/auth service fixtures pass. Archived real-UI midturn assertion passes; upgrade preserves28turns/38history/15jobs. New UI repeat remains unaccepted: node_repl setup fails with sharing error32, valid state JSON. Remaining bridges, accessibility, soak and release gates stay open."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-11T03:44:56Z",
+      "summary": "Oct11 unsigned admin-bridge installed. Packaged/installed command smoke and actual native UI trace-sync preview/confirm/audit, one real DeepSeek turn with completed Memory attempt, and normal restart pass bounded checks. Full frame/L3/L4/accessibility/soak/signing/update/Beta acceptance remains open."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-15T11:43:32Z",
+      "summary": "Oct15 user-requested finite handoff: unsigned frame candidate installed exit0, old binaries backed up. Host7 and packaged/installed no-model smoke pass; fixture scenes reviewed, isolated29turn/40history/16jobs/174provider lists unchanged. No new native frame/model/restart acceptance or full production release claim. Additional features not started."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-15T12:00:26Z",
+      "summary": ""
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-28T11:52:01Z",
+      "summary": "Oct28 context snapshot/ledger/catalog synchronized for audited source repair batch only; original installed candidate unchanged, no new native install/model acceptance. Keep remaining installed acceptance open. Same-task documentation overlap reviewed."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-29T11:02:52Z",
+      "summary": "Oct29 documentation refresh only: installed acceptance and frame delivery reports now prominently link current source status. Oct15 fixed unsigned installer excludes Oct28+ F01-F30 changes; no new install/model execution. Historical bounded E2E preserved, all newer installed gaps open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/installed-e2e-20260917"
+  ],
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-17T12:07:28Z",
+  "status": "active",
+  "summary": "Oct29 documentation refresh only: installed acceptance and frame delivery reports now prominently link current source status. Oct15 fixed unsigned installer excludes Oct28+ F01-F30 changes; no new install/model execution. Historical bounded E2E preserved, all newer installed gaps open.",
+  "title": "Installed desktop end-to-end acceptance",
+  "updated_at_utc": "2026-10-29T11:02:52Z",
+  "verification": [
+    "installed-metadata-1789808321076.json confirms prior real installed sample; synthetic state only.",
+    "ACCEPTANCE.md updated 20260921 with exact installer SHA256, 500-test report, actual installed screenshot/metadata evidence and explicit failures.",
+    "Sept21 targeted regressions 12 passed; pytest cache permission warning only; context revision10 status and scoped git diff checks pass. ACCEPTANCE.md records finish-reason gap and all remaining gates.",
+    "installation-20260924.json exit0; installed-metadata-1790253389024.json 18turns/26history/12completed jobs; 525 full tests plus final9 focused; no production release claim.",
+    "installed-metadata-1790596627127.json and 45/46 UI evidence; installed desktop hash matches Sept24 candidate.",
+    "cancel-restart-assertions-20260928.json passed; screenshots/trees 45-49; fresh 41 frontend and 28 targeted Python tests passed; candidate/Desktop/Gateway hashes rechecked Sept28.",
+    "Final candidate installer SHA2561722d9dfcbd6e818b37110a7c5c4898272fb39f9a8e8762fee722b12c137b054; installed Desktop/Gateway hashes unchanged Oct10.",
+    "midturn-assertions-20261010.json passed; installed-atomic-service-20261010.json passed; metadata1791634882698 and1791635166490 identical canonical/provider sections.",
+    "outputs/admin-console-20261011/installed-native-assertions.json passed: singleton command audit, committed turn5203ms, one history pair/outbox, first-attempt Memory completion, 12 restart categories unchanged; native screenshots preserved.",
+    "outputs/context-frames-20261011/DELIVERY.md; installation-20261015-context-frames.json; frame candidate SHA256 a1dce8d96175aedca5bf8f791ebeeb4a25b095455f5cc9d8cc4527593b26bc8f; context revision18",
+    "Oct15 user-requested read-only functional audit: outputs/desktop-functional-audit-20261015/AUDIT.md;30 findings,10 isolated UI defect reproductions. Gate review count is real but no desktop review workflow; sidebar search/static controls, false applied states, model-switching gap and partial failure-aggregate coverage confirmed. Audit only; no implementation or daily-data mutation.",
+    "Oct28 context validate passes; source reports explicitly distinguished from installed evidence",
+    "Historical package/hash values preserved; current source/test/native/install boundary in docs/DESKTOP_DELIVERY_STATUS.md"
+  ],
+  "workstream_id": "ws-installed-e2e-20260917"
+}

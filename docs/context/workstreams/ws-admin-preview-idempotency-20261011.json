@@ -1,0 +1,40 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/memory_store.py"
+  ],
+  "completed_at_utc": "2026-10-11T03:35:56Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-10T17:41:28Z",
+      "summary": "Add nullable request key and unique actor/request identity to Module10 admin preview storage, preserving legacy actions."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-11T03:35:56Z",
+      "summary": "Durable nullable actor/request identity and unique preview key delivered; legacy migration, replay/conflict and one-shot execution regressions pass."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-11T03:35:56Z",
+      "summary": "Durable nullable actor/request identity and unique preview key delivered; legacy migration, replay/conflict and one-shot execution regressions pass."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/memory_store.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-10T17:41:28Z",
+  "status": "completed",
+  "summary": "Durable nullable actor/request identity and unique preview key delivered; legacy migration, replay/conflict and one-shot execution regressions pass.",
+  "title": "Durable admin preview request identity",
+  "updated_at_utc": "2026-10-11T03:35:56Z",
+  "verification": [
+    "543 full Python tests passed in outputs/admin-console-20261011/pytest-full-final.xml; packaged and installed maintenance preview replay reuse one action."
+  ],
+  "workstream_id": "ws-admin-preview-idempotency-20261011"
+}

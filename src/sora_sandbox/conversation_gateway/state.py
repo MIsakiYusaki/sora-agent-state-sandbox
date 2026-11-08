@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import ntpath
 import os
 import threading
 import uuid
@@ -13,11 +14,24 @@ from ..state import JsonDict, ensure_state_migrations, seed_state
 from .contracts import validate_identifier
 
 
+def _windows_extended_path(path: str) -> str:
+    """Keep the same file identity without requiring global long-path policy."""
+    if path.startswith("\\\\?\\"):
+        return path
+    absolute = ntpath.abspath(path)
+    if absolute.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + absolute[2:]
+    return "\\\\?\\" + absolute
+
+
 class ProfileStateRepository:
     """Atomic per-profile compatibility state with serialized mutation."""
 
     def __init__(self, root: Path, *, profile_scope: str) -> None:
-        self.root = Path(root)
+        # The hashed identity directories plus atomic temporary filename can
+        # exceed MAX_PATH even under the default AppData root. Use extended
+        # paths for all I/O, not just the write, while preserving legacy names.
+        self.root = Path(_windows_extended_path(str(root))) if os.name == "nt" else Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.profile_scope = validate_identifier(profile_scope)
         self._locks: dict[str, threading.RLock] = {}

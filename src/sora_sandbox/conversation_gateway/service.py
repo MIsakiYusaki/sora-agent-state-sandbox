@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import queue
 import threading
 import time
@@ -31,6 +32,7 @@ from .state import ProfileStateRepository
 
 
 TERMINAL_EVENT_TYPES = frozenset({"turn.committed", "turn.cancelled", "turn.failed"})
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,7 @@ class GatewayPolicy:
     slow_consumer_grace_ms: int = 5_000
     shutdown_grace_ms: int = 30_000
     stale_recovery_after_ms: int = 300_000
+    stale_recovery_poll_ms: int = 10_000
     history_page_limit: int = 40
     history_page_max: int = 200
     event_ack_retention_days: int = 30
@@ -127,6 +130,8 @@ class ConversationGatewayService:
         self._lock = threading.RLock()
         self._draining = False
         self._started = False
+        self._recovery_stop = threading.Event()
+        self._recovery_thread: threading.Thread | None = None
 
     def start(self) -> dict[str, object]:
         with self._lock:
@@ -137,11 +142,24 @@ class ConversationGatewayService:
             stale_after_ms=self.policy.stale_recovery_after_ms
         )
         maintenance = self.maintain()
+        self._recovery_thread = threading.Thread(
+            target=self._recover_stale_loop,
+            name="sora-gateway-stale-recovery",
+            daemon=True,
+        )
+        self._recovery_thread.start()
         return {
             "status": "started",
             "recovery": recovery,
             "maintenance": maintenance,
         }
+
+    def _recover_stale_loop(self) -> None:
+        while not self._recovery_stop.wait(self.policy.stale_recovery_poll_ms / 1000):
+            try:
+                self.runtime.recover(stale_after_ms=self.policy.stale_recovery_after_ms)
+            except Exception:
+                logger.exception("stale turn recovery check failed")
 
     def begin_drain(self) -> None:
         with self._lock:
@@ -149,6 +167,9 @@ class ConversationGatewayService:
 
     def close(self) -> dict[str, object]:
         self.begin_drain()
+        self._recovery_stop.set()
+        if self._recovery_thread is not None:
+            self._recovery_thread.join(timeout=1.0)
         deadline = time.monotonic() + self.policy.shutdown_grace_ms / 1000
         while time.monotonic() < deadline:
             with self._lock:
@@ -412,6 +433,7 @@ class ConversationGatewayService:
                 if timeout_cancelled_at is None:
                     self.runtime.cancel(
                         binding.runtime_conversation_id,
+                        turn_id=binding.turn_id,
                         reason="gateway_turn_timeout",
                     )
                     timeout_cancelled_at = time.monotonic()
@@ -443,7 +465,7 @@ class ConversationGatewayService:
         reason: str = "user_cancelled",
     ) -> TurnStatusView:
         binding = self._require_turn(identity, turn_id, permission="turn.cancel")
-        self.runtime.cancel(binding.runtime_conversation_id, reason=reason[:120])
+        self.runtime.cancel(binding.runtime_conversation_id, turn_id=binding.turn_id, reason=reason[:120])
         return self._status_view(binding)
 
     def acknowledge(self, identity: VerifiedIdentity, turn_id: str, sequence: int) -> None:
@@ -496,7 +518,11 @@ class ConversationGatewayService:
             )
             for item in records
         )
-        next_before = items[0].sequence if len(items) == bounded else None
+        next_before = None
+        if items and len(items) == bounded and self.runtime.history_page(
+            binding.runtime_conversation_id, limit=1, before_sequence=items[0].sequence,
+        ):
+            next_before = items[0].sequence
         return HistoryPage(
             conversation_id=conversation_id,
             conversation_version=self.runtime.conversation_version(
@@ -511,6 +537,8 @@ class ConversationGatewayService:
         identity: VerifiedIdentity,
         *,
         limit: int = 100,
+        offset: int = 0,
+        query: str = "",
     ) -> dict[str, object]:
         """Build the user-facing conversation index from identity-scoped bindings."""
         self._consume_rate_limit(
@@ -519,27 +547,50 @@ class ConversationGatewayService:
             limit=self.policy.read_requests_per_minute,
         )
         self._require_permission(identity, "history.read")
-        bindings = self.registry.list_conversations_for_identity(
-            profile_id=identity.profile_id,
-            subject_id=identity.subject_id,
-            agent_id=identity.agent_id,
-            limit=limit,
-        )
+        self._require_identity_scope(identity)
+        activity_reader = getattr(self.runtime, "conversation_activity", None)
+        if callable(activity_reader):
+            activity = activity_reader()
+            all_bindings = self.registry.all_conversations_for_identity(
+                profile_id=identity.profile_id, subject_id=identity.subject_id, agent_id=identity.agent_id,
+            )
+            all_bindings = [item for item in all_bindings if item.runtime_conversation_id in activity]
+            all_bindings.sort(key=lambda item: (activity[item.runtime_conversation_id], item.created_at_ms, item.external_conversation_id), reverse=True)
+            bindings = all_bindings[max(0, offset):max(0, offset) + limit + 1]
+        else:  # Compatibility ports may not yet expose journal metadata.
+            bindings = self.registry.list_conversations_for_identity(
+                profile_id=identity.profile_id, subject_id=identity.subject_id, agent_id=identity.agent_id,
+                limit=limit + 1, offset=offset,
+            )
         items: list[dict[str, object]] = []
-        for binding in bindings:
-            records = self.runtime.history_page(
-                binding.runtime_conversation_id,
-                limit=200,
-                before_sequence=None,
-            )
-            if not records:
+        needle = query.strip().casefold()
+        for binding in bindings[:limit]:
+            before = None
+            first_user, first_record, last = None, None, None
+            count, matched = 0, not needle
+            summary_reader = getattr(self.runtime, "history_summary", None)
+            summary = summary_reader(binding.runtime_conversation_id) if not needle and callable(summary_reader) else None
+            if summary is not None:
+                first_record, last, count = summary["first"], summary["last"], int(summary["count"])
+            while summary is None:
+                records = self.runtime.history_page(binding.runtime_conversation_id, limit=200, before_sequence=before)
+                if not records:
+                    break
+                if last is None:
+                    last = records[-1]
+                first_record = records[0]
+                users = [record for record in records if record.get("role") == "user"]
+                if users:
+                    first_user = users[0]
+                count += len(records)
+                matched = matched or any(needle in str(record.get("content") or "").casefold() for record in records)
+                next_before = min(int(record["sequence"]) for record in records)
+                if len(records) < 200 or next_before <= 1 or (before is not None and next_before >= before):
+                    break
+                before = next_before
+            if last is None or not matched:
                 continue
-            first_user = next(
-                (item for item in records if str(item.get("role")) == "user"),
-                records[0],
-            )
-            last = records[-1]
-            title = str(first_user.get("content") or "新的对话").strip()
+            title = str((first_user or first_record or {}).get("content") or "新的对话").strip()
             preview = str(last.get("content") or "").strip()
             items.append(
                 {
@@ -548,7 +599,7 @@ class ConversationGatewayService:
                     "preview": preview[:96],
                     "created_at_ms": binding.created_at_ms,
                     "updated_at_ms": int(last.get("created_at_ms") or binding.created_at_ms),
-                    "message_count": len(records),
+                    "message_count": count,
                     "conversation_version": self.runtime.conversation_version(
                         binding.runtime_conversation_id
                     ),
@@ -558,6 +609,7 @@ class ConversationGatewayService:
         return {
             "schema_version": "ConversationIndex.v1",
             "items": items,
+            "next_offset": offset + limit if len(bindings) > limit else None,
         }
 
     def readiness(self) -> dict[str, object]:

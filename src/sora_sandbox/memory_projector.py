@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from .memory_schema import JsonDict, json_dumps, json_loads, new_id, utc_now
 
@@ -122,9 +122,11 @@ class MemoryProjectorBus:
         *,
         lock: Any,
         adapters: dict[str, ProjectionAdapter] | None = None,
+        get_memory: Callable[[str], JsonDict] | None = None,
     ) -> None:
         self._conn = conn
         self._lock = lock
+        self._get_memory = get_memory
         self._default_adapter = ContractProjectionAdapter()
         self._adapters: dict[str, ProjectionAdapter] = dict(adapters or {})
 
@@ -602,6 +604,14 @@ class MemoryProjectorBus:
     def _process_row(self, row: sqlite3.Row) -> JsonDict:
         payload = json_loads(row["payload_json"], {})
         event = self._event_from_payload(row, payload)
+        if self._get_memory is not None:
+            try:
+                current = self._get_memory(row["memory_id"])
+            except ValueError:
+                return self._record_dead_letter(row, error_type="source_unavailable", error="Canonical source unavailable")
+            if event.get("memory") != self._memory_payload(current) or event.get("policy") != self._policy_payload(current):
+                ack = self._normalize_ack(event, {"status": "rejected_policy", "reason": "source_state_superseded"})
+                return self._record_processed(row, event, ack)
         adapter = self._adapters.get(row["projector_name"], self._default_adapter)
         try:
             ack = self._normalize_ack(event, adapter.deliver(event))

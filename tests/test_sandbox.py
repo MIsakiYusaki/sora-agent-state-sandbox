@@ -35,7 +35,7 @@ from sora_sandbox.subsystems import FunctionSubsystemAdapter, SubsystemRegistry
 
 class SandboxTests(unittest.TestCase):
     def test_seed_state_contains_persona_worldops_and_memory(self) -> None:
-        state = seed_state()
+        state = seed_state(include_example_memories=True)
         self.assertEqual(state["persona"]["persona_core"]["name"], "Sora")
         self.assertIn("evt_starport_lamp_001", [event["event_id"] for event in state["worldops"]["content_pack"]["events"]])
         self.assertGreaterEqual(len(state["memory"]["items"]), 3)
@@ -389,7 +389,7 @@ class SandboxTests(unittest.TestCase):
         self.assertEqual(state["session"]["recent_turns"], [])
 
     def test_placeholder_brackets_are_accepted_for_common_ids(self) -> None:
-        state = seed_state()
+        state = seed_state(include_example_memories=True)
         output, _ = handle_command("/delete-memory <mem_seed_workflow_001>", state)
         self.assertIn("mem_seed_workflow_001 -> deleted", output)
         self.assertEqual(state["memory"]["items"][0]["status"], "deleted")

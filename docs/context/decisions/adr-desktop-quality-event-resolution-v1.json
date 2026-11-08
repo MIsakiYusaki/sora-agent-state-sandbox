@@ -1,0 +1,16 @@
+{
+  "consequences": [
+    "Event closure records an investigation decision; it does not fix the algorithm or pass release gates. Lists are bounded to 100 records with explicit truncation, cases paginate. Native installed acceptance and remaining F01-F30 work stay open."
+  ],
+  "context": "F21 exposed only persisted snapshot counts, with no desktop case inspection, baseline comparison or event closure. F28 and F09 also need truthful failure and late-response handling.",
+  "decided_at_utc": "2026-10-28T11:36:58Z",
+  "decision": "Expose owner-backed safe quality DTOs through a five-minute main-window native-held capability. Read cases and compare baselines without creating events. Resolve one event using explicit confirmation, revision-checked BEGIN IMMEDIATE transaction and atomic audit, with idempotent repeats. Keep raw eval bodies and payloads private. Reject mismatched history identity and do not present unread model configuration as empty.",
+  "decision_id": "adr-desktop-quality-event-resolution-v1",
+  "references": [
+    "outputs/desktop-functional-repair-20261028/VERIFICATION.md"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Scoped desktop quality inspection and audited resolution",
+  "workstream_id": "ws-quality-event-resolution-20261028"
+}

@@ -1,0 +1,18 @@
+{
+  "consequences": [
+    "A transport span measures client request lifetime including body consumption, not pure wire latency or provider TTFT. Redirects or retries internal to the transport are not separately counted. Failed endpoint or credential checks before network create no HTTP span. Retention, bounds, routing, retries and secrets handling remain unchanged."
+  ],
+  "context": "Logical model and extraction phases hid fallback and repair HTTP requests, including Memory helper providers.",
+  "decided_at_utc": "2026-09-16T12:28:58Z",
+  "decision": "Instrument actual broker and compatibility HTTP open/read/close scopes with constant content-free span names; inherit foreground or Memory attempt collector. Detached parent context avoids leaking request parent across generator yields; generator close is interrupted. Record extraction JSON repair as a separate parent stage.",
+  "decision_id": "adr-provider-http-evidence-v1",
+  "references": [
+    "src/sora_sandbox/turn_observability.py",
+    "src/sora_sandbox/model_provider/broker.py",
+    "tests/test_provider_http_observability.py"
+  ],
+  "schema_version": "ProjectContextDecision.v1",
+  "status": "accepted",
+  "title": "Transport request lifetimes nested in existing turn evidence",
+  "workstream_id": "ws-provider-http-evidence-20260916"
+}

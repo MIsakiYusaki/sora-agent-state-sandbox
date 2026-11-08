@@ -67,6 +67,25 @@ Model output is buffered until the existing deterministic output guards have
 validated it, then exposed as ordered `response.delta` events. This avoids
 showing content that a later guard would have to retract.
 
+Buffered foreground response streams must also provide a recognized normal
+terminal reason (`stop`, `end_turn` or `stop_sequence`, case-insensitive).
+Reported length limits, blocked/tool-continuation results, unknown reasons,
+missing terminal evidence, conflicting terminals and text after a terminal fail
+with `IncompleteModelResponse` before any client response delta or successful
+history/outbox commit. A trailing usage-only event is still consumed; reported
+usage is preserved on the failed runtime model-call record. Token counts alone
+never determine truncation. EOF cancellation is checked before accepting the
+buffer. This does not change budgets, add retries or expose provider text in
+errors. Non-streaming compatibility delegates are outside this stream contract.
+
+The model-call journal preserves provider-reported token usage exactly. Missing
+usage remains `NULL` and is projected to Developer Mode as unreported rather
+than being fabricated as zero. Schema v2 migrates ambiguous zero values from
+older journals to `NULL`; an explicit zero reported after migration remains a
+real zero. Input/output token aliases are accepted without replacing a primary
+explicit zero. DDL, table replacement and version writes share one transaction;
+an interruption rolls back the upgrade, and reopening safely retries it.
+
 ## Calling the runtime
 
 Synchronous compatibility API:
@@ -115,9 +134,14 @@ a later initiative-lease release.
 - `runtime.health()` reports schema/WAL status, outbox backlog, dead letters,
   worker state, and the foreground model-call ceiling.
 - `runtime.recover()` marks stale interrupted turns as failed while preserving
-  their encrypted audit trail. Recovery never guesses whether a provider side
-  effect completed; the client retries with a new request or reuses the original
-  request ID when it needs the committed result.
+  their encrypted audit trail. A live matching execution lease excludes a turn;
+  both startup and periodic Gateway calls use the neutral `stale_recovery` stage.
+  Nonterminal status, stale timestamp and matching live lease are checked again
+  inside the failure write transaction. Terminal turns cannot acquire or renew
+  execution leases.
+  Recovery never guesses whether a provider side effect completed. Clients
+  reload authoritative history before deciding whether to submit a new request;
+  the desktop does not automatically resend a retained draft.
 - `runtime.post_turn.process_once()` supports deterministic worker execution in
   jobs and tests.
 - `runtime.export_quality_report()` exposes low-cardinality metrics, health, and

@@ -1,9 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./App";
-import type { DesktopStatus, HistoryPage, ShellError, TurnAccepted } from "./contracts/generated";
+import type { DesktopDebugSnapshot, DesktopStatus, HistoryPage, ShellError, TurnAccepted } from "./contracts/generated";
 import { MockDesktopTransport } from "./transport/MockDesktopTransport";
+import type { DesktopEventListener } from "./transport/DesktopTransport";
 import type {
   ConversationControlUpdate,
   ConversationControlsView,
@@ -150,26 +151,188 @@ class VersionConflictTransport extends MockDesktopTransport {
   }
 }
 
+class UnobservedDebugTransport extends MockDesktopTransport {
+  override async getDebugSnapshot(conversationId: string): Promise<DesktopDebugSnapshot> {
+    const snapshot = await super.getDebugSnapshot(conversationId);
+    return {
+      ...snapshot,
+      routes: { status: "degraded", registry_revision: null, binding_count: null, bindings: null },
+      systems: snapshot.systems.map((item) => item.subsystem_id === "model_provider" ? {
+        ...item,
+        status: "degraded",
+        details: { conversation_ready: null, missing_conversation_workloads: null },
+      } : item),
+      memory: {
+        status: "degraded",
+        active_memories: null,
+        pending_candidates: null,
+        open_reviews: null,
+        active_quarantines: null,
+        pending_extraction_jobs: null,
+        index_pending: null,
+        index_failed: null,
+        index_dead_letter: null,
+        projector_pending: null,
+        projector_failed: null,
+        projector_dead_letter: null,
+      },
+      async_work: {
+        pending: null,
+        failed: null,
+        dead_letter: null,
+        memory: { status: "degraded", index_pending: null, projector_pending: null },
+        affect: { status: "degraded", outbox_pending: null },
+        relationship: { status: "degraded", pending: null },
+        worldops: { status: "degraded", outbox_pending: null },
+      },
+      quality: {
+        status: "degraded",
+        eval_suite_count: null,
+        quality_run_count: null,
+        baseline_count: null,
+        open_event_count: null,
+        admin_action_count: null,
+        eval_suites: null,
+        latest_runs: null,
+        baselines: null,
+        open_events: null,
+        admin_actions: null,
+      },
+    };
+  }
+}
+
 afterEach(() => {
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
   window.localStorage.clear();
 });
 
 describe("Desktop App", () => {
-  it("renders the real conversation surface and sends text with Enter", async () => {
+  it("keeps identity and privacy recovery reachable when a pending erasure blocks history", async () => {
+    class ErasureRecoveryTransport extends FixedStatusTransport {
+      override async loadHistory(): Promise<HistoryPage> { throw new Error("profile erasure pending"); }
+      override async getPrivacyState() {
+        return { schema_version: "DesktopPrivacyState.v1" as const, profile_id: "fixture-erasure", space_name: "隔离空间", revision: "a".repeat(64), pending_operation: "erase_" + "1".repeat(32), last_completed_operation: null };
+      }
+    }
+    const transport = new ErasureRecoveryTransport({ ...readyStatus, phase: "degraded", profile_id: "fixture-erasure", gateway_ready: false, provider_ready: false, status_message: "空间删除尚未完成" });
     const user = userEvent.setup();
-    render(<App />);
+    render(<App transport={transport} />);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "给 Sora 发消息" })).toHaveAttribute("placeholder", "可以继续写，连接恢复后由你确认发送"));
+    await user.click(screen.getByRole("button", { name: "设置" }));
+    await user.click(screen.getByRole("button", { name: "数据与隐私" }));
+    expect(await screen.findByRole("button", { name: "继续恢复删除" })).toBeDisabled();
+    expect(screen.getByText(/此空间已暂停打开/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出记忆摘要" })).toBeDisabled();
+  });
+
+  it("shows a safe recovery path when the Gateway disappears during a turn", async () => {
+    class InterruptedTransport extends MockDesktopTransport {
+      callback: DesktopEventListener | undefined;
+      submits = 0;
+      override async subscribe(listener: DesktopEventListener) {
+        this.callback = listener;
+        return () => { this.callback = undefined; };
+      }
+      override async submitTurn(): Promise<TurnAccepted> {
+        this.submits += 1;
+        return {
+          schema_version: "TurnAccepted.v1", protocol_version: "1.0",
+          turn_id: "turn_crashed", request_id: "request_crashed",
+          conversation_id: "conversation_main", correlation_id: "0123456789abcdef0123456789abcdef",
+          status: "accepted", conversation_version: 0, events_url: "/v1/turns/turn_crashed/events",
+        };
+      }
+    }
+    const transport = new InterruptedTransport();
+    const user = userEvent.setup();
+    render(<App transport={transport} />);
     const composer = await screen.findByRole("textbox", { name: "给 Sora 发消息" });
     await waitFor(() => expect(composer).toHaveAttribute("placeholder", "和 Sora 说点什么…"));
+    await user.type(composer, "故障前的合成问题{enter}");
+    await waitFor(() => expect(composer).toHaveValue(""));
+    act(() => transport.callback?.({
+      kind: "shell_error", conversation_id: "conversation_main", turn_id: "turn_crashed",
+      payload: {
+        schema_version: "ShellError.v1", code: "GATEWAY_UNAVAILABLE",
+        message: "Project Sora Gateway is unavailable", retryable: true,
+        retry_after_ms: null, correlation_id: null, action: "restart_gateway", safe_details: {},
+      },
+    }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("对话连接已中断");
+    expect(alert).not.toHaveTextContent("Project Sora Gateway");
+    expect(screen.getByText("本轮未完成")).toBeInTheDocument();
+    expect(composer).toHaveValue("故障前的合成问题");
+    expect(transport.submits).toBe(1);
+    await user.click(screen.getByRole("button", { name: "重新载入" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(composer).toHaveValue("故障前的合成问题");
+    expect(transport.submits).toBe(1);
+  });
+
+  it("announces a failure before the first delta, marks the turn and restores its draft", async () => {
+    class FailedResponseTransport extends MockDesktopTransport {
+      callback: DesktopEventListener | undefined;
+      submits = 0;
+      override async subscribe(listener: DesktopEventListener) {
+        this.callback = listener;
+        return () => { this.callback = undefined; };
+      }
+      override async submitTurn(): Promise<TurnAccepted> {
+        this.submits += 1;
+        return {
+          schema_version: "TurnAccepted.v1", protocol_version: "1.0",
+          turn_id: "turn_incomplete", request_id: "request_incomplete",
+          conversation_id: "conversation_main", correlation_id: "0123456789abcdef0123456789abcdef",
+          status: "accepted", conversation_version: 0, events_url: "/v1/turns/turn_incomplete/events",
+        };
+      }
+    }
+    const transport = new FailedResponseTransport();
+    const user = userEvent.setup();
+    render(<App transport={transport} />);
+    const composer = await screen.findByRole("textbox", { name: "给 Sora 发消息" });
+    await waitFor(() => expect(composer).toHaveAttribute("placeholder", "和 Sora 说点什么…"));
+    await user.type(composer, "请把路线说完整{enter}");
+    await waitFor(() => expect(composer).toHaveValue(""));
+    act(() => transport.callback?.({
+      kind: "gateway_event", conversation_id: "conversation_main", turn_id: "turn_incomplete",
+      payload: {
+        schema_version: "GatewayEvent.v1", protocol_version: "1.0", turn_id: "turn_incomplete",
+        sequence: 3, event_type: "turn.failed", created_at_ms: Date.now(), replayed: false,
+        correlation_id: "0123456789abcdef0123456789abcdef",
+        payload: { error_code: "IncompleteModelResponse" },
+      },
+    }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("这次回复没有完整生成");
+    expect(composer).toHaveValue("请把路线说完整");
+    expect(screen.getByText("本轮未完成")).toBeInTheDocument();
+    expect(screen.queryByText("Sora 正在回应")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^发送$/ })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "关闭错误提示" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(composer).toHaveValue("请把路线说完整");
+    expect(transport.submits).toBe(1);
+  });
+
+  it("renders the real conversation surface and sends text with Enter", async () => {
+    const user = userEvent.setup();
+    render(<App transport={new MockDesktopTransport()} />);
+    const composer = await screen.findByRole("textbox", { name: "给 Sora 发消息" });
+    await waitFor(() => expect(composer).toHaveAttribute("placeholder", "和 Sora 说点什么…"));
+    expect(screen.getByRole("button", { name: "对话历史" })).toBeEnabled();
     await user.type(composer, "今天有点累{enter}");
     const feed = screen.getByRole("feed", { name: "当前对话" });
-    expect(within(feed).getByText("今天有点累")).toBeInTheDocument();
+    const sentMessage = within(feed).getByText("今天有点累");
+    expect(sentMessage).toBeInTheDocument();
+    expect(sentMessage.closest("article")).toHaveClass("message--user");
     expect(await within(feed).findByText(/今天消耗了不少/)).toBeInTheDocument();
   });
 
   it("opens the real model settings page without rendering an API key input in WebView", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    render(<App transport={new MockDesktopTransport()} />);
     await user.click(screen.getByRole("button", { name: "设置" }));
     expect(await screen.findByRole("heading", { name: "模型与连接" })).toBeInTheDocument();
     expect(screen.queryByLabelText(/API Key/i)).not.toBeInTheDocument();
@@ -233,7 +396,7 @@ describe("Desktop App", () => {
   it("closes a compact history drawer with Escape and restores focus", async () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 600 });
     const user = userEvent.setup();
-    render(<App />);
+    render(<App transport={new MockDesktopTransport()} />);
 
     const trigger = screen.getByRole("button", { name: "展开对话列表" });
     await user.click(trigger);
@@ -243,14 +406,15 @@ describe("Desktop App", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("loads the real conversation index and labels unavailable branching honestly", async () => {
+  it("loads the real conversation index without exposing fake branches or internal versions", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    render(<App transport={new MockDesktopTransport()} />);
 
     await user.click(screen.getByRole("button", { name: "历史" }));
-    expect(await screen.findByRole("heading", { name: "对话与分支" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "对话历史" })).toBeInTheDocument();
     expect(screen.getAllByText("当前对话")).toHaveLength(2);
-    expect(screen.getByText("真实分支接口尚未提供")).toBeInTheDocument();
+    expect(screen.queryByText(/分支接口/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/版本 \d/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "继续对话" })).toBeEnabled();
   });
 
@@ -262,17 +426,25 @@ describe("Desktop App", () => {
     await user.click(screen.getByRole("button", { name: "记忆与隐私" }));
     expect(await screen.findByRole("heading", { name: "记忆与隐私" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /你不喜欢被连续追问/ }));
-    await user.click(screen.getByRole("button", { name: "隐藏" }));
+    expect(screen.queryByText(/可信度|敏感级别|生命周期/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "不在对话中使用" }));
     await waitFor(() => expect(transport.visibilityUpdates).toEqual([
       { memoryId: "memory_preference_1", visible: false },
     ]));
-    expect(await screen.findByRole("button", { name: "恢复使用" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "恢复用于对话" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "忘记" }));
-    expect(await screen.findByRole("dialog")).toHaveTextContent("忘记这条记忆");
+    await user.click(screen.getByRole("button", { name: "忘记这件事" }));
+    const forgetDialog = await screen.findByRole("dialog", { name: "让 Sora 忘记这件事？" });
+    expect(forgetDialog).toHaveAccessibleDescription("删除请求会沿记忆系统传播到相关索引与投影。");
+    expect(screen.getByRole("button", { name: "关闭" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "让 Sora 忘记这件事？" })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "忘记这件事" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "忘记这件事" }));
     await user.click(screen.getByRole("button", { name: "确认忘记" }));
     await waitFor(() => expect(transport.forgottenMemoryIds).toEqual(["memory_preference_1"]));
-    expect(await screen.findByText("目前没有可显示的记忆。")).toBeInTheDocument();
+    expect(await screen.findByText("Sora 还没有保存可显示的长期记忆。")).toBeInTheDocument();
   });
 
   it("maps natural conversation controls to session-scoped runtime contracts", async () => {
@@ -295,7 +467,7 @@ describe("Desktop App", () => {
 
   it("keeps all six settings sections and exposes Developer Mode only after opt-in", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    render(<App transport={new MockDesktopTransport()} />);
 
     await user.click(screen.getByRole("button", { name: "设置" }));
     expect(await screen.findByRole("heading", { name: "设置" })).toBeInTheDocument();
@@ -304,19 +476,70 @@ describe("Desktop App", () => {
     }
 
     await user.click(screen.getByRole("button", { name: "通知" }));
-    expect(screen.getByText(/尚未接入 Windows 通知服务/)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Windows 通知偏好" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("通知偏好或系统状态读取失败，当前状态未确认");
+    expect(screen.queryByRole("checkbox", { name: "允许在后台完成回应时提示我" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "高级" }));
+    expect(screen.getByText(/查看真实运行快照和当前会话事件/)).toBeInTheDocument();
     const developerSwitch = screen.getByRole("switch", { name: "调试模式" });
     expect(developerSwitch).toHaveAttribute("aria-checked", "false");
     await user.click(developerSwitch);
     expect(developerSwitch).toHaveAttribute("aria-checked", "true");
     await user.click(screen.getByRole("button", { name: "打开" }));
 
-    expect(await screen.findByText("这里没有模拟数据")).toBeInTheDocument();
+    expect(await screen.findByText("真实运行快照已连接")).toBeInTheDocument();
+    expect(screen.getByText("mock-local-profile")).toBeInTheDocument();
+    expect(screen.queryByText(/^local$/)).not.toBeInTheDocument();
     for (const label of ["单轮时间线", "上下文帧", "模型路由", "记忆流水线", "异步任务", "状态系统", "评测与发布", "受控控制台"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
-    expect(screen.getByText(/真实调试通道尚未接入/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "单轮时间线" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { name: "单轮时间线" })).toBeInTheDocument();
+
+    const expectedPanels = [
+      ["上下文帧", "上下文帧"],
+      ["模型路由", "模型路由"],
+      ["记忆流水线", "记忆流水线"],
+      ["异步任务", "异步任务"],
+      ["状态系统", "状态系统"],
+      ["评测与发布", "评测与发布门禁"],
+      ["受控控制台", "受控控制台"],
+    ] as const;
+    for (const [button, heading] of expectedPanels) {
+      await user.click(screen.getByRole("button", { name: button }));
+      expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    }
+    expect(screen.getByText("尚未读取维护历史，不显示模拟输出。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开启维护会话" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认执行" })).toBeDisabled();
+    expect(screen.queryByText(/\$0\.|1\.82 s|发布通过/)).not.toBeInTheDocument();
+  });
+
+  it("renders missing production diagnostics as unobserved instead of zero or success", async () => {
+    const user = userEvent.setup();
+    render(<App transport={new UnobservedDebugTransport()} />);
+
+    await user.click(screen.getByRole("button", { name: "设置" }));
+    await user.click(screen.getByRole("button", { name: "高级" }));
+    await user.click(screen.getByRole("switch", { name: "调试模式" }));
+    await user.click(screen.getByRole("button", { name: "打开" }));
+
+    await user.click(await screen.findByRole("button", { name: "模型路由" }));
+    expect(screen.getByText("路由状态未观测")).toBeInTheDocument();
+    expect(screen.getByText("当前无法判定路由完整性")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "记忆流水线" }));
+    expect(screen.getByText("水位未观测")).toBeInTheDocument();
+    expect(screen.getByText("无法判定")).toBeInTheDocument();
+    expect(screen.queryByText("水位为空")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "异步任务" }));
+    expect(screen.getByText("失败水位未观测")).toBeInTheDocument();
+    expect(screen.queryByText("无失败积压")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "评测与发布" }));
+    expect(screen.getByText("运行记录未观测")).toBeInTheDocument();
+    expect(screen.getByText(/质量运行读取失败或未报告/)).toBeInTheDocument();
   });
 
   it("maps an empty provider setup state to an honest first-run surface", async () => {

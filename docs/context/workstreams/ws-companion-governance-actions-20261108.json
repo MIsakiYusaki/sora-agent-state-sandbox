@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py",
+    "src/sora_sandbox/persona/system.py"
+  ],
+  "completed_at_utc": "2026-11-08T09:16:00Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T08:29:24Z",
+      "summary": "B3 requires actionable governance, not read-only decoration. Add a dedicated short native session for exact-revision candidate rejection and contribution rollback with owner checks, explicit preview/confirmation and domain audit. Other B3 files remain claimed by same-chat companion-controls stream; no daily data or arbitrary admin commands."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T09:16:00Z",
+      "summary": "Added dedicated5minute main-window native management scope and owner store revision/identity guards for candidate rejection and contribution rollback/rebuild. Domain audit is committed with changes; unknown results cannot auto resend. Generic maintenance adapter count remains9."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T09:16:00Z",
+      "summary": "Added dedicated5minute main-window native management scope and owner store revision/identity guards for candidate rejection and contribution rollback/rebuild. Domain audit is committed with changes; unknown results cannot auto resend. Generic maintenance adapter count remains9."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_gateway/desktop_commands.py",
+    "src/sora_sandbox/persona/system.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T08:29:24Z",
+  "status": "completed",
+  "summary": "Added dedicated5minute main-window native management scope and owner store revision/identity guards for candidate rejection and contribution rollback/rebuild. Domain audit is committed with changes; unknown results cannot auto resend. Generic maintenance adapter count remains9.",
+  "title": "Safe domain governance actions",
+  "updated_at_utc": "2026-11-08T09:16:00Z",
+  "verification": [
+    "outputs/companion-controls-20261108/VERIFICATION.md; backend19; fullPython654; build and installed frozen actual reject/rollback/audit/restart; expiry/replacement/revocation and cross-pair tests"
+  ],
+  "workstream_id": "ws-companion-governance-actions-20261108"
+}

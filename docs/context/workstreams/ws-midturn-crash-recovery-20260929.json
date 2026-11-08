@@ -1,0 +1,59 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/App.tsx",
+    "apps/desktop/src/conversation/state.test.ts",
+    "apps/desktop/src/conversation/state.ts",
+    "src/sora_sandbox/conversation_gateway/service.py",
+    "src/sora_sandbox/conversation_runtime/journal.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "tests/test_conversation_gateway.py",
+    "tests/test_conversation_runtime.py"
+  ],
+  "completed_at_utc": "2026-10-10T12:06:29Z",
+  "decision_ids": [
+    "adr-midturn-gateway-recovery-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-29T11:20:22Z",
+      "summary": "Repair observed isolated installed Gateway crash: old turn remains generating after restart and new commit; user sees raw English error without failed marker. Preserve fail-closed history and memory semantics."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-10T12:06:29Z",
+      "summary": "Lease-fenced periodic stale recovery and Chinese uncertain-delivery client state verified in final installed candidate; no-input interval, explicit follow-up and normal restart pass. Repeated crash/soak and uncertain prior extra-turn provenance remain separate."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-10T12:06:29Z",
+      "summary": "Lease-fenced periodic stale recovery and Chinese uncertain-delivery client state verified in final installed candidate; no-input interval, explicit follow-up and normal restart pass. Repeated crash/soak and uncertain prior extra-turn provenance remain separate."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/App.tsx",
+    "apps/desktop/src/conversation/state.test.ts",
+    "apps/desktop/src/conversation/state.ts",
+    "src/sora_sandbox/conversation_gateway/service.py",
+    "src/sora_sandbox/conversation_runtime/journal.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "tests/test_conversation_gateway.py",
+    "tests/test_conversation_runtime.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-29T11:20:22Z",
+  "status": "completed",
+  "summary": "Lease-fenced periodic stale recovery and Chinese uncertain-delivery client state verified in final installed candidate; no-input interval, explicit follow-up and normal restart pass. Repeated crash/soak and uncertain prior extra-turn provenance remain separate.",
+  "title": "Installed mid-turn Gateway crash recovery",
+  "updated_at_utc": "2026-10-10T12:06:29Z",
+  "verification": [
+    "530 full Python tests passed in pytest-full-20260929-stale-stage.xml; 43 frontend tests on equivalent UI candidate; final NSIS/manifest verified and installed exit0.",
+    "midturn-fault-20260929-d.json; metadata1790682994964 to1790683249993 confirms failed stale_recovery with no success history/outbox/Memory source/job or new turn during minimized interval; final explicit follow-up/restart metadata1790683388809 and1790683511844 identical."
+  ],
+  "workstream_id": "ws-midturn-crash-recovery-20260929"
+}

@@ -1,0 +1,52 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "completed_at_utc": "2026-11-08T08:04:01Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T08:01:21Z",
+      "summary": "User requests fastest main-feature delivery. Reviewed same-chat active ws-desktop-functional-repair-20261015 and ws-installed-e2e-20260917 document overlap. Reorder only the execution plan; preserve current implementation/evidence, formal release gates and unrelated dirty changes. Distinguish missing product flows from implemented acceptance debt; no code, cloud, model or daily-data changes."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T08:04:01Z",
+      "summary": "Reprioritized next delivery for usable main functions: B1 history/daily conversation and actual provider blockers; B2 semantic MERGE/truthful budget then lifecycle scheduler; B3 companion controls/domain governance; B4 real authored narrative loop; B5 complete diagnostics/recovery/enhancements; B6 expanded release validation. Preserved implementation statuses and mandatory release gates. All F01-F30 mapped; catalog items assigned with risk separate from execution order. Context30/ledger24. Planning/docs only; no product code, model calls, cloud writes or daily data changes."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T08:04:01Z",
+      "summary": "Reprioritized next delivery for usable main functions: B1 history/daily conversation and actual provider blockers; B2 semantic MERGE/truthful budget then lifecycle scheduler; B3 companion controls/domain governance; B4 real authored narrative loop; B5 complete diagnostics/recovery/enhancements; B6 expanded release validation. Preserved implementation statuses and mandatory release gates. All F01-F30 mapped; catalog items assigned with risk separate from execution order. Context30/ledger24. Planning/docs only; no product code, model calls, cloud writes or daily data changes."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T08:01:21Z",
+  "status": "completed",
+  "summary": "Reprioritized next delivery for usable main functions: B1 history/daily conversation and actual provider blockers; B2 semantic MERGE/truthful budget then lifecycle scheduler; B3 companion controls/domain governance; B4 real authored narrative loop; B5 complete diagnostics/recovery/enhancements; B6 expanded release validation. Preserved implementation statuses and mandatory release gates. All F01-F30 mapped; catalog items assigned with risk separate from execution order. Context30/ledger24. Planning/docs only; no product code, model calls, cloud writes or daily data changes.",
+  "title": "Prioritize usable main product flows",
+  "updated_at_utc": "2026-11-08T08:04:01Z",
+  "verification": [
+    "Context status --check passed revision30; git diff --check passed; all F01-F30 mapped; relative links resolve; catalog IDs unique and all assigned; sequence B1-B6 verified. No runtime tests rerun for documentation-only change."
+  ],
+  "workstream_id": "ws-main-feature-priorities-20261108"
+}

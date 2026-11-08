@@ -1,0 +1,64 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "README.md",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "completed_at_utc": "2026-11-08T14:39:54Z",
+  "decision_ids": [
+    "adr-20261108-1eea240a35"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T14:23:42Z",
+      "summary": "User asks remaining critical functions then continue: record B1 history implementation and bounded installed evidence. Reviewed stale same-chat document claim. Preserve B4 official-content and B5 user-visible initiative/semantic-memory/diagnostic gaps; do not relabel unsigned candidate as full production release. Correct README obsolete lifecycle scheduling status."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T14:39:54Z",
+      "summary": "Record context34/ledger28 and r10 installed baseline; clarify remaining critical proactive/background,narrative production,deep semantic memory,and required diagnostics. Preserve release and provider-certification boundaries."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T14:39:54Z",
+      "summary": "Record context34/ledger28 and r10 installed baseline; clarify remaining critical proactive/background,narrative production,deep semantic memory,and required diagnostics. Preserve release and provider-certification boundaries."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "README.md",
+    "docs/DESKTOP_DELIVERY_STATUS.md",
+    "docs/MAIN_FEATURE_PRIORITIES.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "outputs/desktop-functional-repair-20261015/PROGRESS.md"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T14:23:42Z",
+  "status": "completed",
+  "summary": "Record context34/ledger28 and r10 installed baseline; clarify remaining critical proactive/background,narrative production,deep semantic memory,and required diagnostics. Preserve release and provider-certification boundaries.",
+  "title": "Record main history feature delivery",
+  "updated_at_utc": "2026-11-08T14:39:54Z",
+  "verification": [
+    "r10SHA256 c492940c8e5090f080b95a1d3822c57beb59d0f5cad4fdbb874378f34e403994,28962452bytes,installed exit0",
+    "Host expected three-byte UNK-NSS marker verified,other bytes identical;Gateway manifest matches;release-check passes",
+    "No external models,daily data writes,cloud writes,commit/push;context status validation passes"
+  ],
+  "workstream_id": "ws-history-context-20261108"
+}

@@ -298,6 +298,27 @@ class ProviderRegistry:
             self._bump_revision()
             self._audit("profile.delete", "provider_profile", profile_id, actor, {})
 
+    def purge_owner(self, owner: OwnerScope) -> dict[str, int]:
+        """Offline privacy erasure. Shared-registry rows of other owners survive."""
+        with self._lock, self._conn:
+            if self._conn.in_transaction:
+                raise ValueError("provider registry transaction is busy")
+            self._conn.execute("BEGIN IMMEDIATE")
+            scope = (owner.tenant_id, owner.user_id, owner.agent_id)
+            profiles = self._conn.execute("SELECT profile_id FROM provider_profile WHERE tenant_id=? AND user_id=? AND agent_id=?", scope).fetchall()
+            bindings = self._conn.execute("SELECT binding_id FROM workload_binding WHERE tenant_id=? AND user_id=? AND agent_id=?", scope).fetchall()
+            for binding in bindings:
+                self._conn.execute("DELETE FROM provider_audit WHERE object_type='workload_binding' AND object_id=?", (binding["binding_id"],))
+            self._conn.execute("DELETE FROM workload_binding WHERE tenant_id=? AND user_id=? AND agent_id=?", scope)
+            for row in profiles:
+                identifier = row["profile_id"]
+                self._conn.execute("DELETE FROM provider_audit WHERE (object_type='provider_profile' AND object_id=?) OR (object_type='provider_model' AND substr(object_id,1,?)=?)", (identifier, len(identifier) + 1, identifier + ":"))
+                for table in ("provider_invocation_trace", "provider_probe", "provider_model"):
+                    self._conn.execute(f"DELETE FROM {table} WHERE provider_profile_id=?", (identifier,))
+                self._conn.execute("DELETE FROM provider_profile WHERE profile_id=?", (identifier,))
+            self._bump_revision()
+        return {"provider_profiles": len(profiles), "workload_bindings": len(bindings)}
+
     def upsert_model(self, descriptor: ModelDescriptor, *, actor: str = "probe") -> ModelDescriptor:
         self.get_profile(descriptor.provider_profile_id)
         with self._lock, self._conn:

@@ -35,6 +35,9 @@ ALL_PERMISSIONS = frozenset(
         "memory.write",
         "controls.read",
         "controls.write",
+        "debug.read",
+        "debug.observe",
+        "debug.session.open",
         "gateway.shutdown",
         "model_provider.read",
         "model_provider.write",
@@ -61,12 +64,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-missing-origin", action="store_true")
     parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", "deepseek-v4-flash"))
     parser.add_argument("--log-level", default="info")
+    parser.add_argument("--no-legacy-migration", action="store_true", help="Require explicit model setup for managed desktop spaces")
+    parser.add_argument("--erase-stopped-profile", action="store_true", help=argparse.SUPPRESS)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     configure_stdio()
     args = build_parser().parse_args(argv)
+    if args.erase_stopped_profile:
+        from .privacy_cli import erase_stopped_profile
+        try:
+            payload = json.loads(sys.stdin.readline(4097))
+            result = erase_stopped_profile(args.profile_id, args.subject_id, args.agent_id, payload)
+            print(json.dumps(result), flush=True)
+            return 0
+        except Exception as error:
+            # Exception messages can contain private paths or credential details.
+            frame = error.__traceback__
+            while frame is not None and frame.tb_next is not None:
+                frame = frame.tb_next
+            failure = {"status": "erase_unconfirmed", "error_type": type(error).__name__}
+            if frame is not None:
+                failure["operation"] = frame.tb_frame.f_code.co_name
+                failure["source"] = Path(frame.tb_frame.f_code.co_filename).name
+                failure["line"] = frame.tb_lineno
+            print(json.dumps(failure), flush=True)
+            return 3
     missing = [
         name
         for name, value in {
@@ -94,6 +118,19 @@ def main(argv: list[str] | None = None) -> int:
     else:
         root_state_dir = user_config_dir() / "runtime"
     profile_state_dir = root_state_dir / "gateway-identities" / identity_digest
+    from .profile_lock import acquire_profile_lock
+    try:
+        runtime_lock = acquire_profile_lock(profile_state_dir)
+    except ValueError:
+        print("profile is already in use; close its other client first", file=sys.stderr)
+        return 4
+    from .privacy_cli import require_openable_profile
+    try:
+        require_openable_profile(profile_state_dir)
+    except (ValueError, OSError):
+        runtime_lock.close()
+        print("profile erasure requires recovery in desktop privacy settings", file=sys.stderr)
+        return 5
     os.environ["SORA_SANDBOX_STATE_DIR"] = str(profile_state_dir)
 
     try:
@@ -107,8 +144,10 @@ def main(argv: list[str] | None = None) -> int:
                 agent_id=args.agent_id,
             ),
             allow_unconfigured=True,
+            migrate_legacy=not args.no_legacy_migration,
         )
     except CredentialError as exc:
+        runtime_lock.close()
         print(str(exc), file=sys.stderr)
         return 2
 
@@ -159,6 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
         memory_runtime=stack.memory,
         interruptibility_service=stack.interruptibility,
+        runtime_stack=stack,
     )
     config = uvicorn.Config(
         app,
@@ -201,6 +241,7 @@ def main(argv: list[str] | None = None) -> int:
             registry.close()
         finally:
             stack.close()
+            runtime_lock.close()
 
 
 if __name__ == "__main__":

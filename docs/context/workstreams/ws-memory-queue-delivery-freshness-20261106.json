@@ -1,0 +1,48 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/desktop-queue-20261106",
+    "src/sora_sandbox/memory_index_outbox.py",
+    "src/sora_sandbox/memory_projector.py",
+    "tests/test_desktop_queue_recovery.py"
+  ],
+  "completed_at_utc": "2026-11-06T15:16:19Z",
+  "decision_ids": [
+    "adr-memory-single-event-recovery-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T15:01:10Z",
+      "summary": "Review while implementing F17 found historical projection payloads or stale index tombstones could undo newer canonical/privacy state. Add current-owner-state checks at normal consumer entry, preserve existing event identity and report rejected_policy. Same-thread focused test overlap reviewed."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-06T15:16:19Z",
+      "summary": "Product projection consumer checks current canonical source/policy before external delivery; stale snapshots return rejected_policy. Index consumer rejects old tombstone against restored readable memory. Compatibility callback boundary and remaining cross-database races documented."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-06T15:16:19Z",
+      "summary": "Product projection consumer checks current canonical source/policy before external delivery; stale snapshots return rejected_policy. Index consumer rejects old tombstone against restored readable memory. Compatibility callback boundary and remaining cross-database races documented."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/desktop-queue-20261106",
+    "src/sora_sandbox/memory_index_outbox.py",
+    "src/sora_sandbox/memory_projector.py",
+    "tests/test_desktop_queue_recovery.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T15:01:10Z",
+  "status": "completed",
+  "summary": "Product projection consumer checks current canonical source/policy before external delivery; stale snapshots return rejected_policy. Index consumer rejects old tombstone against restored readable memory. Compatibility callback boundary and remaining cross-database races documented.",
+  "title": "Fence stale queue payloads at delivery",
+  "updated_at_utc": "2026-11-06T15:16:19Z",
+  "verification": [
+    "Existing Memory89unittest and fullPython617 pass;newprivacy-after-requeue and restored-index-old-tombstone regressions in tests/test_desktop_queue_recovery.py. Report outputs/desktop-queue-20261106/VERIFICATION.md."
+  ],
+  "workstream_id": "ws-memory-queue-delivery-freshness-20261106"
+}

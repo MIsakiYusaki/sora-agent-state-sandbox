@@ -371,6 +371,12 @@ class MemoryIndexOutbox:
                 (utc_now(), memory_id),
             )
             return result
+        try:
+            current = self._get_memory(memory_id)
+        except ValueError:
+            current = None
+        if current is not None and current["status"] == "active" and current["retrieval_permission"] == "allow":
+            return {"backend": backend, "action": action, "status": "rejected_policy", "applied": False, "reason": "source_state_superseded"}
         return self._delete_backend(backend, memory_id, generation, reason=action)
 
     def _delete_backend(

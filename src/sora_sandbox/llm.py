@@ -7,6 +7,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Iterator, Protocol
 
+from .turn_observability import observe_http
+
 
 class LLMClient(Protocol):
     def chat(self, system: str, user: str, **kwargs: Any) -> dict[str, Any]:
@@ -49,7 +51,7 @@ class DeepSeekClient:
         )
         try:
             request_timeout = float(kwargs.get("timeout", self.timeout))
-            with urllib.request.urlopen(req, timeout=request_timeout) as response:
+            with observe_http("provider.http.compat_chat"), urllib.request.urlopen(req, timeout=request_timeout) as response:
                 if cancellation_token is not None:
                     cancellation_token.add_callback(lambda _reason: response.close())
                 payload = json.loads(response.read().decode("utf-8"))
@@ -105,7 +107,7 @@ class DeepSeekClient:
         )
         try:
             request_timeout = float(kwargs.get("timeout", self.timeout))
-            with urllib.request.urlopen(request, timeout=request_timeout) as response:
+            with observe_http("provider.http.compat_sse"), urllib.request.urlopen(request, timeout=request_timeout) as response:
                 if cancellation_token is not None:
                     cancellation_token.add_callback(lambda _reason: response.close())
                 for raw_line in response:

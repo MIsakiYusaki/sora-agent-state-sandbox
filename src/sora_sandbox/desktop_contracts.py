@@ -4,6 +4,7 @@ from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from .conversation_runtime.debug_frames import DesktopDebugFrameRequest, DesktopDebugFrameDetail, DesktopFrameObservation, DesktopFrameObservationRequest
 
 from .conversation_gateway.contracts import (
     AckCommand,
@@ -28,6 +29,10 @@ from .model_provider.admin import (
     DeleteProfileRequest,
     SetupModelRoutesRequest,
     VerifyModelRequest,
+)
+from .conversation_gateway.desktop_commands import (
+    DesktopDebugSessionOpenRequest, DesktopDebugSession, DesktopAdminPreviewRequest,
+    DesktopAdminExecuteRequest, DesktopAdminCommandSpec, DesktopAdminRegistry, DesktopAdminActionView,
 )
 from .model_provider.contracts import (
     ModelCapabilities,
@@ -189,6 +194,43 @@ class DesktopEventEnvelope(DesktopContractModel):
     payload: dict[str, Any]
 
 
+class DesktopDebugSubsystem(DesktopContractModel):
+    schema_version: Literal["DesktopDebugSubsystem.v1"] = "DesktopDebugSubsystem.v1"
+    subsystem_id: str
+    label: str
+    status: Literal["active", "degraded", "unavailable"]
+    summary: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class DesktopDebugBridge(DesktopContractModel):
+    schema_version: Literal["DesktopDebugBridge.v1"] = "DesktopDebugBridge.v1"
+    bridge_id: str
+    label: str
+    status: Literal["available", "partial", "pending"]
+    summary: str
+
+
+class DesktopDebugSnapshot(DesktopContractModel):
+    schema_version: Literal["DesktopDebugSnapshot.v1"] = "DesktopDebugSnapshot.v1"
+    collected_at_ms: int = Field(ge=0)
+    profile_id_hash: str = Field(min_length=8, max_length=64)
+    conversation_id: str
+    gateway: dict[str, Any]
+    timeline: dict[str, Any]
+    routes: dict[str, Any]
+    systems: list[DesktopDebugSubsystem]
+    memory: dict[str, Any]
+    async_work: dict[str, Any]
+    quality: dict[str, Any]
+    bridges: list[DesktopDebugBridge]
+
+    @field_validator("conversation_id")
+    @classmethod
+    def validate_conversation_id(cls, value: str) -> str:
+        return validate_identifier(value)
+
+
 class DesktopContractBundle(DesktopContractModel):
     """Schema-only root that keeps every Desktop boundary type in one graph."""
 
@@ -201,6 +243,18 @@ class DesktopContractBundle(DesktopContractModel):
     desktop_provider_rotate_prompt_request: DesktopProviderRotatePromptRequest
     desktop_provider_setup_outcome: DesktopProviderSetupOutcome
     desktop_event_envelope: DesktopEventEnvelope
+    desktop_debug_snapshot: DesktopDebugSnapshot
+    desktop_debug_frame_request: DesktopDebugFrameRequest
+    desktop_debug_frame_detail: DesktopDebugFrameDetail
+    desktop_frame_observation: DesktopFrameObservation
+    desktop_frame_observation_request: DesktopFrameObservationRequest
+    desktop_debug_session_open_request: DesktopDebugSessionOpenRequest
+    desktop_debug_session: DesktopDebugSession
+    desktop_admin_preview_request: DesktopAdminPreviewRequest
+    desktop_admin_execute_request: DesktopAdminExecuteRequest
+    desktop_admin_command_spec: DesktopAdminCommandSpec
+    desktop_admin_registry: DesktopAdminRegistry
+    desktop_admin_action_view: DesktopAdminActionView
     shell_error: ShellError
     gateway_bootstrap: GatewayBootstrap
     gateway_error: GatewayError

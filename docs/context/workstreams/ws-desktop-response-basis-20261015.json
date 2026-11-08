@@ -1,0 +1,26 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [],
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-15T12:53:16Z",
+      "summary": "Support F05 with separate encrypted references captured after actual generation sealing; no raw prompt or diagnostic-snapshot disclosure. Same chat coordinates Gateway and Memory UI claims."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_runtime/context.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "src/sora_sandbox/turn_observability.py"
+  ],
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-15T12:53:16Z",
+  "status": "active",
+  "summary": "Support F05 with separate encrypted references captured after actual generation sealing; no raw prompt or diagnostic-snapshot disclosure. Same chat coordinates Gateway and Memory UI claims.",
+  "title": "Allowlisted public response basis at generation seal",
+  "updated_at_utc": "2026-10-15T12:53:16Z",
+  "verification": [],
+  "workstream_id": "ws-desktop-response-basis-20261015"
+}

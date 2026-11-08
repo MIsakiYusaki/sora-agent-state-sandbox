@@ -539,18 +539,18 @@ class RelationshipSystem:
             name="relationship_forget_source",
         )
 
-    def set_learning_paused(self, *, user_id: str, paused: bool, source_ref: str = "manual_control") -> JsonDict:
+    def set_learning_paused(self, *, user_id: str, paused: bool, source_ref: str = "manual_control", expected_revision: str | None = None) -> JsonDict:
         pair = self._ensure_pair(user_id)
         return self.coordinator.submit(
-            lambda: self.store.set_control(pair["pair_id"], control_type="learning_paused", value=paused, source_ref=source_ref),
+            lambda: self.store.set_control(pair["pair_id"], control_type="learning_paused", value=paused, source_ref=source_ref, expected_revision=expected_revision),
             priority=0,
             name="relationship_learning_control",
         )
 
-    def set_surface_permission(self, *, user_id: str, permission: str, source_ref: str = "manual_control") -> JsonDict:
+    def set_surface_permission(self, *, user_id: str, permission: str, source_ref: str = "manual_control", expected_revision: str | None = None) -> JsonDict:
         pair = self._ensure_pair(user_id)
         return self.coordinator.submit(
-            lambda: self.store.set_control(pair["pair_id"], control_type="surface_permission", value=permission, source_ref=source_ref),
+            lambda: self.store.set_control(pair["pair_id"], control_type="surface_permission", value=permission, source_ref=source_ref, expected_revision=expected_revision),
             priority=0,
             name="relationship_surface_control",
         )

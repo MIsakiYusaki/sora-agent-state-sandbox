@@ -1,0 +1,43 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/conversation_gateway/registry.py"
+  ],
+  "completed_at_utc": "2026-11-08T14:39:54Z",
+  "decision_ids": [
+    "adr-20261108-1eea240a35"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T14:12:25Z",
+      "summary": "Reviewed same-chat broad Gateway ownership and B1 parent: existing index pages by creation time then sorts each page only, so an older active conversation can disappear below the first page. Use only scoped binding metadata plus encrypted-journal activity metadata to order before pagination; keep plaintext history out of registry and preserve existing offset body-search scan contract."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T14:39:54Z",
+      "summary": "Use scoped ownership metadata plus actual encrypted-journal activity to order before paging; registry still stores no message bodies."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T14:39:54Z",
+      "summary": "Use scoped ownership metadata plus actual encrypted-journal activity to order before paging; registry still stores no message bodies."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_gateway/registry.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T14:12:25Z",
+  "status": "completed",
+  "summary": "Use scoped ownership metadata plus actual encrypted-journal activity to order before paging; registry still stores no message bodies.",
+  "title": "Order all owned history by actual recent activity",
+  "updated_at_utc": "2026-11-08T14:39:54Z",
+  "verification": [
+    "New recency-before-page and105conversation/1000message regressions; fullPython692pass",
+    "Installed actual history paging/search/restart;VERIFICATION.md preserves mutable offset boundary"
+  ],
+  "workstream_id": "ws-history-recency-20261108"
+}

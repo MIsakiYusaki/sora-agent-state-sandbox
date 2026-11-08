@@ -1,0 +1,49 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src-tauri/Cargo.toml",
+    "apps/desktop/src-tauri/installer-hooks.nsh",
+    "apps/desktop/src-tauri/src/notifications.rs",
+    "apps/desktop/src-tauri/src/profile_store.rs",
+    "apps/desktop/src-tauri/tauri.conf.json",
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/views/NotificationSettings.tsx",
+    "apps/desktop/src/views/SpaceSettings.tsx",
+    "outputs/desktop-native-settings-20261028/VERIFICATION.md"
+  ],
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-28T11:59:31Z",
+      "summary": "Continue user-authorized all F01-F30 completion, starting real profile create/switch/location and privacy/native settings. Existing same-chat frontend/Host scope overlap reviewed. No user-data deletion during verification."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-29T10:55:32Z",
+      "summary": "F23 native isolated create/switch/restart observed; F24 preference/notification source bridge implemented but AUMID installation unverified. Current Host13 pass/1 environment diagnostic ignored; full frontend found outdated placeholder assertion, updating it to assert the real notification read failure state. User authorized all repairs; same-thread source scope retained active."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-29T11:02:49Z",
+      "summary": "F23 Host spaces/create/CAS/confirmed graceful switch/restart plus isolated debug-native sample; F24 WinRT/preferences/quiet source implemented, NSIS AUMID install and MSI registration incomplete. Current frontend107 and Host13/1diagnostic ignored pass. New full layouts/faults/package/install still pending; remain active."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src",
+    "apps/desktop/src-tauri",
+    "outputs/desktop-native-settings-20261028"
+  ],
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-28T11:59:31Z",
+  "status": "active",
+  "summary": "F23 Host spaces/create/CAS/confirmed graceful switch/restart plus isolated debug-native sample; F24 WinRT/preferences/quiet source implemented, NSIS AUMID install and MSI registration incomplete. Current frontend107 and Host13/1diagnostic ignored pass. New full layouts/faults/package/install still pending; remain active.",
+  "title": "Complete native profile and privacy settings",
+  "updated_at_utc": "2026-10-29T11:02:49Z",
+  "verification": [
+    "2026-10-29 cargo test --lib --offline: 13 passed, 1 ignored; no notifications sent.",
+    "outputs/client-status-sync-20261029/frontend.xml:107 passed; cargo13 passed/1ignored; outputs/native-settings-c7ab9195/switched-profile.jpg and catalog reviewed"
+  ],
+  "workstream_id": "ws-desktop-native-settings-20261028"
+}

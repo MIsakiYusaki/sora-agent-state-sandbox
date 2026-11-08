@@ -1,0 +1,50 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/memory_gate_pipeline.py",
+    "src/sora_sandbox/memory_runtime.py"
+  ],
+  "completed_at_utc": "2026-10-28T11:51:18Z",
+  "decision_ids": [
+    "adr-desktop-functional-truth-and-review-v1",
+    "adr-memory-quarantine-disposition-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-15T12:30:14Z",
+      "summary": "Add owner-locked review snapshot revision checking and idempotent explicit resolution, preserving Gate/commit/audit services; no daily review execution."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-10-28T11:41:03Z",
+      "summary": "Continue F16 with owner-transactional quarantine dismissal, reject quarantined candidate and preserve audited disposition; no raw sensitive disclosure or release/commit bypass. Same-task scope overlap reviewed."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-28T11:51:18Z",
+      "summary": "Owner review snapshots and serialized revision checks delivered with explicit limits; Oct28 quarantine reject-and-dismiss adds atomic REJECT audit plus candidate/quarantine update, rollback and idempotency. Protected release and review-approval crash consistency remain open under F15."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-28T11:51:18Z",
+      "summary": "Owner review snapshots and serialized revision checks delivered with explicit limits; Oct28 quarantine reject-and-dismiss adds atomic REJECT audit plus candidate/quarantine update, rollback and idempotency. Protected release and review-approval crash consistency remain open under F15."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/memory_gate_pipeline.py",
+    "src/sora_sandbox/memory_runtime.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-15T12:30:14Z",
+  "status": "completed",
+  "summary": "Owner review snapshots and serialized revision checks delivered with explicit limits; Oct28 quarantine reject-and-dismiss adds atomic REJECT audit plus candidate/quarantine update, rollback and idempotency. Protected release and review-approval crash consistency remain open under F15.",
+  "title": "Owner-side revision checked Memory review resolution",
+  "updated_at_utc": "2026-10-28T11:51:18Z",
+  "verification": [
+    "Full Python585; final isolated functional27 pass, including quarantine rollback/idempotency/permission. No daily records processed. See Oct28 VERIFICATION.md."
+  ],
+  "workstream_id": "ws-memory-review-cas-20261015"
+}

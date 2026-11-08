@@ -125,6 +125,7 @@ class MemoryLifecycleService:
         limit: int = 200,
         actor: str = "lifecycle_worker",
         create_consolidation_candidates: bool | None = None,
+        least_recently_scored: bool = False,
     ) -> JsonDict:
         if mode not in RUN_MODES:
             raise ValueError(f"invalid lifecycle mode: {mode}")
@@ -156,7 +157,7 @@ class MemoryLifecycleService:
             self._conn.commit()
 
         try:
-            memories = self._active_memories(limit=limit)
+            memories = self._active_memories(limit=limit, least_recently_scored=least_recently_scored)
             snapshots = [self.score_memory(memory["id"], now=now_dt.isoformat()) for memory in memories]
             migrated_count = 0
             archived_count = 0
@@ -1086,7 +1087,11 @@ class MemoryLifecycleService:
             allow_auto_commit=False,
         )
 
-    def _active_memories(self, *, limit: int) -> list[JsonDict]:
+    def _active_memories(self, *, limit: int, least_recently_scored: bool = False) -> list[JsonDict]:
+        if least_recently_scored:
+            # A bounded periodic batch must eventually reach older memories,
+            # rather than rescoring the newest N on every tick.
+            return self._list_memories(status="active", least_recently_scored=True, limit=limit)
         return self._list_memories(status="active")[: max(limit, 0)]
 
     @staticmethod

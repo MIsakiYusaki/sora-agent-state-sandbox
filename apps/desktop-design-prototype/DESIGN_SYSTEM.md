@@ -87,3 +87,67 @@ Cards are reserved for repeated items, modals, and framed tools. Page sections u
 - Keep touch targets usable in compact mode
 - Prevent horizontal page scrolling and text clipping
 - Normal text contrast must meet WCAG AA
+
+## Production Evolution Rules
+
+The prototype is an executable product specification, not a frozen screenshot. It may be
+refined when current runtime capabilities, privacy boundaries, or production usability expose
+an incorrect interaction. Refinements must preserve Quiet Companion Desk, the four permanent
+navigation entries, and the normal-user versus Developer Mode boundary.
+
+Production pages use three evidence states:
+
+- **Available now**: the production client is connected to a real typed Host or Gateway contract.
+- **System active, detail bridge pending**: the canonical subsystem is instantiated and healthy,
+  but per-turn Snapshot or Event detail is not yet projected to the desktop.
+- **Unavailable**: the canonical capability itself is absent, disabled, or unhealthy.
+
+Do not collapse the second and third states into one label such as “未接入”. Do not use static
+success data to make a pending bridge appear complete.
+
+## Conversation Surface
+
+- User messages use an ink-on-mist surface. They never use white text on a pale surface.
+- Sora messages read as part of the conversation canvas, aligned with the avatar. They do not
+  need a card border unless a message has a distinct warning or recovery state.
+- The composer contains the current response style and follow-up summary on its lower edge.
+  The summary opens “这次想怎么聊” and reflects the real conversation control contract.
+- Streaming, pending, failed, stopped, offline, Provider-missing, and repair-required remain
+  visually distinct without moving the composer.
+
+## History Surface
+
+History is a reading and return workspace, not an analytics page.
+
+- Use a compact functional header, search, a conversation list, and a readable preview.
+- Do not show conversation versions, schema identifiers, message-type tags, decorative metrics,
+  or disabled filters in the normal interface.
+- Branch controls appear only when a real branch contract exists. Until then, the page restores
+  canonical conversations without explaining missing APIs to the user.
+
+## Memory And Privacy Surface
+
+Memory and Privacy is a data-rights workspace, not a memory scoring dashboard.
+
+- Rows may show a user-facing memory kind and whether the memory is currently hidden.
+- Detail explains the saved gist, the user-visible evidence basis, whether it may affect replies,
+  and the available hide, restore, correct, export, or forget actions.
+- Confidence percentages, sensitivity bands, lifecycle tiers, Gate state, internal evidence IDs,
+  and retrieval scores never appear in the normal interface.
+- Counts are supporting context only. Do not lead with a four-metric dashboard.
+
+## Developer Mode Surface
+
+Developer Mode is a runtime inspector attached to the same profile, conversation, and event
+stream as the production conversation.
+
+- Its landing state first answers which systems are running, which evidence is already visible,
+  and which desktop bridges are still pending.
+- Turn Timeline can use real Gateway events already delivered to the client. It must not invent a
+  latency waterfall when detailed spans are unavailable.
+- Provider Routes, Memory health, async backlog, subsystem health, and Module 10 evidence come
+  from a capability-gated, redacted snapshot.
+- Per-turn typed Frames and controlled commands remain explicitly marked as bridge work until
+  their Snapshot/Event/Command contracts are available.
+- API keys, capability tokens, raw prompts, chain-of-thought, filesystem paths, and unrestricted
+  Shell, SQL, Python, or eval access remain forbidden in every state.

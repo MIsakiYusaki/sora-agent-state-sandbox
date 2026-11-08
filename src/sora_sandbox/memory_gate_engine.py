@@ -12,7 +12,7 @@ from .memory_gate_schema import (
 from .memory_schema import JsonDict
 
 
-AUTO_COMMIT_EXCLUDED_TYPES = {"relationship_signal", "shared_episode", "persona_delta"}
+AUTO_COMMIT_EXCLUDED_TYPES = {"relationship_signal", "shared_episode", "worldops_episode", "persona_delta"}
 HIGH_RISK_SENSITIVITY = {"high", "forbidden"}
 REVIEW_SENSITIVITY = {"medium", "sensitive"}
 

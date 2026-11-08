@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .memory_schema import FusedMemoryHit, JsonDict, RecallPlan
+from .turn_observability import observe_http
 
 
 class MemoryReranker(Protocol):
@@ -129,7 +130,7 @@ class HTTPCrossEncoderReranker:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with observe_http("provider.http.compat_rerank"), urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 body = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:  # pragma: no cover - network/provider path.
             detail = exc.read().decode("utf-8", errors="replace")
@@ -231,7 +232,7 @@ class OpenAICompatibleLLMReranker:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with observe_http("provider.http.compat_llm_rerank"), urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 body = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:  # pragma: no cover - network/provider path.
             detail = exc.read().decode("utf-8", errors="replace")

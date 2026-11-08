@@ -1,0 +1,52 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/memory_context_packer.py",
+    "src/sora_sandbox/memory_lifecycle_scheduler.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/memory_system.py",
+    "tests/test_memory_effectiveness.py"
+  ],
+  "completed_at_utc": "2026-11-08T10:26:27Z",
+  "decision_ids": [
+    "adr-20261108-fbc38b01b2"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T09:39:38Z",
+      "summary": "User order B3 then B4 then B2. Narrative 53 backend tests passed; implement A03 merge with checked rollback, A04 same-estimator actual budget bound, then managed deterministic lifecycle scheduling using canonical owner. Preserve earlier transaction and forget fixes. No external model requests or daily data writes."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "A03 semantic merge and A04 actual-text heuristic bound plus managed lifecycle owner implemented and installed r9 verified. Full semantic consolidation remains separate."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "A03 semantic merge and A04 actual-text heuristic bound plus managed lifecycle owner implemented and installed r9 verified. Full semantic consolidation remains separate."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/memory-effectiveness-20261108",
+    "src/sora_sandbox/memory_context_packer.py",
+    "src/sora_sandbox/memory_lifecycle_scheduler.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/memory_system.py",
+    "tests/test_memory_effectiveness.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T09:39:38Z",
+  "status": "completed",
+  "summary": "A03 semantic merge and A04 actual-text heuristic bound plus managed lifecycle owner implemented and installed r9 verified. Full semantic consolidation remains separate.",
+  "title": "Governed semantic merge and honest context budgets",
+  "updated_at_utc": "2026-11-08T10:26:27Z",
+  "verification": [
+    "18 memory/maintenance focused tests; final full Python684 passed129.25s",
+    "Real frozen build and installed Gateway merge/periodic expiry/pause/restart; outputs/memory-effectiveness-20261108/VERIFICATION.md"
+  ],
+  "workstream_id": "ws-memory-effectiveness-20261108"
+}

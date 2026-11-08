@@ -1,0 +1,45 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "packaging/sora_gateway.spec",
+    "scripts/verify_desktop_release.ps1",
+    "scripts/verify_packaged_gateway.py"
+  ],
+  "completed_at_utc": "2026-11-06T16:05:43Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T15:39:52Z",
+      "summary": "Installed candidate exits during SSLContext construction because Codex Python ssl.py requires a sibling policy PEM omitted by freezing. Preserve runtime certificate policy by including required resource. Add isolated no-model bootstrap/health/auth/shutdown verification to release entry."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-06T16:05:43Z",
+      "summary": "Frozen SSL sibling policy resource is bundled. Release verifier now executes isolated packaged startup/health/auth/debug/shutdown without provider calls. Known original fails gate; r2 packaged and installed binaries pass, installed WebView startup/native saves/cancel/space switch observed. Preserve separate notification and erasure gaps."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-06T16:05:43Z",
+      "summary": "Frozen SSL sibling policy resource is bundled. Release verifier now executes isolated packaged startup/health/auth/debug/shutdown without provider calls. Known original fails gate; r2 packaged and installed binaries pass, installed WebView startup/native saves/cancel/space switch observed. Preserve separate notification and erasure gaps."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "packaging/sora_gateway.spec",
+    "scripts/verify_desktop_release.ps1",
+    "scripts/verify_packaged_gateway.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T15:39:52Z",
+  "status": "completed",
+  "summary": "Frozen SSL sibling policy resource is bundled. Release verifier now executes isolated packaged startup/health/auth/debug/shutdown without provider calls. Known original fails gate; r2 packaged and installed binaries pass, installed WebView startup/native saves/cancel/space switch observed. Preserve separate notification and erasure gaps.",
+  "title": "Package required frozen SSL runtime data and gate sidecar startup",
+  "updated_at_utc": "2026-11-06T16:05:43Z",
+  "verification": [
+    "Original packaged regression reproduced in outputs/desktop-install-20261106/sidecar-before-fix.json; r2 sidecar-after-fix.json and installed-sidecar-r2.json passed 200/401/200/202/exit0",
+    "verify_desktop_release.ps1 passed; py_compile and git diff --check passed; installed Host matches exact NSIS bundle patch"
+  ],
+  "workstream_id": "ws-desktop-frozen-runtime-resource-20261106"
+}

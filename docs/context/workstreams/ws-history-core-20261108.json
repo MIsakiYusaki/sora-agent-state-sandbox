@@ -1,0 +1,69 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/App.tsx",
+    "apps/desktop/src/HistoryIntegration.test.tsx",
+    "apps/desktop/src/components/HistoryScrollViewport.tsx",
+    "apps/desktop/src/components/MessageList.tsx",
+    "apps/desktop/src/conversation/state.test.ts",
+    "apps/desktop/src/conversation/state.ts",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/HistoryView.test.tsx",
+    "apps/desktop/src/views/HistoryView.tsx",
+    "src/sora_sandbox/conversation_gateway/runtime_port.py",
+    "src/sora_sandbox/conversation_gateway/service.py",
+    "src/sora_sandbox/conversation_runtime/journal.py",
+    "tests/test_history_core.py"
+  ],
+  "completed_at_utc": "2026-11-08T14:39:53Z",
+  "decision_ids": [
+    "adr-20261108-1eea240a35"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T14:01:53Z",
+      "summary": "User continue after main-feature remaining-priority request: execute current B1. Reviewed same-chat stale broad desktop/Gateway overlap; preserve prior dirty changes. Reuse real body-search and pagination contracts; fix preview/prepend scroll, duplicate/ABA request races, independent history-read errors, retry states and exact end cursor. Optimize unfiltered summaries without plaintext history indexes. Validate scoped multpage encrypted history, UI races and installed candidate; no daily data or external model requests."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T14:39:53Z",
+      "summary": "B1 history core implemented and delivered in installed unsigned r10; encrypted body-search continuation, exact message ends, preview/conversation anchors, independent errors and scoped ABA/cursor guards. No new external provider continuation round."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T14:39:53Z",
+      "summary": "B1 history core implemented and delivered in installed unsigned r10; encrypted body-search continuation, exact message ends, preview/conversation anchors, independent errors and scoped ABA/cursor guards. No new external provider continuation round."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/App.tsx",
+    "apps/desktop/src/HistoryIntegration.test.tsx",
+    "apps/desktop/src/components/HistoryScrollViewport.tsx",
+    "apps/desktop/src/components/MessageList.tsx",
+    "apps/desktop/src/conversation/state.test.ts",
+    "apps/desktop/src/conversation/state.ts",
+    "apps/desktop/src/prototype.css",
+    "apps/desktop/src/views/HistoryView.test.tsx",
+    "apps/desktop/src/views/HistoryView.tsx",
+    "outputs/history-core-20261108",
+    "src/sora_sandbox/conversation_gateway/runtime_port.py",
+    "src/sora_sandbox/conversation_gateway/service.py",
+    "src/sora_sandbox/conversation_runtime/journal.py",
+    "tests/test_history_core.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T14:01:53Z",
+  "status": "completed",
+  "summary": "B1 history core implemented and delivered in installed unsigned r10; encrypted body-search continuation, exact message ends, preview/conversation anchors, independent errors and scoped ABA/cursor guards. No new external provider continuation round.",
+  "title": "Complete history pagination and reading continuity",
+  "updated_at_utc": "2026-11-08T14:39:53Z",
+  "verification": [
+    "Python692 in134.08s,frontend154;8new backend and7new frontend cases;history/Gateway regression64",
+    "7 actual browser visual/scroll fixtures pass with anchor error<=0.375px; real build/installed Gateway105conversations400encryptedmessages8pages+restart",
+    "Actual installed UI full-body search, preview,continue original conversation,and prepend retained reading place; evidence outputs/history-core-20261108/VERIFICATION.md"
+  ],
+  "workstream_id": "ws-history-core-20261108"
+}

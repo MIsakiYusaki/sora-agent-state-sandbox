@@ -1,0 +1,59 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "src/sora_sandbox/memory_extractor_worker.py",
+    "src/sora_sandbox/memory_job_observability.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/memory_store.py",
+    "tests/test_memory_job_observability.py"
+  ],
+  "completed_at_utc": "2026-09-14T11:20:57Z",
+  "decision_ids": [
+    "adr-memory-job-observation-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-13T14:08:29Z",
+      "summary": "Add scoped low-sensitivity durable extraction attempts and live job diagnostics; preserve existing Memory P0 changes and governance. Frontend integration remains in existing turn-observability workstream."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-09-14T11:20:57Z",
+      "summary": "Memory job bridge implemented and verified in real two-turn sample, durable scoped attempts, failure-safe L0 observations and production DeveloperView. Other workers remain separate."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-14T11:20:57Z",
+      "summary": "Completed scoped Memory extraction job/attempt monitoring. Both real jobs completed on first attempt; no claim about old pending root cause or installed-app E2E."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-14T11:20:57Z",
+      "summary": "Completed scoped Memory extraction job/attempt monitoring. Both real jobs completed on first attempt; no claim about old pending root cause or installed-app E2E."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/conversation_gateway/debug_snapshot.py",
+    "src/sora_sandbox/memory_extractor_worker.py",
+    "src/sora_sandbox/memory_job_observability.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/memory_store.py",
+    "tests/test_memory_job_observability.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-13T14:08:29Z",
+  "status": "completed",
+  "summary": "Completed scoped Memory extraction job/attempt monitoring. Both real jobs completed on first attempt; no claim about old pending root cause or installed-app E2E.",
+  "title": "Real per-turn memory extraction jobs and attempt monitoring",
+  "updated_at_utc": "2026-09-14T11:20:57Z",
+  "verification": [
+    "478 Python tests passed; 8 focused observer tests incl durable read, unfinished history, retention, privacy, fail-open and retry",
+    "live-evidence-1789383857459659700.json: two committed turns, two completed Memory jobs, attempt 1, no errors",
+    "Packaged sidecar debug/auth/shutdown smoke passed"
+  ],
+  "workstream_id": "ws-memory-job-observation-v1"
+}

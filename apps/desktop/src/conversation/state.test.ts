@@ -57,6 +57,78 @@ function history(): HistoryPage {
 }
 
 describe("conversationReducer", () => {
+  function respondingState(draft = ""): ConversationState {
+    return {
+      ...initialConversationState,
+      draft,
+      conversationVersion: 7,
+      activeTurn: { turnId: "turn_1", requestId: "request_1", stage: "turn.preparing", lastSequence: 2 },
+      messages: [{ ...userMessage, turnId: "turn_1", delivery: "committed" }],
+    };
+  }
+
+  it("surfaces a failed buffered response even when no assistant delta exists", () => {
+    const failed = conversationReducer(respondingState(), {
+      type: "gateway.event", event: event(3, "turn.failed", { error_code: "IncompleteModelResponse" }),
+    });
+    expect(failed.error?.message).toContain("回复没有完整生成");
+    expect(failed.error?.correlation_id).toBe("0123456789abcdef0123456789abcdef");
+    expect(failed.messages).toHaveLength(1);
+    expect(failed.messages[0].delivery).toBe("failed");
+    expect(failed.draft).toBe(userMessage.content);
+    expect(failed.activeTurn).toBeNull();
+    expect(failed.conversationVersion).toBe(7);
+  });
+
+  it("keeps newer draft edits and never renders raw runtime failure text", () => {
+    const failed = conversationReducer(respondingState("新草稿"), {
+      type: "gateway.event", event: event(3, "turn.failed", { error_code: "private-provider-detail", message: "secret" }),
+    });
+    expect(failed.draft).toBe("新草稿");
+    expect(failed.error?.message).toContain("这次回复未完成");
+    expect(JSON.stringify(failed.error)).not.toMatch(/private-provider-detail|secret/);
+  });
+
+  it("does not let a different turn failure interrupt the active turn", () => {
+    const state = respondingState();
+    const failed = conversationReducer(state, {
+      type: "gateway.event", event: { ...event(3, "turn.failed", {}), turn_id: "another_turn" },
+    });
+    expect(failed).toBe(state);
+  });
+
+  it("does not re-open a dismissed error on a duplicate terminal event", () => {
+    const failure = event(3, "turn.failed", {});
+    const failed = conversationReducer(respondingState(), { type: "gateway.event", event: failure });
+    const dismissed = conversationReducer(failed, { type: "error.dismissed" });
+    expect(conversationReducer(dismissed, { type: "gateway.event", event: failure })).toBe(dismissed);
+  });
+
+  it("marks an interrupted streamed turn failed and restores only its own draft", () => {
+    const error = {
+      schema_version: "ShellError.v1" as const,
+      code: "GATEWAY_UNAVAILABLE" as const,
+      message: "Project Sora Gateway is unavailable",
+      retryable: true,
+      retry_after_ms: null,
+      correlation_id: null,
+      action: "restart_gateway" as const,
+      safe_details: {},
+    };
+    const failed = conversationReducer(respondingState(), {
+      type: "turn.failed", turnId: "turn_1", error,
+    });
+    expect(failed.messages[0].delivery).toBe("failed");
+    expect(failed.draft).toBe(userMessage.content);
+    expect(failed.activeTurn).toBeNull();
+    expect(conversationReducer(respondingState("新草稿"), {
+      type: "turn.failed", turnId: "turn_1", error,
+    }).draft).toBe("新草稿");
+    expect(conversationReducer(respondingState(), {
+      type: "turn.failed", turnId: "older_turn", error,
+    })).toEqual(respondingState());
+  });
+
   it("preserves a draft across startup failure and retry", () => {
     const failed = conversationReducer(initialConversationState, {
       type: "boot.failed",
@@ -182,4 +254,24 @@ describe("conversationReducer", () => {
     expect(state.messages[0]).toMatchObject({ content: "先休息", delivery: "cancelled" });
     expect(state.activeTurn).toBeNull();
   });
+
+  it("shows a stopped user message when cancellation precedes all assistant output", () => {
+    const state = respondingState("下一条草稿");
+    const cancelled = conversationReducer(state, { type: "gateway.event", event: event(3, "turn.cancelled", {}) });
+    expect(cancelled.messages).toHaveLength(1);
+    expect(cancelled.messages[0].delivery).toBe("cancelled");
+    expect(cancelled.draft).toBe("下一条草稿");
+    expect(cancelled.activeTurn).toBeNull();
+    expect(cancelled.conversationVersion).toBe(7);
+    expect(cancelled.error).toBeNull();
+    expect(conversationReducer(cancelled, { type: "gateway.event", event: event(3, "turn.cancelled", {}) })).toBe(cancelled);
+    expect(conversationReducer(state, { type: "gateway.event", event: { ...event(3, "turn.cancelled", {}), turn_id: "other" } })).toBe(state);
+  });
+});
+
+
+it("ignores a stale bootstrap page belonging to a previously selected conversation", () => {
+  const state = {...initialConversationState,conversationId:"conversation_beta"};
+  const result = conversationReducer(state,{type:"boot.ready",status:status(),history:{conversation_id:"conversation_alpha",conversation_version:1,items:[],next_before_sequence:null}});
+  expect(result).toBe(state);
 });

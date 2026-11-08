@@ -816,6 +816,8 @@ class MemoryQualityOpsService:
             blockers.append("slo_failed")
         if baseline_diff["status"] == "failed":
             blockers.append("baseline_regression")
+        elif baseline_diff["status"] != "passed":
+            blockers.append("baseline_missing" if baseline_diff.get("reason") == "no_active_baseline" else "baseline_unverified")
         status = "blocked" if blockers else "passed"
         result = {
             "status": status,
@@ -859,6 +861,7 @@ class MemoryQualityOpsService:
         role: str = "admin",
         reason: str = "manual_admin_action",
         ttl_seconds: int = 600,
+        idempotency_key: str | None = None,
     ) -> JsonDict:
         spec = self._require_action(action_name)
         if not self._role_allows(role, spec.risk_level):
@@ -873,6 +876,11 @@ class MemoryQualityOpsService:
             )
             raise ValueError(f"role {role} cannot preview {spec.risk_level} action {action_name}")
         params = params or {}
+        if idempotency_key is not None:
+            existing = self._preview_for_request(actor, idempotency_key)
+            if existing is not None:
+                self._check_preview_replay(existing, action_name, params, role)
+                return existing
         preview = spec.preview(params)
         rollback = spec.rollback_plan(params) if spec.rollback_plan else {}
         action_id = new_id("qadmin")
@@ -882,15 +890,15 @@ class MemoryQualityOpsService:
         expires_at = _iso_after(ttl_seconds)
         dry_run = self.global_dry_run_enabled()
         with self._lock:
-            self._conn.execute(
+            inserted = self._conn.execute(
                 """
-                INSERT INTO memory_admin_action (
+                INSERT OR IGNORE INTO memory_admin_action (
                     id, action_name, risk_level, actor, role, reason,
                     params_hash, params_json, preview_json, impact_summary_json,
                     rollback_plan_json, approval_status, confirmation_token_hash,
                     token_expires_at, execution_status, result_json,
-                    audit_event_id, dry_run, created_at, executed_at, expires_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', NULL, ?, ?, NULL, ?)
+                    audit_event_id, dry_run, created_at, executed_at, expires_at, idempotency_key
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', NULL, ?, ?, NULL, ?, ?)
                 """,
                 (
                     action_id,
@@ -911,13 +919,37 @@ class MemoryQualityOpsService:
                     int(dry_run),
                     created_at,
                     expires_at,
+                    idempotency_key,
                 ),
             )
             self._conn.commit()
+            if inserted.rowcount != 1:
+                existing = self._preview_for_request(actor, idempotency_key) if idempotency_key else None
+                if existing is None:
+                    raise RuntimeError("admin preview could not be persisted")
+                self._check_preview_replay(existing, action_name, params, role)
+                return existing
         result = self.get_admin_action(action_id)
         if requires_approval:
             result["confirmation_token"] = token
         return result
+
+    def _preview_for_request(self, actor: str, key: str) -> JsonDict | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM memory_admin_action WHERE actor=? AND idempotency_key=?",
+                (actor, key),
+            ).fetchone()
+        return self._admin_action_from_row(row) if row else None
+
+    @staticmethod
+    def _check_preview_replay(action: JsonDict, name: str, params: JsonDict, role: str) -> None:
+        if action["action_name"] != name or action["params_hash"] != _hash_json(params) or action["role"] != role:
+            raise ValueError("admin preview request key was reused with different input")
+
+    @staticmethod
+    def preview_revision(action: JsonDict) -> str:
+        return _hash_json({"params_hash": action["params_hash"], "preview": action["preview"]})
 
     def execute_admin_action(
         self,
@@ -925,19 +957,27 @@ class MemoryQualityOpsService:
         *,
         confirmation_token: str | None = None,
         actor: str = "local_user",
+        expected_actor: str | None = None,
+        expected_preview_hash: str | None = None,
+        audit_scope: JsonDict | None = None,
     ) -> JsonDict:
         action = self._get_admin_action_private(action_id)
         spec = self._require_action(action["action_name"])
+        if expected_actor is not None and action["actor"] != expected_actor:
+            raise ValueError("admin preview belongs to another actor")
+        if action["risk_level"] != spec.risk_level or not self._role_allows(action["role"], spec.risk_level):
+            raise ValueError("admin action risk or permission changed; preview again")
         if action["execution_status"] != "previewed":
             return self.get_admin_action(action_id)
         if action.get("expires_at") and _is_expired(action["expires_at"]):
-            self._mark_admin_action(action_id, "expired", {"error": "preview_expired"})
+            self._mark_admin_action(action_id, "expired", {"error": "preview_expired"}, expected_status="previewed")
             return self.get_admin_action(action_id)
         if self.global_dry_run_enabled() and spec.risk_level in {"medium", "high", "break_glass"}:
             self._mark_admin_action(
                 action_id,
                 "dry_run_blocked",
                 {"status": "dry_run", "reason": "global_dry_run_enabled"},
+                expected_status="previewed",
             )
             return self.get_admin_action(action_id)
         if action["approval_status"] == "required":
@@ -946,26 +986,55 @@ class MemoryQualityOpsService:
             if _hash_text(confirmation_token) != action.get("confirmation_token_hash"):
                 raise ValueError("confirmation_token does not match")
             if _is_expired(action.get("token_expires_at")):
-                self._mark_admin_action(action_id, "expired", {"error": "confirmation_expired"})
+                self._mark_admin_action(action_id, "expired", {"error": "confirmation_expired"}, expected_status="previewed")
                 return self.get_admin_action(action_id)
         current_params_hash = _hash_json(action["params"])
         if current_params_hash != action["params_hash"]:
             raise ValueError("admin action params hash changed after preview")
-        result = spec.execute(action["params"])
+        if expected_preview_hash is not None:
+            if expected_preview_hash != self.preview_revision(action):
+                raise ValueError("admin preview revision does not match")
+            current_preview = {**action, "preview": spec.preview(action["params"])}
+            if self.preview_revision(current_preview) != expected_preview_hash:
+                raise ValueError("admin action impact changed; preview again")
+        # Claim durably before crossing into a domain handler. A duplicate or a
+        # restarted process must never repeat an action with uncertain effects.
+        with self._lock:
+            cursor = self._conn.execute(
+                """UPDATE memory_admin_action SET execution_status='executing'
+                   WHERE id=? AND execution_status='previewed' AND params_hash=?
+                     AND params_json=? AND actor=? AND risk_level=?""",
+                (action_id, action["params_hash"], json_dumps(action["params"]),
+                 action["actor"], action["risk_level"]),
+            )
+            self._conn.commit()
+            claimed = cursor.rowcount == 1
+        if not claimed:
+            return self.get_admin_action(action_id)
+        status = "executed"
+        try:
+            result = spec.execute(action["params"])
+        except Exception:
+            # A handler may have committed an effect before failing. Do not
+            # expose exception text or silently make this preview retryable.
+            status = "execution_unknown"
+            result = {"status": "execution_unknown", "error": "handler_failed"}
         audit = self.record_quality_event(
             event_type="admin_action",
-            severity="warning" if spec.risk_level in {"high", "break_glass"} else "info",
-            status="resolved",
+            severity="warning" if status != "executed" or spec.risk_level in {"high", "break_glass"} else "info",
+            status="open" if status == "execution_unknown" else "resolved",
             source_type="admin_action",
             source_id=action_id,
-            message=f"Admin action executed: {action['action_name']}",
-            payload={"actor": actor, "result": result, "risk_level": spec.risk_level},
+            message=f"Admin action {status}: {action['action_name']}",
+            payload={"actor": actor, "scope": audit_scope or {"role": action["role"]},
+                     "preview_hash": self.preview_revision(action), "result": result,
+                     "risk_level": spec.risk_level, "rollback_status": "not_requested"},
         )
         with self._lock:
             self._conn.execute(
                 """
                 UPDATE memory_admin_action
-                SET execution_status = 'executed',
+                SET execution_status = ?,
                     approval_status = CASE
                         WHEN approval_status = 'required' THEN 'approved'
                         ELSE approval_status
@@ -973,9 +1042,9 @@ class MemoryQualityOpsService:
                     result_json = ?,
                     audit_event_id = ?,
                     executed_at = ?
-                WHERE id = ?
+                WHERE id = ? AND execution_status = 'executing'
                 """,
-                (json_dumps(result), audit["id"], utc_now(), action_id),
+                (status, json_dumps(result), audit["id"], utc_now(), action_id),
             )
             self._conn.commit()
         return self.get_admin_action(action_id)
@@ -985,7 +1054,21 @@ class MemoryQualityOpsService:
         *,
         limit: int = 20,
         execution_status: str | None = None,
+        actor: str | None = None,
+        since: str | None = None,
+        reason: str | None = None,
     ) -> list[JsonDict]:
+        if actor is not None or since is not None or reason is not None:
+            with self._lock:
+                rows = self._conn.execute(
+                    """SELECT * FROM memory_admin_action
+                       WHERE (? IS NULL OR actor=?) AND (? IS NULL OR created_at>=?)
+                         AND (? IS NULL OR execution_status=?)
+                         AND (? IS NULL OR reason=?)
+                       ORDER BY created_at DESC, id DESC LIMIT ?""",
+                    (actor, actor, since, since, execution_status, execution_status, reason, reason, limit),
+                ).fetchall()
+            return [self._admin_action_from_row(row) for row in rows]
         with self._lock:
             if execution_status:
                 rows = self._conn.execute(
@@ -1058,6 +1141,7 @@ class MemoryQualityOpsService:
         source_id: str | None = None,
         correlation_id: str | None = None,
         payload: JsonDict | None = None,
+        _commit: bool = True,
     ) -> JsonDict:
         event_id = new_id("qevent")
         created_at = utc_now()
@@ -1083,7 +1167,8 @@ class MemoryQualityOpsService:
                     created_at if status == "resolved" else None,
                 ),
             )
-            self._conn.commit()
+            if _commit:
+                self._conn.commit()
         return {
             "id": event_id,
             "event_type": event_type,
@@ -1124,6 +1209,46 @@ class MemoryQualityOpsService:
                 (*params, limit),
             ).fetchall()
         return [self._event_from_row(row) for row in rows]
+
+    def get_quality_event(self, event_id: str) -> JsonDict:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM memory_quality_event WHERE id = ?", (event_id,)).fetchone()
+            if row is None:
+                raise ValueError("quality event not found")
+            return self._event_from_row(row)
+
+    @staticmethod
+    def quality_event_revision(event: JsonDict) -> str:
+        return hashlib.sha256(json_dumps(event).encode()).hexdigest()
+
+    def resolve_quality_event(self, event_id: str, *, expected_revision: str, resolution: str, actor: str) -> JsonDict:
+        if resolution not in {"investigated", "superseded", "false_positive"} or not actor:
+            raise ValueError("invalid quality resolution")
+        with self._lock:
+            if self._conn.in_transaction:
+                raise ValueError("quality store transaction is busy")
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                event = self.get_quality_event(event_id)
+                if event["status"] != "open":
+                    audits = self._conn.execute("SELECT * FROM memory_quality_event WHERE event_type='quality_event_resolution' AND source_type='quality_event' AND source_id=? ORDER BY created_at DESC", (event_id,)).fetchall()
+                    for row in audits:
+                        payload = self._event_from_row(row)["payload"]
+                        if payload == {"expected_revision": expected_revision, "resolution": resolution, "actor": actor}:
+                            self._conn.commit()
+                            return {"status": "already_resolved", "event_id": event_id, "audit_event_id": row["id"]}
+                    raise ValueError("quality event is already closed")
+                if self.quality_event_revision(event) != expected_revision:
+                    raise ValueError("quality event revision changed")
+                self._conn.execute("UPDATE memory_quality_event SET status='resolved', resolved_at=? WHERE id=? AND status='open'", (utc_now(), event_id))
+                audit = self.record_quality_event(event_type="quality_event_resolution", severity="info", status="resolved",
+                    message="Quality event resolved after explicit desktop investigation", source_type="quality_event", source_id=event_id,
+                    payload={"expected_revision": expected_revision, "resolution": resolution, "actor": actor}, _commit=False)
+                self._conn.commit()
+                return {"status": "resolved", "event_id": event_id, "audit_event_id": audit["id"]}
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     def cleanup_metrics(self, *, older_than_days: int = 30) -> JsonDict:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat()
@@ -1646,15 +1771,17 @@ class MemoryQualityOpsService:
         }
         return risk_level in matrix.get(normalized, set())
 
-    def _mark_admin_action(self, action_id: str, status: str, result: JsonDict) -> None:
+    def _mark_admin_action(
+        self, action_id: str, status: str, result: JsonDict, *, expected_status: str | None = None,
+    ) -> None:
         with self._lock:
             self._conn.execute(
                 """
                 UPDATE memory_admin_action
                 SET execution_status = ?, result_json = ?, executed_at = ?
-                WHERE id = ?
+                WHERE id = ? AND (? IS NULL OR execution_status = ?)
                 """,
-                (status, json_dumps(result), utc_now(), action_id),
+                (status, json_dumps(result), utc_now(), action_id, expected_status, expected_status),
             )
             self._conn.commit()
 
@@ -1756,6 +1883,7 @@ class MemoryQualityOpsService:
             "created_at": row["created_at"],
             "executed_at": row["executed_at"],
             "expires_at": row["expires_at"],
+            "idempotency_key": row["idempotency_key"],
         }
 
     @staticmethod

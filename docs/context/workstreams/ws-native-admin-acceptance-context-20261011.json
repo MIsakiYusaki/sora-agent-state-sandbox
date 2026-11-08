@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/catalog/open-items.json"
+  ],
+  "completed_at_utc": "2026-10-11T03:44:21Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-11T03:37:14Z",
+      "summary": "Record actual restored Windows UI command execution and a new authorized synthetic real-provider turn, without broadening bounded evidence into production release."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-11T03:44:21Z",
+      "summary": "Current dataflow and open-items record bounded native command, real DeepSeek/Memory timeline and restart evidence without claiming full release."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-11T03:44:21Z",
+      "summary": "Current dataflow and open-items record bounded native command, real DeepSeek/Memory timeline and restart evidence without claiming full release."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/catalog/open-items.json"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-11T03:37:14Z",
+  "status": "completed",
+  "summary": "Current dataflow and open-items record bounded native command, real DeepSeek/Memory timeline and restart evidence without claiming full release.",
+  "title": "Installed native command and conversation acceptance evidence",
+  "updated_at_utc": "2026-10-11T03:44:21Z",
+  "verification": [
+    "Native UI observations and installed-native-assertions.json passed; source/context revision17 and remaining gates distinguished."
+  ],
+  "workstream_id": "ws-native-admin-acceptance-context-20261011"
+}

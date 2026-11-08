@@ -1,0 +1,48 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/memory_gate_engine.py",
+    "src/sora_sandbox/worldops/system.py",
+    "tests/test_desktop_narrative.py"
+  ],
+  "completed_at_utc": "2026-11-08T10:26:27Z",
+  "decision_ids": [
+    "adr-20261108-981305e0eb"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T10:13:48Z",
+      "summary": "Actual r8 installed read exposed shared episode candidate pending outside review. Reviewed same-chat narrative ownership. Fix atomic evidence/proposal/Gate admission, include WorldOps episodes in never-auto-commit types, and prove review queue resolution. r8 evidence retained; regenerate final installer after repair, do not claim r8 already contains it."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "Fixed actual installed pending-without-review discovery in r9: atomic Memory evidence/proposal/Gate; WorldOps episodes never auto-commit. Legacy completed effect migration stays explicit."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T10:26:27Z",
+      "summary": "Fixed actual installed pending-without-review discovery in r9: atomic Memory evidence/proposal/Gate; WorldOps episodes never auto-commit. Legacy completed effect migration stays explicit."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/narrative-client-20261108",
+    "src/sora_sandbox/memory_gate_engine.py",
+    "src/sora_sandbox/worldops/system.py",
+    "tests/test_desktop_narrative.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T10:13:48Z",
+  "status": "completed",
+  "summary": "Fixed actual installed pending-without-review discovery in r9: atomic Memory evidence/proposal/Gate; WorldOps episodes never auto-commit. Legacy completed effect migration stays explicit.",
+  "title": "Admit shared experience candidates to actual review",
+  "updated_at_utc": "2026-11-08T10:26:27Z",
+  "verification": [
+    "New2 gate tests;55 narrative/WorldOps pass; full684 pass",
+    "Final build and installed Gateway actual review queue exists; native r9 displays waiting review"
+  ],
+  "workstream_id": "ws-narrative-memory-gate-20261108"
+}

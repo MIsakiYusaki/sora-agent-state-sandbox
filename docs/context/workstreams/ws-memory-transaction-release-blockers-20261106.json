@@ -1,0 +1,48 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/memory-blockers-20261106",
+    "src/sora_sandbox/memory_quality_ops.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "tests/test_memory_commit_integrity.py",
+    "tests/test_release_gate_baseline.py"
+  ],
+  "completed_at_utc": "2026-11-06T13:47:45Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-06T13:39:32Z",
+      "summary": "Continue user-authorized client completion by closing audited A01/A02 correctness blockers through existing Memory/Quality owners. Preserve dirty code, verify with temporary databases/fault injection, no daily state or model calls."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-06T13:47:45Z",
+      "summary": "Closed scoped A01 local commit exception contamination and A02 missing-baseline formal release false-pass. Seven new tests cover batch fault/later write/retry/idempotency and baseline missing/candidate/matching/bootstrap paths; current full598 pass. External projection/review crash and remaining audit/client/install work stays open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-06T13:47:45Z",
+      "summary": "Closed scoped A01 local commit exception contamination and A02 missing-baseline formal release false-pass. Seven new tests cover batch fault/later write/retry/idempotency and baseline missing/candidate/matching/bootstrap paths; current full598 pass. External projection/review crash and remaining audit/client/install work stays open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/memory-blockers-20261106",
+    "src/sora_sandbox/memory_quality_ops.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "tests/test_memory_commit_integrity.py",
+    "tests/test_release_gate_baseline.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-06T13:39:32Z",
+  "status": "completed",
+  "summary": "Closed scoped A01 local commit exception contamination and A02 missing-baseline formal release false-pass. Seven new tests cover batch fault/later write/retry/idempotency and baseline missing/candidate/matching/bootstrap paths; current full598 pass. External projection/review crash and remaining audit/client/install work stays open.",
+  "title": "Close Memory commit contamination and missing-baseline release gates",
+  "updated_at_utc": "2026-11-06T13:47:45Z",
+  "verification": [
+    "before-final.xml4failed/3passed, after.xml7passed, python-full.xml598passed95.83s; temporary paths/fixtures, no models or daily data"
+  ],
+  "workstream_id": "ws-memory-transaction-release-blockers-20261106"
+}

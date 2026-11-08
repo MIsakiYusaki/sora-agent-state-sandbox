@@ -547,9 +547,10 @@ class WorldOpsSystemTests(unittest.TestCase):
         self.system.runtime.invite("event.test.shared")
         self.system.runtime.complete_task_manually("event.test.shared", choice_text="participate")
         result = self.system.process_outbox(limit=100)
-        candidates = self.system.memory_runtime.list_candidates(status="pending")
+        candidates = self.system.memory_runtime.list_candidates(status="needs_review")
         self.assertGreater(result["processed"], 0)
         self.assertTrue(any(item["type"] == "worldops_episode" for item in candidates))
+        self.assertTrue(self.system.memory_runtime.list_review_items(status="open"))
         memory.close()
         self.system.memory_runtime = None
 

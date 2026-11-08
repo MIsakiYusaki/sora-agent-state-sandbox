@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/memory_quality_ops.py"
+  ],
+  "completed_at_utc": "2026-10-28T11:51:17Z",
+  "decision_ids": [
+    "adr-desktop-quality-event-resolution-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-28T11:08:35Z",
+      "summary": "Complete F21 quality-event close path with explicit short-lived capability, owner-side revision check, transaction and audit; do not execute on daily events."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-28T11:51:17Z",
+      "summary": "Owner-side transactional revision-checked event resolution with atomic audit, rollback and idempotent receipts complete; desktop bridge and exact remaining installed scope recorded in Oct28 batch."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-28T11:51:17Z",
+      "summary": "Owner-side transactional revision-checked event resolution with atomic audit, rollback and idempotent receipts complete; desktop bridge and exact remaining installed scope recorded in Oct28 batch."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/memory_quality_ops.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-28T11:08:35Z",
+  "status": "completed",
+  "summary": "Owner-side transactional revision-checked event resolution with atomic audit, rollback and idempotent receipts complete; desktop bridge and exact remaining installed scope recorded in Oct28 batch.",
+  "title": "Owner-audited quality event resolution",
+  "updated_at_utc": "2026-10-28T11:51:17Z",
+  "verification": [
+    "Full Python 585 passed; final DTO/owner regression 27 passed; outputs/desktop-functional-repair-20261028/VERIFICATION.md"
+  ],
+  "workstream_id": "ws-quality-event-resolution-20261028"
+}

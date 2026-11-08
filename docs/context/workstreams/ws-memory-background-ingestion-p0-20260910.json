@@ -1,0 +1,83 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "README.md",
+    "docs/MEMORY_BACKGROUND_INGESTION.md",
+    "docs/PROJECT_CONTEXT.md",
+    "docs/START_HERE.md",
+    "docs/architecture/CONVERSATION_DATAFLOW.md",
+    "docs/context/PROJECT_LEDGER.md",
+    "docs/context/baselines/memory-background-ingestion-20260910.json",
+    "docs/context/catalog/artifacts.json",
+    "docs/context/catalog/open-items.json",
+    "docs/context/catalog/systems.json",
+    "docs/context/context-manifest.json",
+    "docs/context/decisions/adr-memory-background-ingestion-v1.json",
+    "src/sora_sandbox/conversation_runtime/post_turn.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "src/sora_sandbox/memory_committed_turn.py",
+    "src/sora_sandbox/memory_episode_ingestion.py",
+    "src/sora_sandbox/memory_extraction_delivery.py",
+    "src/sora_sandbox/memory_extraction_scheduler.py",
+    "src/sora_sandbox/memory_extractor_worker.py",
+    "src/sora_sandbox/memory_gate.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/memory_store.py",
+    "src/sora_sandbox/memory_system.py",
+    "src/sora_sandbox/runtime_stack.py",
+    "tests/test_memory_background.py"
+  ],
+  "completed_at_utc": "2026-09-10T13:35:15Z",
+  "decision_ids": [
+    "adr-memory-background-ingestion-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-09T16:49:30Z",
+      "summary": "Fix both memory integration P0s. Reviewed overlap only MemoryPostTurnConsumer.handle; coordination sent to ws-turn-observability-v2 owner; preserve dispatcher instrumentation and all unrelated edits."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-10T13:35:15Z",
+      "summary": "Closed both Memory P0s: managed real-provider extraction and atomic committed-turn identity. Preserved concurrent TurnEvidence code; only Memory consumer and outbox owner fallback touched in shared Runtime. Synced three Feishu documents and three existing boards; no commit/push."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-10T13:35:15Z",
+      "summary": "Closed both Memory P0s: managed real-provider extraction and atomic committed-turn identity. Preserved concurrent TurnEvidence code; only Memory consumer and outbox owner fallback touched in shared Runtime. Synced three Feishu documents and three existing boards; no commit/push."
+    }
+  ],
+  "owner": "codex:019f13d3-c01e-77f1-b61f-4bd430bb0edf",
+  "paths": [
+    "README.md",
+    "docs",
+    "src/sora_sandbox/conversation_runtime/post_turn.py",
+    "src/sora_sandbox/conversation_runtime/runtime.py",
+    "src/sora_sandbox/memory_committed_turn.py",
+    "src/sora_sandbox/memory_episode_ingestion.py",
+    "src/sora_sandbox/memory_extraction_delivery.py",
+    "src/sora_sandbox/memory_extraction_scheduler.py",
+    "src/sora_sandbox/memory_extractor_worker.py",
+    "src/sora_sandbox/memory_gate.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/memory_store.py",
+    "src/sora_sandbox/memory_system.py",
+    "src/sora_sandbox/runtime_stack.py",
+    "tests/test_memory_background.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-09T16:49:30Z",
+  "status": "completed",
+  "summary": "Closed both Memory P0s: managed real-provider extraction and atomic committed-turn identity. Preserved concurrent TurnEvidence code; only Memory consumer and outbox owner fallback touched in shared Runtime. Synced three Feishu documents and three existing boards; no commit/push.",
+  "title": "Managed memory extraction and committed-turn identity",
+  "updated_at_utc": "2026-09-10T13:35:15Z",
+  "verification": [
+    "Full Python: 462 passed, 0 failed/skipped, 75.35s; includes 24 background cases. Two known non-failing warnings: Starlette httpx deprecation and pytest cache ACL.",
+    "Real isolated deepseek-v4-flash smoke: completed in 10.45s, one attempt/evidence/needs_review candidate, source identity preserved; no Gate bypass.",
+    "Feishu readback: flow revision31 (12 blocks), architecture169 (10 blocks), nav264 (3 blocks); three board source/node readbacks; six historical boards and sequence board unchanged; architecture JPEG inspected.",
+    "project_context.py validate and scoped git diff --check passed. Source hashes and exact commands: docs/context/baselines/memory-background-ingestion-20260910.json. Lifecycle/index scheduling and installed release remain open."
+  ],
+  "workstream_id": "ws-memory-background-ingestion-p0-20260910"
+}

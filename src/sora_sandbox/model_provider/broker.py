@@ -8,6 +8,8 @@ from typing import Any, Iterator, Mapping
 
 import httpx
 
+from ..turn_observability import observe_http
+
 from .contracts import ProviderProfile
 from .endpoint_policy import EndpointPolicy, EndpointPolicyError
 from .errors import ModelProviderError, ProviderErrorCode
@@ -76,7 +78,9 @@ class CredentialedHTTPBroker:
         with self._secret_context(profile) as material:
             headers = self._headers(profile, material, accept="application/json")
             try:
-                with self.client.stream(
+                request_stage = ("provider.http.embeddings" if path == "/embeddings" else
+                                 "provider.http.rerank" if path == "/rerank" else "provider.http.json")
+                with observe_http(request_stage), self.client.stream(
                     "POST",
                     url,
                     content=encoded,
@@ -142,7 +146,7 @@ class CredentialedHTTPBroker:
         with self._secret_context(profile) as material:
             headers = self._headers(profile, material, accept="text/event-stream")
             try:
-                with self.client.stream(
+                with observe_http("provider.http.sse"), self.client.stream(
                     "POST",
                     url,
                     content=encoded,

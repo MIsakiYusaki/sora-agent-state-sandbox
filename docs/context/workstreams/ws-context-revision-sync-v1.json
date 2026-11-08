@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/context/context-manifest.json",
+    "docs/context/workstreams/ws-context-revision-sync-v1.json"
+  ],
+  "completed_at_utc": "2026-09-03T11:12:36Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-03T11:12:25Z",
+      "summary": "Synchronize the context manifest revision with the refreshed Project Sora snapshot after desktop visual validation."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-09-03T11:12:36Z",
+      "summary": "Synchronized the context manifest to Project Context revision 4."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-09-03T11:12:36Z",
+      "summary": "Synchronized the context manifest to Project Context revision 4."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/context/context-manifest.json",
+    "docs/context/workstreams/ws-context-revision-sync-v1.json"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-03T11:12:25Z",
+  "status": "completed",
+  "summary": "Synchronized the context manifest to Project Context revision 4.",
+  "title": "Context revision sync",
+  "updated_at_utc": "2026-09-03T11:12:36Z",
+  "verification": [
+    "Project context governance status check passes with manifest and snapshot revision 4"
+  ],
+  "workstream_id": "ws-context-revision-sync-v1"
+}

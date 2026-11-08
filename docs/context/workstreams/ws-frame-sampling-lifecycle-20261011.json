@@ -1,0 +1,44 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/App.tsx"
+  ],
+  "completed_at_utc": "2026-10-15T11:43:32Z",
+  "decision_ids": [
+    "adr-typed-context-frame-projection-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-10-11T04:20:07Z",
+      "summary": "Stop frame sampling when Developer Mode is disabled. New frame capture defaults off and is explicitly enabled for five minutes through the owner/main-window broker; no business state changes."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-15T11:43:32Z",
+      "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-15T11:43:32Z",
+      "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "apps/desktop/src/App.test.tsx",
+    "apps/desktop/src/App.tsx"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-10-11T04:20:07Z",
+  "status": "completed",
+  "summary": "Scoped implementation delivered as unsigned installed frame candidate; no full production or new native frame E2E acceptance claim. User requested finite handoff, no automatic feature expansion.",
+  "title": "Explicit bounded frame sampling lifecycle",
+  "updated_at_utc": "2026-10-15T11:43:32Z",
+  "verification": [
+    "outputs/context-frames-20261011/DELIVERY.md: existing Python557/frontend56 reports; fresh Host7; package and installed no-model smoke; reviewed frame layout fixtures; upgrade metadata preserved. Native frame sampling/real-model/restart and full release gates remain explicitly open."
+  ],
+  "workstream_id": "ws-frame-sampling-lifecycle-20261011"
+}

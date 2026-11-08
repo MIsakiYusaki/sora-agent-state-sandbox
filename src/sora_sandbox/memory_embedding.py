@@ -11,6 +11,7 @@ from typing import Protocol
 
 from .memory_index_fts import search_tokens
 from .memory_schema import JsonDict
+from .turn_observability import observe_http
 
 
 class EmbeddingProvider(Protocol):
@@ -79,7 +80,7 @@ class OpenAICompatibleEmbeddingProvider:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with observe_http("provider.http.compat_embeddings"), urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 body = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:  # pragma: no cover - network/provider path.
             detail = exc.read().decode("utf-8", errors="replace")

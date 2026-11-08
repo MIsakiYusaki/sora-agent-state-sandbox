@@ -1,0 +1,42 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "docs/context/decisions/adr-midturn-gateway-recovery-v1.json"
+  ],
+  "completed_at_utc": "2026-10-10T12:06:52Z",
+  "decision_ids": [
+    "adr-midturn-gateway-recovery-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-09-29T11:31:13Z",
+      "summary": "Record lease-fenced periodic stale-turn convergence and client uncertainty handling after a supervised sidecar crash."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-10-10T12:06:52Z",
+      "summary": "Accepted mid-turn recovery ADR recorded and implemented with bounded installed evidence."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-10-10T12:06:52Z",
+      "summary": "Accepted mid-turn recovery ADR recorded and implemented with bounded installed evidence."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "docs/context/decisions/adr-midturn-gateway-recovery-v1.json"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-09-29T11:31:13Z",
+  "status": "completed",
+  "summary": "Accepted mid-turn recovery ADR recorded and implemented with bounded installed evidence.",
+  "title": "Mid-turn recovery decision record",
+  "updated_at_utc": "2026-10-10T12:06:52Z",
+  "verification": [
+    "Accepted ADR, final candidate installation and fault sample d documented in ACCEPTANCE.md."
+  ],
+  "workstream_id": "ws-midturn-recovery-decision-20260929"
+}

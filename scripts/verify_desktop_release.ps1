@@ -44,6 +44,12 @@ if ($Installer.Length -lt 1MB) {
     throw "Desktop installer is unexpectedly small: $($Installer.Length) bytes"
 }
 
+$PythonExecutable = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+& $PythonExecutable (Join-Path $PSScriptRoot "verify_packaged_gateway.py") --gateway $BinaryPath
+if ($LASTEXITCODE -ne 0) {
+    throw "Packaged Gateway startup/authentication/shutdown verification failed"
+}
+
 Write-Host "Desktop release verified"
 Write-Host "  sidecar: $($Binary.Name) ($($Binary.Length) bytes)"
 Write-Host "  installer: $($Installer.Name) ($($Installer.Length) bytes)"

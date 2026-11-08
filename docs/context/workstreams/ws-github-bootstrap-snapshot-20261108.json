@@ -1,0 +1,40 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "src/sora_sandbox/app.py"
+  ],
+  "completed_at_utc": "2026-11-08T14:53:11Z",
+  "decision_ids": [],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T14:52:54Z",
+      "summary": "Git archival impact check found app.py lacked a completed changed workstream. Reviewed staged five-line additive migrate_legacy default-true switch: allow_unconfigured plus migrate_legacy false returns configured system placeholder without legacy credential migration; desktop CLI already selects this explicitly. This is a record of existing snapshot, no new implementation and no closure of old active privacy/provider workflows. Overlap reviewed for archival only."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T14:53:11Z",
+      "summary": "Recorded and verified the existing bootstrap migration switch for the user-authorized source archival; no implementation changes or broad privacy-release completion claim."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T14:53:11Z",
+      "summary": "Recorded and verified the existing bootstrap migration switch for the user-authorized source archival; no implementation changes or broad privacy-release completion claim."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "src/sora_sandbox/app.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T14:52:54Z",
+  "status": "completed",
+  "summary": "Recorded and verified the existing bootstrap migration switch for the user-authorized source archival; no implementation changes or broad privacy-release completion claim.",
+  "title": "Archive existing desktop bootstrap credential-isolation switch",
+  "updated_at_utc": "2026-11-08T14:53:11Z",
+  "verification": [
+    "Inspected staged app.py and CLI caller; 15 tests passed via unittest tests.test_app tests.test_desktop_space_provider_isolation tests.test_desktop_privacy."
+  ],
+  "workstream_id": "ws-github-bootstrap-snapshot-20261108"
+}

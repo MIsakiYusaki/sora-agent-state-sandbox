@@ -1,0 +1,70 @@
+{
+  "base_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "changed_paths": [
+    "outputs/memory-governance-20261108",
+    "src/sora_sandbox/memory_canonical_store.py",
+    "src/sora_sandbox/memory_change_delivery.py",
+    "src/sora_sandbox/memory_committed_turn.py",
+    "src/sora_sandbox/memory_extraction_delivery.py",
+    "src/sora_sandbox/memory_gate_pipeline.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/memory_store.py",
+    "src/sora_sandbox/memory_system.py",
+    "src/sora_sandbox/memory_transactions.py",
+    "src/sora_sandbox/runtime_stack.py",
+    "tests/test_memory_governance_consistency.py"
+  ],
+  "completed_at_utc": "2026-11-08T07:52:44Z",
+  "decision_ids": [
+    "adr-memory-committed-change-delivery-v1"
+  ],
+  "events": [
+    {
+      "action": "begin",
+      "at_utc": "2026-11-08T06:59:34Z",
+      "summary": "Authorized first P0 batch: reproduce review transaction/side-effect failures, preserve existing dirty code, make review decisions atomic and deliver derived effects only from committed durable queues with recoverable listener delivery. No daily state or model requests. Existing active streams claim Gateway/UI or runtime composition only through broad prior scopes; any overlap will be explicitly reviewed before expansion."
+    },
+    {
+      "action": "update",
+      "at_utc": "2026-11-08T07:18:53Z",
+      "summary": "Initial four failures reproduced and fixed. Current full Python635 passed112.08s,16new failure/restart/idempotence cases pass. Listener receipt terminology refined to delivered (not domain applied); rerun before packaging final. Nested review decisions/audit atomic, external delivery postcommit, managed retry and owner-registered startup recovery wired. No daily data or model calls."
+    },
+    {
+      "action": "active",
+      "at_utc": "2026-11-08T07:52:44Z",
+      "summary": "Delivered first P0 Memory governance batch: nested atomic review/exact audit and canonical mutations, durable post-commit index/projection/listener delivery, registered-owner recovery, managed retries and stale-source fences. Final frozen source full635 passed; matching r6 built, installed and integrity checked; native approve/reject/defer and real Windows vault synthetic-owner deletion/neighbour preservation passed. No daily data, model requests or cloud writes. Cross-database delivery remains at least once; full external failure and release gates remain open."
+    },
+    {
+      "action": "finish",
+      "at_utc": "2026-11-08T07:52:44Z",
+      "summary": "Delivered first P0 Memory governance batch: nested atomic review/exact audit and canonical mutations, durable post-commit index/projection/listener delivery, registered-owner recovery, managed retries and stale-source fences. Final frozen source full635 passed; matching r6 built, installed and integrity checked; native approve/reject/defer and real Windows vault synthetic-owner deletion/neighbour preservation passed. No daily data, model requests or cloud writes. Cross-database delivery remains at least once; full external failure and release gates remain open."
+    }
+  ],
+  "owner": "codex:01a04e0f-7507-7f20-b909-d8d3aecd1852",
+  "paths": [
+    "outputs/memory-governance-20261108",
+    "src/sora_sandbox/memory_canonical_store.py",
+    "src/sora_sandbox/memory_change_delivery.py",
+    "src/sora_sandbox/memory_committed_turn.py",
+    "src/sora_sandbox/memory_extraction_delivery.py",
+    "src/sora_sandbox/memory_gate_pipeline.py",
+    "src/sora_sandbox/memory_runtime.py",
+    "src/sora_sandbox/memory_store.py",
+    "src/sora_sandbox/memory_system.py",
+    "src/sora_sandbox/memory_transactions.py",
+    "src/sora_sandbox/runtime_stack.py",
+    "tests/test_memory_governance_consistency.py"
+  ],
+  "result_head": "37756f3e3d20d6ff2464f039ed7616a3f12c2431",
+  "schema_version": "ProjectContextWorkstream.v1",
+  "started_at_utc": "2026-11-08T06:59:34Z",
+  "status": "completed",
+  "summary": "Delivered first P0 Memory governance batch: nested atomic review/exact audit and canonical mutations, durable post-commit index/projection/listener delivery, registered-owner recovery, managed retries and stale-source fences. Final frozen source full635 passed; matching r6 built, installed and integrity checked; native approve/reject/defer and real Windows vault synthetic-owner deletion/neighbour preservation passed. No daily data, model requests or cloud writes. Cross-database delivery remains at least once; full external failure and release gates remain open.",
+  "title": "Atomic Memory review and committed change delivery",
+  "updated_at_utc": "2026-11-08T07:52:44Z",
+  "verification": [
+    "outputs/memory-governance-20261108/python-full-final.xml635; expanded-final.xml16; before.xml4fail; initial full failures retained",
+    "outputs/memory-governance-20261108/VERIFICATION.md; python-full-sealed.xml635; expanded-final.xml16; native-verification.json passed; windows-vault-verification.json passed; release-check-r6.log; install-receipt-r6.json exit0; installer SHA256 0cc8a44b021947817abaef54b4c74ecbd44443e731cb156dde769614789969f5"
+  ],
+  "workstream_id": "ws-memory-governance-consistency-20261108"
+}
