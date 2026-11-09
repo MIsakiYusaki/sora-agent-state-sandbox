@@ -1,6 +1,7 @@
 # Sora Agent State Sandbox
 
 Project Sora 是 Windows-first、local-first 的文字陪伴产品。本仓库已包含正式 Tauri/React 桌面、可信 Host、Conversation Gateway/Runtime、Memory 十模块及独立 Persona/Affect/Relationship/WorldOps 系统，不再只是下方历史 REPL 原型。
+项目介绍：https://qcnqo2xrtj31.feishu.cn/docx/TfKjdyPKToJA2axzv1kcMS5FnOd
 
 ## 当前工程入口（2026-11-08）
 
